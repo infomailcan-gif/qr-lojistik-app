@@ -3,15 +3,15 @@
 ## 📌 Supabase Bağlantı Bilgileri
 
 ### Proje Detayları
-- **Proje Adı**: infomailcan@gmail.com's Project
-- **Proje ID**: vrjzrveomregcfvusekz
-- **Region**: eu-north-1 (Europe - North EU)
-- **Durum**: Aktif hale geliyor...
+- **Proje Adı**: QR Lojistik (YENİ TEMİZ PROJE!)
+- **Proje ID**: wmitteaxogmjnpzxdsce
+- **Region**: eu-central-1 (Frankfurt - Germany)
+- **Durum**: ✅ Aktif ve Hazır!
 
 ### API Bilgileri
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://vrjzrveomregcfvusekz.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_h9xfB46sbhYBEseBKUkTsA_gpzR2D-B
+NEXT_PUBLIC_SUPABASE_URL=https://wmitteaxogmjnpzxdsce.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_VKnw-acnE_qh8gmEs0zB5Q_Ybthv8O-
 ```
 
 ## 📝 Local Development İçin
@@ -21,8 +21,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_h9xfB46sbhYBEseBKUkTsA_gpzR2D-B
 
 ```bash
 # Windows PowerShell
-echo "NEXT_PUBLIC_SUPABASE_URL=https://vrjzrveomregcfvusekz.supabase.co" > .env.local
-echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_h9xfB46sbhYBEseBKUkTsA_gpzR2D-B" >> .env.local
+echo "NEXT_PUBLIC_SUPABASE_URL=https://wmitteaxogmjnpzxdsce.supabase.co" > .env.local
+echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_VKnw-acnE_qh8gmEs0zB5Q_Ybthv8O-" >> .env.local
 
 # veya manuel olarak .env.local dosyası oluşturup içine yapıştırın
 ```
@@ -40,8 +40,8 @@ Vercel Dashboard'da şu environment variables'ları ekleyin:
 
 | Variable Name | Value |
 |--------------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://vrjzrveomregcfvusekz.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_h9xfB46sbhYBEseBKUkTsA_gpzR2D-B` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://wmitteaxogmjnpzxdsce.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_VKnw-acnE_qh8gmEs0zB5Q_Ybthv8O-` |
 
 ### Adım 2: Deploy
 ```bash
