@@ -1,0 +1,865 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft,
+  Truck,
+  Package,
+  Box,
+  Plus,
+  X,
+  Calendar,
+  User,
+  Search,
+  AlertCircle,
+  Download,
+  QrCode,
+  FileText,
+  Trash2,
+  Edit,
+  Layers,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
+import { shipmentRepository } from "@/lib/repositories/shipment";
+import { palletRepository } from "@/lib/repositories/pallet";
+import { auth } from "@/lib/auth";
+import type { ShipmentWithPallets } from "@/lib/types/shipment";
+import type { PalletWithBoxCount } from "@/lib/types/pallet";
+import QRCode from "qrcode";
+import { jsPDF } from "jspdf";
+import Image from "next/image";
+
+export default function ShipmentDetailPage({
+  params,
+}: {
+  params: { code: string };
+}) {
+  const router = useRouter();
+  const [shipment, setShipment] = useState<ShipmentWithPallets | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [addPalletOpen, setAddPalletOpen] = useState(false);
+  const [addMethod, setAddMethod] = useState<"list" | "code">("list");
+  const [availablePallets, setAvailablePallets] = useState<PalletWithBoxCount[]>([]);
+  const [palletCode, setPalletCode] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  
+  // Edit/Delete states
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editNameOrPlate, setEditNameOrPlate] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    loadShipment();
+    loadAvailablePallets();
+  }, [params.code]);
+
+  useEffect(() => {
+    if (shipment) {
+      generateQRCode();
+    }
+  }, [shipment]);
+
+  const loadShipment = async () => {
+    try {
+      const data = await shipmentRepository.getWithPallets(params.code);
+      setShipment(data);
+      if (data) {
+        setEditNameOrPlate(data.name_or_plate);
+      }
+    } catch (error) {
+      console.error("Error loading shipment:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAvailablePallets = async () => {
+    try {
+      // Get user session to filter pallets
+      const session = await auth.getSession();
+      if (!session) return;
+      
+      // Only show user's own pallets
+      const pallets = await palletRepository.getAvailableForShipment(session.user.name);
+      setAvailablePallets(pallets);
+    } catch (error) {
+      console.error("Error loading available pallets:", error);
+    }
+  };
+
+  const generateQRCode = async () => {
+    if (!shipment) return;
+    try {
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const qrUrl = `${baseUrl}/q/shipment/${shipment.code}`;
+      const dataUrl = await QRCode.toDataURL(qrUrl, {
+        width: 600,
+        margin: 2,
+        color: {
+          dark: "#9333ea",
+          light: "#ffffff",
+        },
+      });
+      setQrCodeUrl(dataUrl);
+    } catch (error) {
+      console.error("QR code generation error:", error);
+    }
+  };
+
+  const downloadQRCode = () => {
+    if (!qrCodeUrl || !shipment) return;
+    
+    // Create canvas with QR code and name
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = new Image();
+    img.onload = () => {
+      const qrSize = 600;
+      const textHeight = 80;
+      
+      canvas.width = qrSize;
+      canvas.height = qrSize + textHeight;
+      
+      // White background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw QR code
+      ctx.drawImage(img, 0, 0, qrSize, qrSize);
+      
+      // Draw name below QR
+      ctx.fillStyle = "#9333ea";
+      ctx.font = "bold 32px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      
+      const shipmentName = shipment.name_or_plate;
+      ctx.fillText(shipmentName, qrSize / 2, qrSize + textHeight / 2);
+      
+      // Download
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `${shipment.code}-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "QR Kod İndirildi",
+        description: `${shipment.code} QR kodu indirildi`,
+      });
+    };
+    img.src = qrCodeUrl;
+  };
+
+  const downloadPalletListPDF = () => {
+    if (!shipment) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFillColor(147, 51, 234);
+    doc.rect(0, 0, pageWidth, 35, "F");
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("SEVKIYAT RAPORU", 15, 20);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${shipment.name_or_plate} - ${shipment.code}`, 15, 30);
+    
+    // Shipment Info
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Sevkiyat Bilgileri", 15, 50);
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Plaka/Ad: ${shipment.name_or_plate}`, 15, 60);
+    doc.text(`Kod: ${shipment.code}`, 15, 67);
+    doc.text(`Oluşturan: ${shipment.created_by}`, 15, 74);
+    doc.text(`Tarih: ${new Date(shipment.created_at).toLocaleDateString("tr-TR")}`, 15, 81);
+    
+    const totalBoxes = shipment.pallets.reduce((sum, p) => sum + p.box_count, 0);
+    doc.text(`Toplam Palet: ${shipment.pallets.length}`, 15, 88);
+    doc.text(`Toplam Koli: ${totalBoxes}`, 15, 95);
+    
+    // Divider
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 102, pageWidth - 15, 102);
+    
+    // Pallets Header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("Palet Listesi", 15, 115);
+    
+    let yPos = 125;
+    
+    if (shipment.pallets.length === 0) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      doc.text("Bu sevkiyatta henüz palet yok.", 15, yPos);
+    } else {
+      shipment.pallets.forEach((pallet, index) => {
+        if (yPos > 260) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        // Pallet box
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(15, yPos - 5, pageWidth - 30, 25, 3, 3, "F");
+        
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${index + 1}. ${pallet.name}`, 20, yPos + 5);
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Kod: ${pallet.code}`, 20, yPos + 13);
+        doc.text(`${pallet.box_count} koli`, pageWidth - 50, yPos + 9);
+        
+        yPos += 32;
+        
+        // Boxes in pallet
+        if (pallet.boxes && pallet.boxes.length > 0) {
+          pallet.boxes.forEach((box) => {
+            if (yPos > 270) {
+              doc.addPage();
+              yPos = 20;
+            }
+            
+            doc.setFontSize(9);
+            doc.setTextColor(80, 80, 80);
+            doc.text(`   • ${box.name} (${box.code}) - ${box.department_name}`, 25, yPos);
+            yPos += 7;
+          });
+          yPos += 5;
+        }
+      });
+    }
+    
+    // Footer
+    const footerY = doc.internal.pageSize.getHeight() - 15;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(150, 150, 150);
+    doc.text("Powered by Canberk Şıklı", pageWidth / 2, footerY, { align: "center" });
+    
+    doc.save(`${shipment.code}-palet-listesi.pdf`);
+    toast({
+      title: "PDF İndirildi",
+      description: `Palet listesi indirildi`,
+    });
+  };
+
+  const handleAddPallet = async (code: string) => {
+    setAdding(true);
+    try {
+      // Get user session to check ownership
+      const session = await auth.getSession();
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+
+      const pallet = await palletRepository.getByCode(code);
+      if (!pallet) {
+        toast({
+          title: "Hata",
+          description: `${code} kodlu palet bulunamadı`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if pallet belongs to user
+      if (pallet.created_by !== session.user.name) {
+        toast({
+          title: "Yetki Hatası",
+          description: "Sadece kendi oluşturduğunuz paletleri ekleyebilirsiniz",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (pallet.shipment_code && pallet.shipment_code !== params.code) {
+        toast({
+          title: "Palet Zaten Başka Sevkiyatta",
+          description: `Bu palet ${pallet.shipment_code} sevkiyatına bağlı`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await palletRepository.setShipment(code, params.code);
+
+      toast({
+        title: "Palet Eklendi",
+        description: `${code} kodlu palet sevkiyata eklendi`,
+      });
+
+      setAddPalletOpen(false);
+      setPalletCode("");
+      await loadShipment();
+      await loadAvailablePallets();
+    } catch (error) {
+      console.error("Error adding pallet:", error);
+      toast({
+        title: "Hata",
+        description: "Palet eklenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRemovePallet = async (code: string) => {
+    try {
+      await palletRepository.clearShipment(code);
+      toast({
+        title: "Palet Çıkarıldı",
+        description: `${code} kodlu palet sevkiyattan çıkarıldı`,
+      });
+      await loadShipment();
+      await loadAvailablePallets();
+    } catch (error) {
+      console.error("Error removing pallet:", error);
+      toast({
+        title: "Hata",
+        description: "Palet çıkarılırken bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditShipment = async () => {
+    if (!editNameOrPlate.trim()) {
+      toast({
+        title: "Hata",
+        description: "Plaka/ad boş olamaz",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsEditing(true);
+    try {
+      await shipmentRepository.update(params.code, {
+        name_or_plate: editNameOrPlate.trim(),
+      });
+      toast({
+        title: "Sevkiyat Güncellendi",
+        description: "Sevkiyat bilgileri başarıyla güncellendi",
+      });
+      setEditDialogOpen(false);
+      await loadShipment();
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Sevkiyat güncellenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const handleDeleteShipment = async () => {
+    setIsDeleting(true);
+    try {
+      // First remove all pallets from this shipment
+      if (shipment) {
+        for (const pallet of shipment.pallets) {
+          await palletRepository.clearShipment(pallet.code);
+        }
+      }
+      
+      await shipmentRepository.delete(params.code);
+      toast({
+        title: "Sevkiyat Silindi",
+        description: "Sevkiyat başarıyla silindi",
+      });
+      router.push("/app/shipments");
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Sevkiyat silinirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat("tr-TR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!shipment) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Sevkiyat Bulunamadı</h2>
+            <p className="text-muted-foreground mb-4">
+              {params.code} kodlu sevkiyat mevcut değil
+            </p>
+            <Button onClick={() => router.push("/app/shipments")}>
+              Sevkiyatlar Sayfasına Dön
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const totalBoxes = shipment.pallets.reduce((sum, p) => sum + p.box_count, 0);
+
+  return (
+    <div className="min-h-screen pb-24">
+      {/* Header */}
+      <div className="bg-background/50 backdrop-blur-sm border-b border-border sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <Truck className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold truncate">{shipment.name_or_plate}</h1>
+                <p className="text-sm text-muted-foreground font-mono">{shipment.code}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="icon" onClick={() => setEditDialogOpen(true)}>
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* QR & Download Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="border-purple-500/20">
+            <CardContent className="p-5">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                {qrCodeUrl && (
+                  <div className="p-3 bg-white rounded-xl shadow-lg text-center">
+                    <img src={qrCodeUrl} alt="QR Code" className="w-32 h-32" />
+                    <p className="mt-2 text-sm font-bold text-purple-700">{shipment.name_or_plate}</p>
+                  </div>
+                )}
+                <div className="flex-1 space-y-3 w-full">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <QrCode className="w-5 h-5 text-purple-500" />
+                    Sevkiyat QR & Dökümanlar
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Button
+                      onClick={downloadQRCode}
+                      disabled={!qrCodeUrl}
+                      className="h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      QR Kod İndir
+                    </Button>
+                    <Button
+                      onClick={downloadPalletListPDF}
+                      variant="outline"
+                      className="h-12"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Palet Listesi PDF
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    QR Link: /q/shipment/{shipment.code}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Shipment Meta */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card>
+            <CardContent className="p-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-accent/50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs mb-2">
+                    <Layers className="w-4 h-4" />
+                    <span>Paletler</span>
+                  </div>
+                  <p className="text-3xl font-bold">{shipment.pallets.length}</p>
+                </div>
+                <div className="bg-accent/50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs mb-2">
+                    <Box className="w-4 h-4" />
+                    <span>Koliler</span>
+                  </div>
+                  <p className="text-3xl font-bold">{totalBoxes}</p>
+                </div>
+                <div className="col-span-2 bg-accent/50 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <User className="w-3.5 h-3.5" />
+                    <span>{shipment.created_by}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>{formatDate(shipment.created_at)}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Add Pallet Panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-purple-500" />
+                  Sevkiyata Palet Ekle
+                </h2>
+              </div>
+              <Button
+                onClick={() => setAddPalletOpen(true)}
+                className="w-full h-12 bg-purple-500/10 hover:bg-purple-500/20 border-2 border-dashed border-purple-500/50 text-purple-600"
+                variant="ghost"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Palet Ekle
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Pallets List */}
+        {shipment.pallets.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card>
+              <CardContent className="p-5">
+                <h2 className="text-lg font-semibold mb-4">
+                  Sevkiyattaki Paletler ({shipment.pallets.length})
+                </h2>
+                <div className="space-y-3">
+                  {shipment.pallets.map((pallet) => (
+                    <motion.div
+                      key={pallet.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="bg-accent/50 rounded-lg p-4 border border-border hover:border-purple-500/50 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div
+                          className="flex-1 min-w-0 cursor-pointer"
+                          onClick={() => router.push(`/app/pallets/${pallet.code}`)}
+                        >
+                          <h3 className="font-semibold hover:text-purple-500 transition-colors">
+                            {pallet.name}
+                          </h3>
+                          <p className="text-sm text-muted-foreground font-mono">{pallet.code}</p>
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            <Box className="w-3 h-3 mr-1" />
+                            {pallet.box_count} koli
+                          </Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemovePallet(pallet.code)}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      {pallet.boxes.length > 0 && (
+                        <div className="space-y-2 mt-3 pt-3 border-t border-border">
+                          {pallet.boxes.map((box) => (
+                            <div
+                              key={box.id}
+                              className="flex items-center gap-3 p-3 rounded-lg bg-background/50 cursor-pointer hover:bg-background transition-colors"
+                              onClick={() => router.push(`/app/boxes/${box.code}`)}
+                            >
+                              {/* Box Photo */}
+                              {box.photo_url ? (
+                                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-border">
+                                  <img 
+                                    src={box.photo_url} 
+                                    alt={box.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+                                  <Box className="w-5 h-5 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{box.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{box.code}</p>
+                              </div>
+                              <Badge variant="outline" className="text-xs">{box.department_name}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {shipment.pallets.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Layers className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  Bu sevkiyatta henüz palet yok. Yukarıdaki butonu kullanarak palet ekleyin.
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Add Pallet Dialog */}
+      <Dialog open={addPalletOpen} onOpenChange={setAddPalletOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-purple-500" />
+              Sevkiyata Palet Ekle
+            </DialogTitle>
+            <DialogDescription>
+              Sevkiyata eklemek istediğiniz paleti listeden seçin veya palet kodunu girin
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Method Tabs */}
+          <div className="flex gap-2 border-b pb-3">
+            <Button
+              variant={addMethod === "list" ? "default" : "outline"}
+              onClick={() => setAddMethod("list")}
+              size="sm"
+            >
+              Listeden Seç
+            </Button>
+            <Button
+              variant={addMethod === "code" ? "default" : "outline"}
+              onClick={() => setAddMethod("code")}
+              size="sm"
+            >
+              Kod ile Ekle
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            <AnimatePresence mode="wait">
+              {addMethod === "list" ? (
+                <motion.div
+                  key="list"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="space-y-2"
+                >
+                  {availablePallets.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Layers className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Eklenebilecek palet bulunamadı</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Tüm paletler bir sevkiyata bağlı
+                      </p>
+                    </div>
+                  ) : (
+                    availablePallets.map((pallet) => (
+                      <motion.div
+                        key={pallet.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-accent/50 rounded-lg p-4 border border-border hover:border-purple-500/50 transition-all cursor-pointer"
+                        onClick={() => handleAddPallet(pallet.code)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold">{pallet.name}</h3>
+                            <p className="text-sm text-muted-foreground font-mono">{pallet.code}</p>
+                          </div>
+                          <Badge variant="outline">
+                            <Box className="w-3 h-3 mr-1" />
+                            {pallet.box_count} koli
+                          </Badge>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="code"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4 py-4"
+                >
+                  <div>
+                    <Input
+                      placeholder="P-XXXX"
+                      value={palletCode}
+                      onChange={(e) => setPalletCode(e.target.value.toUpperCase())}
+                      className="h-12 text-lg font-mono"
+                      disabled={adding}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Eklemek istediğiniz paletin kodunu girin (örn: P-AB12)
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => handleAddPallet(palletCode)}
+                    disabled={!palletCode.trim() || adding}
+                    className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  >
+                    {adding ? "Ekleniyor..." : "Palet Ekle"}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sevkiyatı Düzenle</DialogTitle>
+            <DialogDescription>
+              Sevkiyat bilgilerini güncelleyin
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Plaka veya Sevkiyat Adı</label>
+              <Input
+                value={editNameOrPlate}
+                onChange={(e) => setEditNameOrPlate(e.target.value)}
+                placeholder="Örn: 16 ABC 123"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button onClick={handleEditShipment} disabled={isEditing}>
+              {isEditing ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Sevkiyatı Sil</DialogTitle>
+            <DialogDescription>
+              Bu sevkiyatı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+              Sevkiyattaki paletler sevkiyattan çıkarılacak ama silinmeyecek.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteShipment} disabled={isDeleting}>
+              {isDeleting ? "Siliniyor..." : "Sil"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
