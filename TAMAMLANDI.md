@@ -233,3 +233,4 @@ Tüm kriterler karşılandı:
 **Teknoloji**: Next.js + TypeScript + TailwindCSS + Framer Motion  
 **Durum**: ✅ Üretime Hazır İskelet
 
+

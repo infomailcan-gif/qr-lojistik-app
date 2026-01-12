@@ -35,6 +35,7 @@ export default function BoxesPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [currentUserName, setCurrentUserName] = useState("");
   const [userDepartmentId, setUserDepartmentId] = useState("");
+  const [userRole, setUserRole] = useState<string>("user");
 
   const [selectedBox, setSelectedBox] = useState<BoxWithDepartment | null>(null);
   const [actionModalOpen, setActionModalOpen] = useState(false);
@@ -59,6 +60,7 @@ export default function BoxesPage() {
       
       setCurrentUserName(session.user.name);
       setUserDepartmentId(session.user.department_id);
+      setUserRole(session.user.role);
       
       const [allBoxes, deps] = await Promise.all([
         boxRepository.getAll({ createdBy: session.user.name }),
@@ -67,6 +69,11 @@ export default function BoxesPage() {
       
       setBoxes(allBoxes);
       setDepartments(deps);
+      
+      // Normal kullanıcı için departman filtresini kendi departmanına sabitler
+      if (session.user.role === "user") {
+        setSelectedDepartment(session.user.department_id);
+      }
     } catch (error) {
       toast({
         title: "Hata",
@@ -292,26 +299,35 @@ export default function BoxesPage() {
           ))}
         </div>
 
-        {/* Department Filter */}
+        {/* Department Filter - Only visible for managers and super_admin */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-100">
-              <Filter className="h-4 w-4 text-blue-600" />
+          {userRole !== "user" ? (
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-blue-100">
+                <Filter className="h-4 w-4 text-blue-600" />
+              </div>
+              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                <SelectTrigger className="w-full sm:w-[200px] border-slate-200">
+                  <SelectValue placeholder="Departman" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Departmanlar</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-              <SelectTrigger className="w-full sm:w-[200px] border-slate-200">
-                <SelectValue placeholder="Departman" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tüm Departmanlar</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-50 rounded-lg border border-cyan-200">
+              <Filter className="h-4 w-4 text-cyan-600" />
+              <span className="text-sm text-cyan-700 font-medium">
+                {departments.find(d => d.id === userDepartmentId)?.name || "Departman"}
+              </span>
+            </div>
+          )}
           
           <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
             <Boxes className="h-4 w-4 text-blue-600" />

@@ -197,3 +197,4 @@ qr-lojistik/
 **Pattern**: Feature-based organization
 **Style**: Modern Next.js App Router conventions
 
+

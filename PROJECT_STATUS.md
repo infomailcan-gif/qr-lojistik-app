@@ -205,3 +205,4 @@ To continue development:
 **Developer**: Canberk Şıklı
 **Next Phase**: Database & Features Implementation
 
+

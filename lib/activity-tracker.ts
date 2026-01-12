@@ -48,7 +48,7 @@ export const activityLabels: Record<ActivityAction, string> = {
   viewing: "görüntülüyor",
 };
 
-class ActivityTracker {
+export class ActivityTracker {
   private getActivities(): Activity[] {
     if (typeof window === "undefined") return [];
     const stored = localStorage.getItem(ACTIVITY_STORAGE_KEY);
@@ -165,6 +165,7 @@ class ActivityTracker {
         "qr_lojistik_box_lines",
         "qr_lojistik_pallets",
         "qr_lojistik_shipments",
+        "qr_logistics_shipments", // Shipment repository farklı key kullanıyor
         "qr_lojistik_activities",
       ];
       keysToRemove.forEach(key => localStorage.removeItem(key));

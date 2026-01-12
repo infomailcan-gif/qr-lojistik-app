@@ -368,20 +368,21 @@ export default function ManagerDashboard() {
                 </motion.div>
                 <span className="text-white">Canlı Aktivite</span>
                 <div className="ml-auto flex items-center gap-2">
-                  {activities.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm("Tüm aktivite geçmişini silmek istediğinize emin misiniz?")) {
                         activityTracker.clear();
                         loadActivities();
-                      }}
-                      className="h-7 px-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Temizle
-                    </Button>
-                  )}
+                      }
+                    }}
+                    disabled={activities.length === 0}
+                    className="h-8 px-3 text-xs bg-rose-500/20 text-rose-300 hover:text-rose-200 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Temizle
+                  </Button>
                   <Badge variant="secondary" className="bg-cyan-500/20 text-cyan-300 border-0 flex items-center gap-1">
                     <Radio className="h-3 w-3" />
                     5sn

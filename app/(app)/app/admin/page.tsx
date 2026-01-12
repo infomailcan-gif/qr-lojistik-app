@@ -19,6 +19,8 @@ import {
   Download,
   FileText,
   QrCode,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -37,10 +39,14 @@ import type { Department } from "@/lib/types/department";
 import { AdminKpiCard } from "@/components/admin/AdminKpiCard";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { EntityTable } from "@/components/admin/EntityTable";
+import { ActivityTracker } from "@/lib/activity-tracker";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
   // Raw data
@@ -71,6 +77,17 @@ export default function AdminPage() {
     checkManagerAccess();
   }, []);
 
+  // Her 10 saniyede bir verileri otomatik yenile
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!loading) {
+        loadData();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const checkManagerAccess = async () => {
     const session = await auth.getSession();
     if (!session || (session.user.role !== "manager" && session.user.role !== "super_admin")) {
@@ -98,7 +115,13 @@ export default function AdminPage() {
       console.error("Error loading data:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
   // Derived data for Overview
@@ -392,21 +415,53 @@ export default function AdminPage() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-3"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
-        <motion.div
-          className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25"
-          whileHover={{ scale: 1.05, rotate: 5 }}
-        >
-          <ShieldCheck className="h-6 w-6 text-white" />
-        </motion.div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent">
-            Raporlar
-          </h1>
-          <p className="text-sm text-slate-500">
-            Tüm sistem verileri ve detaylı raporlar
-          </p>
+        <div className="flex items-center gap-3">
+          <motion.div
+            className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25"
+            whileHover={{ scale: 1.05, rotate: 5 }}
+          >
+            <ShieldCheck className="h-6 w-6 text-white" />
+          </motion.div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent">
+              Raporlar
+            </h1>
+            <p className="text-sm text-slate-500">
+              Tüm sistem verileri ve detaylı raporlar
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            className="border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            Yenile
+          </Button>
+          <Button
+            onClick={() => {
+              if (confirm("TÜM VERİLERİ SİLMEK İSTEDİĞİNİZE EMİN MİSİNİZ?\n\nBu işlem tüm kolileri, paletleri, sevkiyatları ve aktiviteleri siler.\nBu işlem geri alınamaz!")) {
+                ActivityTracker.clearAllData();
+                toast({
+                  title: "Veriler Temizlendi",
+                  description: "Tüm veriler silindi.",
+                });
+                setTimeout(() => {
+                  window.location.reload();
+                }, 500);
+              }
+            }}
+            variant="destructive"
+            className="bg-red-500 hover:bg-red-600"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Tümünü Sil
+          </Button>
         </div>
       </motion.div>
 

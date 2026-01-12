@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { LogIn, User, Lock, Sparkles, Zap, Box, Layers, Truck, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { auth, usingMockAuth } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 
 // Animated grid background
 const CyberGrid = () => (
@@ -301,36 +301,6 @@ export default function LoginPage() {
                 </Button>
               </motion.div>
             </motion.form>
-
-            {/* Demo Users Info */}
-            {usingMockAuth && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
-                className="mt-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700/50"
-              >
-                <p className="text-xs text-slate-400 text-center mb-3">Demo Kullanıcılar (şifre: 123456)</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-                    ali (IT)
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                    ayse (Restoran)
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    mehmet (Mutfak)
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                    fatma (Depo)
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </div>
 
           {/* Footer */}

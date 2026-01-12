@@ -8,7 +8,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { palletRepository } from "./pallet";
 import { boxRepository } from "./box";
 
-const STORAGE_KEY = "qr_logistics_shipments";
+const STORAGE_KEY = "qr_lojistik_shipments";
 
 // UUID helper
 function generateUUID(): string {

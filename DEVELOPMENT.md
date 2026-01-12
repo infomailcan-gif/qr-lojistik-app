@@ -245,3 +245,4 @@ npm run build
 **Developer**: Canberk Şıklı
 **Tech Stack**: Next.js 14 + TypeScript + TailwindCSS + Framer Motion
 
+
