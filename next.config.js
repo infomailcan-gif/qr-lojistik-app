@@ -7,6 +7,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  experimental: {
+    optimizeFonts: false,
+  },
 }
 
 module.exports = nextConfig
