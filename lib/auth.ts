@@ -333,5 +333,14 @@ class SupabaseAuth {
 }
 
 // Export unified auth interface
-export const auth = isSupabaseConfigured ? new SupabaseAuth() : new MockAuth();
-export const usingMockAuth = !isSupabaseConfigured;
+// Force mock auth for local development
+export const auth = new MockAuth();
+export const usingMockAuth = true;
+
+// Log auth mode on startup
+if (typeof window !== "undefined") {
+  console.log("🔐 Auth Mode: MOCK AUTH (Local Development)");
+  console.log("📝 Available users: ali, ayse, mehmet, fatma, can, zeynep, burak");
+  console.log("👨‍💼 Admin: admin/admin123");
+  console.log("🔐 Super Admin: superadmin/super123");
+}

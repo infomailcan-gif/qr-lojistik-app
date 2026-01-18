@@ -246,3 +246,5 @@ npm run build
 **Tech Stack**: Next.js 14 + TypeScript + TailwindCSS + Framer Motion
 
 
+
+

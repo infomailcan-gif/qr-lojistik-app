@@ -168,3 +168,5 @@ Ben buradayım! Hangi adımda sorun yaşarsanız söyleyin, birlikte çözelim.
 2. Vercel'e deploy etmek
 3. Supabase'i kontrol etmek
 
+
+

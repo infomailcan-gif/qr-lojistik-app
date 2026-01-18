@@ -198,3 +198,5 @@ qr-lojistik/
 **Style**: Modern Next.js App Router conventions
 
 
+
+

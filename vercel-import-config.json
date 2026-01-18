@@ -1,0 +1,23 @@
+{
+  "name": "qr-lojistik-app",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "environmentVariables": [
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_URL",
+      "value": "https://wmitteaxogmjnpzxdsce.supabase.co",
+      "target": ["production", "preview", "development"]
+    },
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "value": "sb_publishable_VKnw-acnE_qh8gmEs0zB5Q_Ybthv8O-",
+      "target": ["production", "preview", "development"]
+    }
+  ]
+}
+
+
+

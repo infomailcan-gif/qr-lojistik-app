@@ -234,3 +234,5 @@ Tüm kriterler karşılandı:
 **Durum**: ✅ Üretime Hazır İskelet
 
 
+
+
