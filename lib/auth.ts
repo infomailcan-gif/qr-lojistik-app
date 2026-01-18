@@ -333,9 +333,9 @@ class SupabaseAuth {
 }
 
 // Export unified auth interface
-// Force mock auth for local development
-export const auth = new MockAuth();
-export const usingMockAuth = true;
+// Use Supabase auth if configured, otherwise fall back to mock auth
+export const auth = isSupabaseConfigured ? new SupabaseAuth() : new MockAuth();
+export const usingMockAuth = !isSupabaseConfigured;
 
 // Log auth mode on startup
 if (typeof window !== "undefined") {
