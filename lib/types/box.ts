@@ -13,6 +13,7 @@ export interface Box {
   revision: number;
   pallet_code: string | null;
   photo_url: string | null;
+  needs_reprint: boolean;
   created_at: string;
   updated_at: string;
 }
