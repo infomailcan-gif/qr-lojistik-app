@@ -269,66 +269,62 @@ class MockAuth {
   }
 }
 
-// Supabase auth wrapper
+// Supabase auth wrapper (with users table)
 class SupabaseAuth {
-  async signIn(email: string, password: string): Promise<AuthSession | null> {
+  async signIn(username: string, password: string): Promise<AuthSession | null> {
     if (!supabase) return null;
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    // Query users table
+    const { data: users, error } = await supabase
+      .from("users")
+      .select(`
+        *,
+        department:departments(name)
+      `)
+      .eq("username", username)
+      .eq("password", password)
+      .single();
 
-    if (error || !data.user) {
-      throw new Error(error?.message || "Login failed");
+    if (error || !users) {
+      throw new Error("Kullanıcı adı veya şifre hatalı");
     }
 
-    const role =
-      (data.user.user_metadata?.role as UserRole) || ("user" as UserRole);
-
-    return {
+    const session: AuthSession = {
       user: {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.user_metadata?.name || data.user.email || "User",
-        username: data.user.user_metadata?.username || data.user.email || "user",
-        role,
-        department_id: data.user.user_metadata?.department_id || "",
-        department_name: data.user.user_metadata?.department_name || "",
+        id: users.id,
+        name: users.name,
+        username: users.username,
+        role: users.role as UserRole,
+        department_id: users.department_id,
+        department_name: users.department?.name || "",
       },
-      token: data.session?.access_token,
     };
+
+    // Store session in localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("supabase_auth_session", JSON.stringify(session));
+    }
+
+    return session;
   }
 
   async signOut(): Promise<void> {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("supabase_auth_session");
+    }
   }
 
   async getSession(): Promise<AuthSession | null> {
-    if (!supabase) return null;
-
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user) return null;
-
-    const role =
-      (session.user.user_metadata?.role as UserRole) || ("user" as UserRole);
-
-    return {
-      user: {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.user_metadata?.name || session.user.email || "User",
-        username: session.user.user_metadata?.username || session.user.email || "user",
-        role,
-        department_id: session.user.user_metadata?.department_id || "",
-        department_name: session.user.user_metadata?.department_name || "",
-      },
-      token: session.access_token,
-    };
+    if (typeof window === "undefined") return null;
+    
+    const stored = localStorage.getItem("supabase_auth_session");
+    if (!stored) return null;
+    
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return null;
+    }
   }
 }
 

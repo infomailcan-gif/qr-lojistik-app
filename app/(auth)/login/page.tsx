@@ -241,7 +241,7 @@ export default function LoginPage() {
 
     try {
       if (!username.trim()) {
-        setError("Lütfen email veya kullanıcı adınızı girin");
+        setError("Lütfen kullanıcı adınızı girin");
         setLoading(false);
         return;
       }
@@ -430,7 +430,7 @@ export default function LoginPage() {
                   <Input
                     id="username"
                     type="text"
-                    placeholder="Email (ör: admin@qrlojistik.com)"
+                    placeholder="Kullanıcı adınızı girin"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     disabled={loading}
