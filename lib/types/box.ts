@@ -1,9 +1,7 @@
 // Domain Types
-export interface Department {
-  id: string;
-  name: string;
-  created_at: string;
-}
+import type { Department } from './department';
+
+export type { Department };
 
 export interface Box {
   id: string;
