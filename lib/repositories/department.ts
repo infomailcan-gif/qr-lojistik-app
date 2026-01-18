@@ -104,7 +104,9 @@ class DepartmentRepository {
     const newDepartment: Department = {
       id: `dept-${Date.now()}`,
       name,
+      description: "",
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     departments.push(newDepartment);
