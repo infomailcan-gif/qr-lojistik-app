@@ -18,10 +18,13 @@ class DepartmentRepository {
 
   // Generate seed departments for local storage
   private generateSeedDepartments(): Department[] {
+    const now = new Date().toISOString();
     return SEED_DEPARTMENTS.map((name, index) => ({
       id: `dept-${index + 1}`,
       name,
-      created_at: new Date().toISOString(),
+      description: "",
+      created_at: now,
+      updated_at: now,
     }));
   }
 
