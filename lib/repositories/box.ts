@@ -69,6 +69,7 @@ class BoxRepository {
       revision: 1,
       pallet_code: null,
       photo_url: null,
+      needs_reprint: false,
       created_at: now,
       updated_at: now,
     };
