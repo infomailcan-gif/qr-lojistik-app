@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Zap, Shield } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ export default function BoxesPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [boxes, activeTab, selectedDepartment, currentUserName]);
+  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole]);
 
   const loadData = async () => {
     try {
@@ -88,13 +88,19 @@ export default function BoxesPage() {
   const applyFilters = () => {
     let filtered = [...boxes];
     
+    // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi kolilerini görsün
+    if (userRole === "user") {
+      filtered = filtered.filter((b) => b.created_by === currentUserName);
+    }
+    
     if (activeTab === "sealed") {
       filtered = filtered.filter((b) => b.status === "sealed");
     } else if (activeTab === "draft") {
       filtered = filtered.filter((b) => b.status === "draft");
     }
     
-    if (selectedDepartment !== "all") {
+    // Departman filtresi sadece manager/super_admin için geçerli
+    if (selectedDepartment !== "all" && (userRole === "manager" || userRole === "super_admin")) {
       filtered = filtered.filter((b) => b.department_id === selectedDepartment);
     }
     
@@ -182,86 +188,113 @@ export default function BoxesPage() {
     });
   };
 
+  // Kullanıcı rolüne göre filtrelenmiş koli sayılarını hesapla
+  const userFilteredBoxes = userRole === "user" 
+    ? boxes.filter(b => b.created_by === currentUserName)
+    : boxes;
+    
   const tabs: { id: FilterTab; label: string; count: number }[] = [
-    { id: "all", label: "Tümü", count: boxes.length },
-    { id: "sealed", label: "Kapalı", count: boxes.filter(b => b.status === "sealed").length },
-    { id: "draft", label: "Taslak", count: boxes.filter(b => b.status === "draft").length },
+    { id: "all", label: "Tümü", count: userFilteredBoxes.length },
+    { id: "sealed", label: "Kapalı", count: userFilteredBoxes.filter(b => b.status === "sealed").length },
+    { id: "draft", label: "Taslak", count: userFilteredBoxes.filter(b => b.status === "draft").length },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <motion.div className="relative mx-auto w-16 h-16">
+          <motion.div className="relative mx-auto w-20 h-20">
+            {/* Outer glow ring */}
             <motion.div
-              className="absolute inset-0 rounded-full border-4 border-blue-200"
+              className="absolute inset-0 rounded-full"
+              style={{ background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)" }}
+              animate={{ 
+                scale: [1, 1.3, 1],
+                opacity: [0.3, 0.1, 0.3]
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
             />
+            {/* Spinning border */}
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent"
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-1 rounded-full border-4 border-blue-500/30 border-t-blue-500"
             />
+            {/* Center icon */}
             <motion.div
-              className="absolute inset-2 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 opacity-20"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
+              className="absolute inset-3 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center"
+              animate={{ scale: [1, 0.9, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              <Package className="h-6 w-6 text-white" />
+            </motion.div>
           </motion.div>
-          <p className="mt-4 text-slate-500 font-medium">Yükleniyor...</p>
+          <motion.p 
+            className="mt-6 text-slate-600 font-medium"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            Koliler yükleniyor...
+          </motion.p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 px-1">
+    <div className="space-y-4 sm:space-y-6 px-0 sm:px-1">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="flex flex-col gap-4"
       >
-        <div className="flex items-center gap-4">
-          <motion.div
-            className="relative"
-            whileHover={{ scale: 1.05 }}
-          >
+        {/* Title Row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
             <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl blur-lg opacity-40"
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.3, 0.5, 0.3],
-              }}
-              transition={{ duration: 3, repeat: Infinity }}
-            />
-            <div className="relative p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl">
-              <Package className="h-8 w-8 text-white" />
+              className="relative"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl sm:rounded-2xl blur-lg opacity-40"
+                animate={{
+                  scale: [1, 1.2, 1],
+                  opacity: [0.3, 0.5, 0.3],
+                }}
+                transition={{ duration: 3, repeat: Infinity }}
+              />
+              <div className="relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl shadow-blue-500/30">
+                <Package className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+              </div>
+            </motion.div>
+            
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+                Kolilerim
+                <motion.span
+                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
+                </motion.span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
+                {userRole === "user" ? "Oluşturduğunuz kolileri yönetin" : "Tüm kolileri görüntüleyin ve yönetin"}
+              </p>
             </div>
-          </motion.div>
-          
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-              Kolilerim
-              <motion.span
-                animate={{ rotate: [0, 15, -15, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <Sparkles className="h-5 w-5 text-amber-500" />
-              </motion.span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Oluşturduğunuz tüm kolileri yönetin
-            </p>
           </div>
         </div>
         
+        {/* Action Button - Full width on mobile */}
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Button 
             onClick={() => router.push("/app/boxes/new")} 
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 w-full sm:w-auto"
+            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 h-12 sm:h-10 text-base sm:text-sm active:scale-95 transition-transform"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Yeni Koli
+            <Plus className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
+            Yeni Koli Oluştur
           </Button>
         </motion.div>
       </motion.div>
@@ -271,43 +304,50 @@ export default function BoxesPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="space-y-4"
+        className="space-y-3 sm:space-y-4"
       >
-        {/* Filter Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {tabs.map((tab) => (
+        {/* Filter Tabs - Horizontal scroll on mobile */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+          {tabs.map((tab, index) => (
             <motion.button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileTap={{ scale: 0.95 }}
+              className={`relative flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all active:scale-95 ${
                 activeTab === tab.id
-                  ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                  : "bg-white/80 text-slate-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300"
               }`}
             >
               {tab.label}
-              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                activeTab === tab.id
-                  ? "bg-white/20 text-white"
-                  : "bg-slate-200 text-slate-500"
-              }`}>
+              <motion.span 
+                className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
+                  activeTab === tab.id
+                    ? "bg-white/25 text-white"
+                    : "bg-blue-100 text-blue-600"
+                }`}
+                animate={{ scale: activeTab === tab.id ? [1, 1.1, 1] : 1 }}
+                transition={{ duration: 0.3 }}
+              >
                 {tab.count}
-              </span>
+              </motion.span>
             </motion.button>
           ))}
         </div>
 
-        {/* Department Filter - Only visible for managers and super_admin */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Stats and Filters Row */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* Department Filter - Only visible for managers and super_admin */}
           {userRole !== "user" ? (
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-100">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200">
                 <Filter className="h-4 w-4 text-blue-600" />
               </div>
               <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger className="w-full sm:w-[200px] border-slate-200">
+                <SelectTrigger className="flex-1 sm:w-[200px] border-blue-200 bg-white/80 h-10">
                   <SelectValue placeholder="Departman" />
                 </SelectTrigger>
                 <SelectContent>
@@ -321,20 +361,40 @@ export default function BoxesPage() {
               </Select>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-50 rounded-lg border border-cyan-200">
-              <Filter className="h-4 w-4 text-cyan-600" />
-              <span className="text-sm text-cyan-700 font-medium">
+            <motion.div 
+              className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200"
+              whileHover={{ scale: 1.02 }}
+            >
+              <Filter className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-700 font-medium">
                 {departments.find(d => d.id === userDepartmentId)?.name || "Departman"}
               </span>
-            </div>
+            </motion.div>
           )}
           
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+          <motion.div 
+            className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-xl border border-blue-200"
+            animate={{ 
+              boxShadow: filteredBoxes.length > 0 ? ["0 0 0 0 rgba(59,130,246,0)", "0 0 0 4px rgba(59,130,246,0.1)", "0 0 0 0 rgba(59,130,246,0)"] : "none"
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
             <Boxes className="h-4 w-4 text-blue-600" />
-            <span className="text-sm text-blue-700 font-medium">
-              {filteredBoxes.length} koli bulundu
+            <span className="text-sm text-blue-700 font-semibold">
+              {filteredBoxes.length} koli
             </span>
-          </div>
+          </motion.div>
+          
+          {userRole !== "user" && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200"
+            >
+              <Shield className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-700 font-medium">Yönetici</span>
+            </motion.div>
+          )}
         </div>
       </motion.div>
 

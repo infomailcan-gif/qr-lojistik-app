@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Truck, Plus, Package, Box, Calendar, User, Eye, Edit, Trash2, Sparkles, Send, MapPin } from "lucide-react";
+import { Truck, Plus, Package, Box, Calendar, User, Eye, Edit, Trash2, Sparkles, Send, MapPin, Shield } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,8 @@ import { auth } from "@/lib/auth";
 export default function ShipmentsPage() {
   const router = useRouter();
   const [userName, setUserName] = useState<string>("");
-  const [shipments, setShipments] = useState<ShipmentWithCounts[]>([]);
+  const [userRole, setUserRole] = useState<string>("user");
+  const [allShipments, setAllShipments] = useState<ShipmentWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedShipment, setSelectedShipment] = useState<ShipmentWithCounts | null>(null);
@@ -44,16 +45,24 @@ export default function ShipmentsPage() {
       }
       
       setUserName(session.user.name);
+      setUserRole(session.user.role);
       
       const data = await shipmentRepository.getAll();
-      const userShipments = data.filter(s => s.created_by === session.user.name);
-      setShipments(userShipments);
+      setAllShipments(data);
     } catch (error) {
       console.error("Error loading shipments:", error);
     } finally {
       setLoading(false);
     }
   };
+  
+  // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi sevkiyatlarını görsün
+  const shipments = useMemo(() => {
+    if (userRole === "user") {
+      return allShipments.filter(s => s.created_by === userName);
+    }
+    return allShipments;
+  }, [allShipments, userRole, userName]);
 
   const handleShipmentClick = (shipment: ShipmentWithCounts) => {
     setSelectedShipment(shipment);
@@ -125,76 +134,98 @@ export default function ShipmentsPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <motion.div className="relative mx-auto w-16 h-16">
+          <motion.div className="relative mx-auto w-20 h-20">
+            {/* Outer glow ring */}
             <motion.div
-              className="absolute inset-0 rounded-full border-4 border-purple-200"
+              className="absolute inset-0 rounded-full"
+              style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)" }}
+              animate={{ 
+                scale: [1, 1.3, 1],
+                opacity: [0.3, 0.1, 0.3]
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
             />
+            {/* Spinning border */}
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 rounded-full border-4 border-purple-500 border-t-transparent"
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-1 rounded-full border-4 border-purple-500/30 border-t-purple-500"
             />
+            {/* Center icon */}
             <motion.div
-              className="absolute inset-2 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 opacity-20"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
+              className="absolute inset-3 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center"
+              animate={{ scale: [1, 0.9, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              <Truck className="h-6 w-6 text-white" />
+            </motion.div>
           </motion.div>
-          <p className="mt-4 text-slate-500 font-medium">Yükleniyor...</p>
+          <motion.p 
+            className="mt-6 text-slate-600 font-medium"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            Sevkiyatlar yükleniyor...
+          </motion.p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 px-1">
+    <div className="space-y-4 sm:space-y-6 px-0 sm:px-1">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="flex flex-col gap-4"
       >
-        <div className="flex items-center gap-4">
-          <motion.div
-            className="relative"
-            whileHover={{ scale: 1.05 }}
-          >
+        {/* Title Row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
             <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl blur-lg opacity-40"
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.3, 0.5, 0.3],
-              }}
-              transition={{ duration: 3, repeat: Infinity }}
-            />
-            <div className="relative p-3 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-xl">
-              <Truck className="h-8 w-8 text-white" />
+              className="relative"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl sm:rounded-2xl blur-lg opacity-40"
+                animate={{
+                  scale: [1, 1.2, 1],
+                  opacity: [0.3, 0.5, 0.3],
+                }}
+                transition={{ duration: 3, repeat: Infinity }}
+              />
+              <div className="relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-xl shadow-purple-500/30">
+                <Truck className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+              </div>
+            </motion.div>
+            
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent flex items-center gap-2">
+                Sevkiyatlarım
+                <motion.span
+                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
+                </motion.span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
+                {userRole === "user" ? "Oluşturduğunuz sevkiyatları yönetin" : "Tüm sevkiyatları görüntüleyin"}
+              </p>
             </div>
-          </motion.div>
-          
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent flex items-center gap-2">
-              Sevkiyatlarım
-              <motion.span
-                animate={{ rotate: [0, 15, -15, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <Sparkles className="h-5 w-5 text-amber-500" />
-              </motion.span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Paletleri hedeflerine gönderin
-            </p>
           </div>
         </div>
         
+        {/* Action Button - Full width on mobile */}
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Button 
             onClick={() => router.push("/app/shipments/new")} 
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/25 w-full sm:w-auto"
+            className="w-full sm:w-auto bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/25 h-12 sm:h-10 text-base sm:text-sm active:scale-95 transition-transform"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Yeni Sevkiyat
+            <Plus className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
+            Yeni Sevkiyat Oluştur
           </Button>
         </motion.div>
       </motion.div>
@@ -229,6 +260,13 @@ export default function ShipmentsPage() {
             {shipments.reduce((acc, s) => acc + s.box_count, 0)} toplam koli
           </span>
         </div>
+        
+        {userRole !== "user" && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+            <Shield className="h-4 w-4 text-amber-600" />
+            <span className="text-sm font-medium text-amber-700">Tüm Sevkiyatlar</span>
+          </div>
+        )}
       </motion.div>
 
       {/* Shipment List */}
