@@ -146,7 +146,7 @@ export default function LoginPage() {
                 <p>• <span className="text-blue-400">ali, ayse, mehmet</span> (Kullanıcı)</p>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Şifreler Supabase'de kayıtlı
+                Şifreler Supabase&apos;de kayıtlı
               </p>
             </div>
           </CardContent>
