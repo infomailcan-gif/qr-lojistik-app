@@ -1,415 +1,450 @@
-import {
+// Box Repository - Supabase with localStorage fallback
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import type {
   Box,
   BoxLine,
   BoxWithDepartment,
-  BoxWithDetails,
+  BoxWithLines,
+  BoxDetail,
   CreateBoxData,
-  CreateBoxLineData,
   UpdateBoxData,
-} from "../types/box";
-import { supabase, isSupabaseConfigured } from "../supabase/client";
+  CreateBoxLineData,
+} from "@/lib/types/box";
 import { departmentRepository } from "./department";
 
-// Generate unique box code (shorter format)
-function generateBoxCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "B-";
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-// Generate UUID for local storage
-function generateUUID(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+const BOX_STORAGE_KEY = "qr_lojistik_boxes";
+const BOX_LINES_STORAGE_KEY = "qr_lojistik_box_lines";
 
 class BoxRepository {
-  private boxesKey = "qr_lojistik_boxes";
-  private linesKey = "qr_lojistik_box_lines";
-
-  // Local storage helpers
+  // localStorage methods
   private getLocalBoxes(): Box[] {
     if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(this.boxesKey);
-    return stored ? JSON.parse(stored) : [];
+    const stored = localStorage.getItem(BOX_STORAGE_KEY);
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
   }
 
-  private setLocalBoxes(boxes: Box[]): void {
+  private saveLocalBoxes(boxes: Box[]): void {
     if (typeof window === "undefined") return;
-    localStorage.setItem(this.boxesKey, JSON.stringify(boxes));
+    localStorage.setItem(BOX_STORAGE_KEY, JSON.stringify(boxes));
   }
 
-  private getLocalLines(): BoxLine[] {
+  private getLocalBoxLines(): BoxLine[] {
     if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(this.linesKey);
-    return stored ? JSON.parse(stored) : [];
+    const stored = localStorage.getItem(BOX_LINES_STORAGE_KEY);
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
   }
 
-  private setLocalLines(lines: BoxLine[]): void {
+  private saveLocalBoxLines(lines: BoxLine[]): void {
     if (typeof window === "undefined") return;
-    localStorage.setItem(this.linesKey, JSON.stringify(lines));
+    localStorage.setItem(BOX_LINES_STORAGE_KEY, JSON.stringify(lines));
   }
 
-  // Create box
-  async create(data: CreateBoxData, createdBy: string): Promise<Box> {
-    const now = new Date().toISOString();
-    const box: Box = {
-      id: generateUUID(),
-      code: generateBoxCode(),
-      name: data.name,
-      department_id: data.department_id,
-      created_by: createdBy,
-      status: "draft",
-      revision: 1,
-      pallet_code: null,
-      photo_url: null,
-      needs_reprint: false,
-      created_at: now,
-      updated_at: now,
-    };
+  // Generate unique code
+  private generateCode(): string {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+    return `BOX-${timestamp}-${random}`;
+  }
 
-    if (isSupabaseConfigured && supabase) {
-      const { data: inserted, error } = await supabase
-        .from("boxes")
-        .insert(box)
-        .select()
-        .single();
+  // Get all boxes with department info
+  async getAll(): Promise<BoxWithDepartment[]> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+      const departments = await departmentRepository.getAll();
 
-      if (error) throw error;
-      return inserted;
+      return boxes.map((box) => {
+        const dept = departments.find((d) => d.id === box.department_id);
+        return {
+          ...box,
+          department: {
+            id: box.department_id,
+            name: dept?.name || "Unknown",
+          },
+        };
+      });
     }
 
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    boxes.push(box);
-    this.setLocalBoxes(boxes);
-    return box;
-  }
-
-  // Update box
-  async update(id: string, data: UpdateBoxData): Promise<Box> {
-    const now = new Date().toISOString();
-
-    if (isSupabaseConfigured && supabase) {
-      const { data: updated, error } = await supabase
+    try {
+      const { data, error } = await supabase
         .from("boxes")
-        .update({ ...data, updated_at: now })
-        .eq("id", id)
-        .select()
-        .single();
+        .select(
+          `
+          *,
+          department:departments(id, name)
+        `
+        )
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return updated;
+      return (data || []).map((item) => ({
+        ...item,
+        department: Array.isArray(item.department)
+          ? item.department[0]
+          : item.department,
+      }));
+    } catch (error) {
+      console.error("Error fetching boxes from Supabase:", error);
+      // Fallback to localStorage
+      const boxes = this.getLocalBoxes();
+      const departments = await departmentRepository.getAll();
+
+      return boxes.map((box) => {
+        const dept = departments.find((d) => d.id === box.department_id);
+        return {
+          ...box,
+          department: {
+            id: box.department_id,
+            name: dept?.name || "Unknown",
+          },
+        };
+      });
     }
-
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    const index = boxes.findIndex((b) => b.id === id);
-    if (index === -1) throw new Error("Box not found");
-
-    boxes[index] = { ...boxes[index], ...data, updated_at: now };
-    this.setLocalBoxes(boxes);
-    return boxes[index];
   }
 
-  // Get box by code
-  async getByCode(code: string): Promise<BoxWithDetails | null> {
-    if (isSupabaseConfigured && supabase) {
-      const { data: box, error: boxError } = await supabase
-        .from("boxes")
-        .select("*, department:departments(*)")
-        .eq("code", code)
-        .single();
+  // Get single box with details
+  async getByCode(code: string): Promise<BoxDetail | null> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+      const box = boxes.find((b) => b.code === code);
+      if (!box) return null;
 
-      if (boxError) return null;
-
-      const { data: lines, error: linesError } = await supabase
-        .from("box_lines")
-        .select("*")
-        .eq("box_id", box.id)
-        .order("created_at");
-
-      if (linesError) throw linesError;
+      const lines = this.getLocalBoxLines().filter((l) => l.box_id === box.id);
+      const department = await departmentRepository.getById(box.department_id);
 
       return {
         ...box,
-        department: box.department,
-        lines: lines || [],
+        lines,
+        department: department || {
+          id: box.department_id,
+          name: "Unknown",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
       };
     }
 
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    const box = boxes.find((b) => b.code === code);
-    if (!box) return null;
-
-    const department = await departmentRepository.getById(box.department_id);
-    if (!department) return null;
-
-    const allLines = this.getLocalLines();
-    const lines = allLines.filter((l) => l.box_id === box.id);
-
-    return {
-      ...box,
-      department,
-      lines,
-    };
-  }
-
-  // Get box by ID
-  async getById(id: string): Promise<Box | null> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
+    try {
+      const { data: boxData, error: boxError } = await supabase
         .from("boxes")
-        .select("*")
-        .eq("id", id)
+        .select(
+          `
+          *,
+          department:departments(*),
+          lines:box_lines(*)
+        `
+        )
+        .eq("code", code)
         .single();
 
-      if (error) return null;
-      return data;
-    }
+      if (boxError) throw boxError;
 
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    return boxes.find((b) => b.id === id) || null;
-  }
+      return {
+        ...boxData,
+        department: Array.isArray(boxData.department)
+          ? boxData.department[0]
+          : boxData.department,
+        lines: boxData.lines || [],
+      };
+    } catch (error) {
+      console.error("Error fetching box from Supabase:", error);
+      // Fallback to localStorage
+      const boxes = this.getLocalBoxes();
+      const box = boxes.find((b) => b.code === code);
+      if (!box) return null;
 
-  // Get all boxes with filters
-  async getAll(filters?: {
-    createdBy?: string;
-    status?: "draft" | "sealed";
-    departmentId?: string;
-  }): Promise<BoxWithDepartment[]> {
-    if (isSupabaseConfigured && supabase) {
-      let query = supabase
-        .from("boxes")
-        .select("*, department:departments(*)");
-
-      if (filters?.createdBy) {
-        query = query.eq("created_by", filters.createdBy);
-      }
-      if (filters?.status) {
-        query = query.eq("status", filters.status);
-      }
-      if (filters?.departmentId) {
-        query = query.eq("department_id", filters.departmentId);
-      }
-
-      const { data, error } = await query.order("created_at", {
-        ascending: false,
-      });
-
-      if (error) throw error;
-      return (data || []).map((box) => ({
-        ...box,
-        department: box.department,
-      }));
-    }
-
-    // Local storage
-    let boxes = this.getLocalBoxes();
-
-    if (filters?.createdBy) {
-      boxes = boxes.filter((b) => b.created_by === filters.createdBy);
-    }
-    if (filters?.status) {
-      boxes = boxes.filter((b) => b.status === filters.status);
-    }
-    if (filters?.departmentId) {
-      boxes = boxes.filter((b) => b.department_id === filters.departmentId);
-    }
-
-    // Sort by created_at desc
-    boxes.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
-    // Join with departments
-    const result: BoxWithDepartment[] = [];
-    for (const box of boxes) {
+      const lines = this.getLocalBoxLines().filter((l) => l.box_id === box.id);
       const department = await departmentRepository.getById(box.department_id);
-      if (department) {
-        result.push({ ...box, department });
-      }
-    }
 
-    return result;
+      return {
+        ...box,
+        lines,
+        department: department || {
+          id: box.department_id,
+          name: "Unknown",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      };
+    }
   }
 
-  // Add line to box
-  async addLine(boxId: string, data: CreateBoxLineData): Promise<BoxLine> {
-    const line: BoxLine = {
-      id: generateUUID(),
-      box_id: boxId,
-      product_name: data.product_name,
-      qty: data.qty,
-      kind: data.kind,
-      created_at: new Date().toISOString(),
-    };
+  // Create box
+  async create(
+    data: CreateBoxData,
+    userId: string,
+    userName: string
+  ): Promise<Box> {
+    const code = this.generateCode();
+    const now = new Date().toISOString();
 
-    if (isSupabaseConfigured && supabase) {
-      const { data: inserted, error } = await supabase
-        .from("box_lines")
-        .insert(line)
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+
+      const newBox: Box = {
+        id: `box-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        code,
+        name: data.name,
+        department_id: data.department_id,
+        created_by: userName,
+        status: "draft",
+        revision: 1,
+        pallet_code: null,
+        photo_url: null,
+        needs_reprint: false,
+        created_at: now,
+        updated_at: now,
+      };
+
+      boxes.push(newBox);
+      this.saveLocalBoxes(boxes);
+      return newBox;
+    }
+
+    try {
+      const { data: newBox, error } = await supabase
+        .from("boxes")
+        .insert({
+          code,
+          name: data.name,
+          department_id: data.department_id,
+          created_by: userName,
+          status: "draft",
+          revision: 1,
+        })
         .select()
         .single();
 
       if (error) throw error;
-      return inserted;
+      return newBox;
+    } catch (error: any) {
+      console.error("Error creating box in Supabase:", error);
+      throw new Error("Koli oluşturulamadı: " + error.message);
     }
-
-    // Local storage
-    const lines = this.getLocalLines();
-    lines.push(line);
-    this.setLocalLines(lines);
-    return line;
   }
 
-  // Delete line
+  // Update box
+  async update(code: string, updates: UpdateBoxData): Promise<Box> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+      const index = boxes.findIndex((b) => b.code === code);
+
+      if (index === -1) {
+        throw new Error("Koli bulunamadı");
+      }
+
+      boxes[index] = {
+        ...boxes[index],
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+
+      this.saveLocalBoxes(boxes);
+      return boxes[index];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("boxes")
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("code", code)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("Error updating box in Supabase:", error);
+      throw new Error("Koli güncellenemedi: " + error.message);
+    }
+  }
+
+  // Delete box
+  async delete(code: string): Promise<void> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+      const box = boxes.find((b) => b.code === code);
+
+      if (!box) {
+        throw new Error("Koli bulunamadı");
+      }
+
+      // Delete box lines
+      const lines = this.getLocalBoxLines();
+      const filteredLines = lines.filter((l) => l.box_id !== box.id);
+      this.saveLocalBoxLines(filteredLines);
+
+      // Delete box
+      const filteredBoxes = boxes.filter((b) => b.code !== code);
+      this.saveLocalBoxes(filteredBoxes);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("boxes").delete().eq("code", code);
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("Error deleting box from Supabase:", error);
+      throw new Error("Koli silinemedi: " + error.message);
+    }
+  }
+
+  // Add line to box
+  async addLine(boxCode: string, lineData: CreateBoxLineData): Promise<BoxLine> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+      const box = boxes.find((b) => b.code === boxCode);
+
+      if (!box) {
+        throw new Error("Koli bulunamadı");
+      }
+
+      const lines = this.getLocalBoxLines();
+      const newLine: BoxLine = {
+        id: `line-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        box_id: box.id,
+        product_name: lineData.product_name,
+        qty: lineData.qty,
+        kind: lineData.kind || null,
+        created_at: new Date().toISOString(),
+      };
+
+      lines.push(newLine);
+      this.saveLocalBoxLines(lines);
+      return newLine;
+    }
+
+    try {
+      // First get the box to get its ID
+      const { data: box, error: boxError } = await supabase
+        .from("boxes")
+        .select("id")
+        .eq("code", boxCode)
+        .single();
+
+      if (boxError) throw boxError;
+
+      const { data: newLine, error } = await supabase
+        .from("box_lines")
+        .insert({
+          box_id: box.id,
+          product_name: lineData.product_name,
+          qty: lineData.qty,
+          kind: lineData.kind,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return newLine;
+    } catch (error: any) {
+      console.error("Error adding line to box in Supabase:", error);
+      throw new Error("Ürün eklenemedi: " + error.message);
+    }
+  }
+
+  // Delete line from box
   async deleteLine(lineId: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
+    if (!isSupabaseConfigured || !supabase) {
+      const lines = this.getLocalBoxLines();
+      const filtered = lines.filter((l) => l.id !== lineId);
+
+      if (filtered.length === lines.length) {
+        throw new Error("Ürün bulunamadı");
+      }
+
+      this.saveLocalBoxLines(filtered);
+      return;
+    }
+
+    try {
       const { error } = await supabase
         .from("box_lines")
         .delete()
         .eq("id", lineId);
 
       if (error) throw error;
-      return;
+    } catch (error: any) {
+      console.error("Error deleting line from Supabase:", error);
+      throw new Error("Ürün silinemedi: " + error.message);
     }
-
-    // Local storage
-    const lines = this.getLocalLines();
-    const filtered = lines.filter((l) => l.id !== lineId);
-    this.setLocalLines(filtered);
   }
 
-  // Link box to pallet
-  async setPallet(boxCode: string, palletCode: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
+  // Seal box (change status to sealed)
+  async seal(code: string): Promise<Box> {
+    return this.update(code, { status: "sealed" });
+  }
+
+  // Get boxes by pallet
+  async getByPallet(palletCode: string): Promise<BoxWithDepartment[]> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes().filter(
+        (b) => b.pallet_code === palletCode
+      );
+      const departments = await departmentRepository.getAll();
+
+      return boxes.map((box) => {
+        const dept = departments.find((d) => d.id === box.department_id);
+        return {
+          ...box,
+          department: {
+            id: box.department_id,
+            name: dept?.name || "Unknown",
+          },
+        };
+      });
+    }
+
+    try {
+      const { data, error } = await supabase
         .from("boxes")
-        .update({ pallet_code: palletCode, updated_at: new Date().toISOString() })
-        .eq("code", boxCode);
+        .select(
+          `
+          *,
+          department:departments(id, name)
+        `
+        )
+        .eq("pallet_code", palletCode)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return;
+      return (data || []).map((item) => ({
+        ...item,
+        department: Array.isArray(item.department)
+          ? item.department[0]
+          : item.department,
+      }));
+    } catch (error) {
+      console.error("Error fetching boxes by pallet from Supabase:", error);
+      const boxes = this.getLocalBoxes().filter(
+        (b) => b.pallet_code === palletCode
+      );
+      const departments = await departmentRepository.getAll();
+
+      return boxes.map((box) => {
+        const dept = departments.find((d) => d.id === box.department_id);
+        return {
+          ...box,
+          department: {
+            id: box.department_id,
+            name: dept?.name || "Unknown",
+          },
+        };
+      });
     }
-
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    const box = boxes.find((b) => b.code === boxCode);
-    if (!box) throw new Error("Box not found");
-
-    box.pallet_code = palletCode;
-    box.updated_at = new Date().toISOString();
-    this.setLocalBoxes(boxes);
-  }
-
-  // Clear pallet from box
-  async clearPallet(boxCode: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from("boxes")
-        .update({ pallet_code: null, updated_at: new Date().toISOString() })
-        .eq("code", boxCode);
-
-      if (error) throw error;
-      return;
-    }
-
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    const box = boxes.find((b) => b.code === boxCode);
-    if (!box) throw new Error("Box not found");
-
-    box.pallet_code = null;
-    box.updated_at = new Date().toISOString();
-    this.setLocalBoxes(boxes);
-  }
-
-  // Get boxes available for pallet (sealed, not on pallet, and optionally filtered by department and creator)
-  async getAvailableForPallet(departmentId?: string, createdBy?: string): Promise<BoxWithDepartment[]> {
-    const filters: { status?: "draft" | "sealed"; departmentId?: string; createdBy?: string } = {
-      status: "sealed",
-    };
-    
-    if (departmentId) {
-      filters.departmentId = departmentId;
-    }
-    
-    if (createdBy) {
-      filters.createdBy = createdBy;
-    }
-    
-    const boxes = await this.getAll(filters);
-
-    return boxes.filter((box) => !box.pallet_code);
-  }
-
-  // Delete box (only draft boxes can be deleted)
-  async delete(id: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
-      // First delete all lines
-      await supabase.from("box_lines").delete().eq("box_id", id);
-      
-      // Then delete the box
-      const { error } = await supabase.from("boxes").delete().eq("id", id);
-      if (error) throw error;
-      return;
-    }
-
-    // Local storage
-    const boxes = this.getLocalBoxes();
-    const filtered = boxes.filter((b) => b.id !== id);
-    this.setLocalBoxes(filtered);
-    
-    // Also delete lines
-    const lines = this.getLocalLines();
-    const filteredLines = lines.filter((l) => l.box_id !== id);
-    this.setLocalLines(filteredLines);
-  }
-
-  // Get statistics for admin
-  async getStats(): Promise<{
-    byDepartment: { department: string; count: number }[];
-    byUser: { user: string; count: number }[];
-    recent: BoxWithDepartment[];
-  }> {
-    const boxes = await this.getAll();
-
-    // By department
-    const deptMap = new Map<string, number>();
-    boxes.forEach((box) => {
-      const count = deptMap.get(box.department.name) || 0;
-      deptMap.set(box.department.name, count + 1);
-    });
-    const byDepartment = Array.from(deptMap.entries())
-      .map(([department, count]) => ({ department, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
-
-    // By user
-    const userMap = new Map<string, number>();
-    boxes.forEach((box) => {
-      const count = userMap.get(box.created_by) || 0;
-      userMap.set(box.created_by, count + 1);
-    });
-    const byUser = Array.from(userMap.entries())
-      .map(([user, count]) => ({ user, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    // Recent 10
-    const recent = boxes.slice(0, 10);
-
-    return { byDepartment, byUser, recent };
   }
 }
 

@@ -131,7 +131,7 @@ export default function ShipmentDetailPage({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const img = document.createElement("img") as HTMLImageElement;
+    const img = new Image();
     img.onload = () => {
       const qrSize = 600;
       const textHeight = 80;

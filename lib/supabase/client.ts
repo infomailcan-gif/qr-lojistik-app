@@ -13,3 +13,4 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 
 
+

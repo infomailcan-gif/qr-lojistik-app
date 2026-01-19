@@ -1,7 +1,11 @@
 // Domain Types
-import type { Department } from './department';
-
-export type { Department };
+export interface Department {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Box {
   id: string;
@@ -23,17 +27,24 @@ export interface BoxLine {
   box_id: string;
   product_name: string;
   qty: number;
-  kind: string;
+  kind: string | null;
   created_at: string;
 }
 
-// View Models (with joined data)
+// View Models
 export interface BoxWithDepartment extends Box {
-  department: Department;
+  department: {
+    id: string;
+    name: string;
+  };
 }
 
-export interface BoxWithDetails extends BoxWithDepartment {
+export interface BoxWithLines extends BoxWithDepartment {
   lines: BoxLine[];
+}
+
+export interface BoxDetail extends BoxWithLines {
+  department: Department;
 }
 
 // Form Types
@@ -42,15 +53,17 @@ export interface CreateBoxData {
   department_id: string;
 }
 
-export interface CreateBoxLineData {
-  product_name: string;
-  qty: number;
-  kind: string;
-}
-
 export interface UpdateBoxData {
   name?: string;
   department_id?: string;
   status?: "draft" | "sealed";
+  pallet_code?: string | null;
   photo_url?: string | null;
+  needs_reprint?: boolean;
+}
+
+export interface CreateBoxLineData {
+  product_name: string;
+  qty: number;
+  kind?: string;
 }

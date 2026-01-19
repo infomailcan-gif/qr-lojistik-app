@@ -1,251 +1,319 @@
+// Shipment Repository - Supabase with localStorage fallback
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import type {
   Shipment,
   ShipmentWithCounts,
   ShipmentWithPallets,
   CreateShipmentData,
 } from "@/lib/types/shipment";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { palletRepository } from "./pallet";
 import { boxRepository } from "./box";
 
-const STORAGE_KEY = "qr_lojistik_shipments";
-
-// UUID helper
-function generateUUID(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-// Shipment code generator (shorter format)
-function generateShipmentCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "S-";
-  for (let i = 0; i < 4; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
+const SHIPMENT_STORAGE_KEY = "qr_logistics_shipments";
 
 class ShipmentRepository {
-  // Local storage helpers
+  // localStorage methods
   private getLocalShipments(): Shipment[] {
     if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(SHIPMENT_STORAGE_KEY);
+    if (!stored) return [];
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+      return JSON.parse(stored);
     } catch {
       return [];
     }
   }
 
-  private setLocalShipments(shipments: Shipment[]): void {
+  private saveLocalShipments(shipments: Shipment[]): void {
     if (typeof window === "undefined") return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(shipments));
+    localStorage.setItem(SHIPMENT_STORAGE_KEY, JSON.stringify(shipments));
   }
 
-  // Create shipment
-  async create(data: CreateShipmentData, createdBy: string): Promise<Shipment> {
-    const now = new Date().toISOString();
-    const shipment: Shipment = {
-      id: generateUUID(),
-      code: generateShipmentCode(),
-      name_or_plate: data.name_or_plate,
-      created_by: createdBy,
-      created_at: now,
-      updated_at: now,
-    };
+  // Generate unique code
+  private generateCode(): string {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+    return `SHP-${timestamp}-${random}`;
+  }
 
-    if (isSupabaseConfigured && supabase) {
-      const { data: inserted, error } = await supabase
-        .from("shipments")
-        .insert(shipment)
-        .select()
-        .single();
+  // Get all shipments with counts
+  async getAll(): Promise<ShipmentWithCounts[]> {
+    if (!isSupabaseConfigured || !supabase) {
+      const shipments = this.getLocalShipments();
+      const allPallets = await palletRepository.getAll();
 
-      if (error) throw error;
-      return inserted;
+      return Promise.all(
+        shipments.map(async (shipment) => {
+          const pallets = allPallets.filter(
+            (p) => p.shipment_code === shipment.code
+          );
+          const pallet_count = pallets.length;
+          const box_count = pallets.reduce((sum, p) => sum + p.box_count, 0);
+
+          return {
+            ...shipment,
+            pallet_count,
+            box_count,
+          };
+        })
+      );
     }
 
-    // Local storage
-    const shipments = this.getLocalShipments();
-    shipments.unshift(shipment);
-    this.setLocalShipments(shipments);
-    return shipment;
+    try {
+      const { data, error } = await supabase
+        .from("shipments")
+        .select(
+          `
+          *,
+          pallets:pallets!shipment_code(
+            count,
+            boxes:boxes!pallet_code(count)
+          )
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map((item) => {
+        const pallet_count = item.pallets?.[0]?.count || 0;
+        const box_count = item.pallets?.reduce(
+          (sum: number, p: any) => sum + (p.boxes?.[0]?.count || 0),
+          0
+        ) || 0;
+
+        return {
+          ...item,
+          pallet_count,
+          box_count,
+          pallets: undefined,
+        };
+      });
+    } catch (error) {
+      console.error("Error fetching shipments from Supabase:", error);
+      // Fallback to localStorage
+      const shipments = this.getLocalShipments();
+      const allPallets = await palletRepository.getAll();
+
+      return Promise.all(
+        shipments.map(async (shipment) => {
+          const pallets = allPallets.filter(
+            (p) => p.shipment_code === shipment.code
+          );
+          const pallet_count = pallets.length;
+          const box_count = pallets.reduce((sum, p) => sum + p.box_count, 0);
+
+          return {
+            ...shipment,
+            pallet_count,
+            box_count,
+          };
+        })
+      );
+    }
   }
 
-  // Get shipment by code
-  async getByCode(code: string): Promise<Shipment | null> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
+  // Get single shipment with pallets
+  async getByCode(code: string): Promise<ShipmentWithPallets | null> {
+    if (!isSupabaseConfigured || !supabase) {
+      const shipments = this.getLocalShipments();
+      const shipment = shipments.find((s) => s.code === code);
+      if (!shipment) return null;
+
+      const pallets = await palletRepository.getByShipment(code);
+
+      // Get boxes for each pallet
+      const palletsWithBoxes = await Promise.all(
+        pallets.map(async (pallet) => {
+          const palletDetail = await palletRepository.getByCode(pallet.code);
+          return {
+            id: pallet.id,
+            code: pallet.code,
+            name: pallet.name,
+            box_count: pallet.box_count,
+            boxes: palletDetail?.boxes || [],
+          };
+        })
+      );
+
+      return {
+        ...shipment,
+        pallets: palletsWithBoxes,
+      };
+    }
+
+    try {
+      const { data: shipmentData, error: shipmentError } = await supabase
         .from("shipments")
         .select("*")
         .eq("code", code)
         .single();
 
-      if (error) return null;
-      return data;
-    }
+      if (shipmentError) throw shipmentError;
 
-    // Local storage
-    const shipments = this.getLocalShipments();
-    return shipments.find((s) => s.code === code) || null;
-  }
-
-  // Get all shipments with counts
-  async getAll(): Promise<ShipmentWithCounts[]> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from("shipments")
-        .select("*")
+      // Get pallets for this shipment
+      const { data: palletsData, error: palletsError } = await supabase
+        .from("pallets")
+        .select(
+          `
+          id,
+          code,
+          name,
+          boxes:boxes!pallet_code(
+            id,
+            code,
+            name,
+            status,
+            photo_url,
+            department:departments(name)
+          )
+        `
+        )
+        .eq("shipment_code", code)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (palletsError) throw palletsError;
 
-      // Enrich with counts
-      const enriched = await Promise.all(
-        (data || []).map(async (shipment) => {
-          const pallets = await palletRepository.getAll();
-          const shipmentPallets = pallets.filter(
-            (p) => p.shipment_code === shipment.code
-          );
-          const boxCount = shipmentPallets.reduce(
-            (sum, p) => sum + p.box_count,
-            0
-          );
+      return {
+        ...shipmentData,
+        pallets: (palletsData || []).map((p) => ({
+          ...p,
+          box_count: p.boxes?.length || 0,
+          boxes: (p.boxes || []).map((b: any) => ({
+            ...b,
+            department_name: Array.isArray(b.department)
+              ? b.department[0]?.name || "Unknown"
+              : b.department?.name || "Unknown",
+            department: undefined,
+          })),
+        })),
+      };
+    } catch (error) {
+      console.error("Error fetching shipment from Supabase:", error);
+      // Fallback to localStorage
+      const shipments = this.getLocalShipments();
+      const shipment = shipments.find((s) => s.code === code);
+      if (!shipment) return null;
 
+      const pallets = await palletRepository.getByShipment(code);
+
+      const palletsWithBoxes = await Promise.all(
+        pallets.map(async (pallet) => {
+          const palletDetail = await palletRepository.getByCode(pallet.code);
           return {
-            ...shipment,
-            pallet_count: shipmentPallets.length,
-            box_count: boxCount,
+            id: pallet.id,
+            code: pallet.code,
+            name: pallet.name,
+            box_count: pallet.box_count,
+            boxes: palletDetail?.boxes || [],
           };
         })
       );
 
-      return enriched;
-    }
-
-    // Local storage
-    const shipments = this.getLocalShipments();
-    const pallets = await palletRepository.getAll();
-
-    return shipments.map((shipment) => {
-      const shipmentPallets = pallets.filter(
-        (p) => p.shipment_code === shipment.code
-      );
-      const boxCount = shipmentPallets.reduce((sum, p) => sum + p.box_count, 0);
-
       return {
         ...shipment,
-        pallet_count: shipmentPallets.length,
-        box_count: boxCount,
+        pallets: palletsWithBoxes,
       };
-    });
+    }
   }
 
-  // Get shipment with pallets and boxes (for detail/public view)
-  async getWithPallets(code: string): Promise<ShipmentWithPallets | null> {
-    const shipment = await this.getByCode(code);
-    if (!shipment) return null;
-
-    const allPallets = await palletRepository.getAll();
-    const shipmentPallets = allPallets.filter(
-      (p) => p.shipment_code === code
-    );
-
-    const allBoxes = await boxRepository.getAll();
-
-    const palletsWithBoxes = shipmentPallets.map((pallet) => {
-      const palletBoxes = allBoxes.filter((b) => b.pallet_code === pallet.code);
-
-      return {
-        id: pallet.id,
-        code: pallet.code,
-        name: pallet.name,
-        box_count: palletBoxes.length,
-        boxes: palletBoxes.map((box) => ({
-          id: box.id,
-          code: box.code,
-          name: box.name,
-          department_name: box.department.name,
-          status: box.status,
-          photo_url: box.photo_url,
-        })),
-      };
-    });
-
-    return {
-      ...shipment,
-      pallets: palletsWithBoxes,
-    };
-  }
-
-  // Update shipment
-  async update(code: string, data: Partial<Shipment>): Promise<void> {
+  // Create shipment
+  async create(
+    data: CreateShipmentData,
+    userName: string
+  ): Promise<Shipment> {
+    const code = this.generateCode();
     const now = new Date().toISOString();
 
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase
-        .from("shipments")
-        .update({ ...data, updated_at: now })
-        .eq("code", code);
+    if (!isSupabaseConfigured || !supabase) {
+      const shipments = this.getLocalShipments();
 
-      if (error) throw error;
-      return;
+      const newShipment: Shipment = {
+        id: `shipment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        code,
+        name_or_plate: data.name_or_plate,
+        created_by: userName,
+        created_at: now,
+        updated_at: now,
+      };
+
+      shipments.push(newShipment);
+      this.saveLocalShipments(shipments);
+      return newShipment;
     }
 
-    // Local storage
-    const shipments = this.getLocalShipments();
-    const index = shipments.findIndex((s) => s.code === code);
-    if (index === -1) throw new Error("Shipment not found");
+    try {
+      const { data: newShipment, error } = await supabase
+        .from("shipments")
+        .insert({
+          code,
+          name_or_plate: data.name_or_plate,
+          created_by: userName,
+        })
+        .select()
+        .single();
 
-    shipments[index] = { ...shipments[index], ...data, updated_at: now };
-    this.setLocalShipments(shipments);
+      if (error) throw error;
+      return newShipment;
+    } catch (error: any) {
+      console.error("Error creating shipment in Supabase:", error);
+      throw new Error("Sevkiyat oluşturulamadı: " + error.message);
+    }
   }
 
   // Delete shipment
   async delete(code: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("shipments").delete().eq("code", code);
+    if (!isSupabaseConfigured || !supabase) {
+      const shipments = this.getLocalShipments();
+      const filtered = shipments.filter((s) => s.code !== code);
 
-      if (error) throw error;
+      if (filtered.length === shipments.length) {
+        throw new Error("Sevkiyat bulunamadı");
+      }
+
+      // Remove shipment_code from pallets
+      const pallets = await palletRepository.getByShipment(code);
+      for (const pallet of pallets) {
+        await palletRepository.update(pallet.code, null);
+      }
+
+      this.saveLocalShipments(filtered);
       return;
     }
 
-    // Local storage
-    const shipments = this.getLocalShipments();
-    const filtered = shipments.filter((s) => s.code !== code);
-    this.setLocalShipments(filtered);
+    try {
+      // First, remove shipment_code from all pallets
+      const { error: updateError } = await supabase
+        .from("pallets")
+        .update({ shipment_code: null })
+        .eq("shipment_code", code);
+
+      if (updateError) throw updateError;
+
+      // Then delete the shipment
+      const { error: deleteError } = await supabase
+        .from("shipments")
+        .delete()
+        .eq("code", code);
+
+      if (deleteError) throw deleteError;
+    } catch (error: any) {
+      console.error("Error deleting shipment from Supabase:", error);
+      throw new Error("Sevkiyat silinemedi: " + error.message);
+    }
   }
 
-  // Get statistics for admin
-  async getStats(): Promise<{
-    totalShipments: number;
-    recent: ShipmentWithCounts[];
-    byUser: { user: string; count: number }[];
-  }> {
-    const shipments = await this.getAll();
+  // Add pallet to shipment
+  async addPallet(shipmentCode: string, palletCode: string): Promise<void> {
+    // Update pallet to set shipment_code
+    await palletRepository.update(palletCode, shipmentCode);
+  }
 
-    // By user
-    const userMap = new Map<string, number>();
-    shipments.forEach((shipment) => {
-      const count = userMap.get(shipment.created_by) || 0;
-      userMap.set(shipment.created_by, count + 1);
-    });
-    const byUser = Array.from(userMap.entries())
-      .map(([user, count]) => ({ user, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    return {
-      totalShipments: shipments.length,
-      recent: shipments.slice(0, 10),
-      byUser,
-    };
+  // Remove pallet from shipment
+  async removePallet(palletCode: string): Promise<void> {
+    // Update pallet to remove shipment_code
+    await palletRepository.update(palletCode, null);
   }
 }
 
 export const shipmentRepository = new ShipmentRepository();
-

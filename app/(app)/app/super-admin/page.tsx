@@ -98,10 +98,8 @@ export default function SuperAdminPage() {
 
   const loadData = async () => {
     try {
-      const mockAuth = auth as any;
-      if (mockAuth.getAvailableUsers) {
-        setUsers(mockAuth.getAvailableUsers());
-      }
+      const users = await auth.getAvailableUsers();
+      setUsers(users);
       
       const depts = await departmentRepository.getAll();
       setDepartments(depts);
@@ -135,9 +133,8 @@ export default function SuperAdminPage() {
     setShowUserModal(true);
   };
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     try {
-      const mockAuth = auth as any;
       const department = departments.find((d) => d.id === userForm.department_id);
 
       if (editingUser) {
@@ -151,7 +148,7 @@ export default function SuperAdminPage() {
         if (userForm.password) {
           updates.password = userForm.password;
         }
-        mockAuth.updateUser(editingUser.id, updates);
+        await auth.updateUser(editingUser.id, updates);
         toast({
           title: "Başarılı",
           description: "Kullanıcı güncellendi",
@@ -165,7 +162,7 @@ export default function SuperAdminPage() {
           });
           return;
         }
-        mockAuth.createUser({
+        await auth.createUser({
           ...userForm,
           department_name: department?.name || "",
         });
@@ -194,12 +191,11 @@ export default function SuperAdminPage() {
     });
   };
 
-  const confirmDeleteUser = () => {
+  const confirmDeleteUser = async () => {
     if (!deleteDialog) return;
 
     try {
-      const mockAuth = auth as any;
-      mockAuth.deleteUser(deleteDialog.id);
+      await auth.deleteUser(deleteDialog.id);
       toast({
         title: "Başarılı",
         description: "Kullanıcı silindi",

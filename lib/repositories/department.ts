@@ -1,197 +1,263 @@
-import { Department } from "../types/box";
-import { supabase, isSupabaseConfigured } from "../supabase/client";
+// Department Repository - Supabase with localStorage fallback
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import type { Department } from "@/lib/types/box";
 
-// Seed data
-const SEED_DEPARTMENTS = [
-  "Restoran",
-  "Mutfak",
-  "IT",
-  "Depo",
-  "Oyun Alanı",
-  "Yemekhane",
-  "Bilgi İşlem",
-  "Server Odası",
+const DEPARTMENT_STORAGE_KEY = "qr_lojistik_departments";
+
+// Default departments (same as in supabase-setup.sql)
+const DEFAULT_DEPARTMENTS: Department[] = [
+  {
+    id: "d1111111-1111-1111-1111-111111111111",
+    name: "Restoran",
+    description: "Restoran departmanı",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d2222222-2222-2222-2222-222222222222",
+    name: "Mutfak",
+    description: "Mutfak departmanı",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d3333333-3333-3333-3333-333333333333",
+    name: "IT",
+    description: "Bilgi teknolojileri",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d4444444-4444-4444-4444-444444444444",
+    name: "Depo",
+    description: "Ana depo",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d5555555-5555-5555-5555-555555555555",
+    name: "Oyun Alanı",
+    description: "Çocuk oyun alanı",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d6666666-6666-6666-6666-666666666666",
+    name: "Yemekhane",
+    description: "Personel yemekhanesi",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d7777777-7777-7777-7777-777777777777",
+    name: "Bilgi İşlem",
+    description: "IT departmanı",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "d8888888-8888-8888-8888-888888888888",
+    name: "Server Odası",
+    description: "Sunucu odası",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 ];
 
 class DepartmentRepository {
-  private localKey = "qr_lojistik_departments";
-
-  // Generate seed departments for local storage
-  private generateSeedDepartments(): Department[] {
-    const now = new Date().toISOString();
-    return SEED_DEPARTMENTS.map((name, index) => ({
-      id: `dept-${index + 1}`,
-      name,
-      description: "",
-      created_at: now,
-      updated_at: now,
-    }));
-  }
-
-  // Get from localStorage
+  // localStorage methods
   private getLocalDepartments(): Department[] {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(this.localKey);
+    if (typeof window === "undefined") return DEFAULT_DEPARTMENTS;
+    const stored = localStorage.getItem(DEPARTMENT_STORAGE_KEY);
     if (!stored) {
-      const seed = this.generateSeedDepartments();
-      localStorage.setItem(this.localKey, JSON.stringify(seed));
-      return seed;
+      this.saveLocalDepartments(DEFAULT_DEPARTMENTS);
+      return DEFAULT_DEPARTMENTS;
     }
-    return JSON.parse(stored);
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return DEFAULT_DEPARTMENTS;
+    }
   }
 
-  // Save to localStorage
   private saveLocalDepartments(departments: Department[]): void {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(this.localKey, JSON.stringify(departments));
-    }
+    if (typeof window === "undefined") return;
+    localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
   }
 
   // Get all departments
   async getAll(): Promise<Department[]> {
-    if (isSupabaseConfigured && supabase) {
+    if (!isSupabaseConfigured || !supabase) {
+      return this.getLocalDepartments();
+    }
+
+    try {
       const { data, error } = await supabase
         .from("departments")
         .select("*")
-        .order("name");
-      
+        .order("name", { ascending: true });
+
       if (error) throw error;
       return data || [];
+    } catch (error) {
+      console.error("Error fetching departments from Supabase:", error);
+      // Fallback to localStorage
+      return this.getLocalDepartments();
     }
-    
-    // Fallback to local storage
-    return this.getLocalDepartments();
   }
 
-  // Get by ID
+  // Get single department
   async getById(id: string): Promise<Department | null> {
-    if (isSupabaseConfigured && supabase) {
+    if (!isSupabaseConfigured || !supabase) {
+      const departments = this.getLocalDepartments();
+      return departments.find((d) => d.id === id) || null;
+    }
+
+    try {
       const { data, error } = await supabase
         .from("departments")
         .select("*")
         .eq("id", id)
         .single();
-      
-      if (error) return null;
-      return data;
-    }
-    
-    const departments = this.getLocalDepartments();
-    return departments.find((d) => d.id === id) || null;
-  }
 
-  // Create a new department
-  async create(name: string): Promise<Department> {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from("departments")
-        .insert({ name })
-        .select()
-        .single();
-      
       if (error) throw error;
       return data;
+    } catch (error) {
+      console.error("Error fetching department from Supabase:", error);
+      // Fallback to localStorage
+      const departments = this.getLocalDepartments();
+      return departments.find((d) => d.id === id) || null;
     }
-    
-    // Local storage implementation
-    const departments = this.getLocalDepartments();
-    
-    // Check if department name already exists
-    if (departments.find((d) => d.name.toLowerCase() === name.toLowerCase())) {
-      throw new Error("Bu departman adı zaten kullanılıyor");
-    }
-
-    const newDepartment: Department = {
-      id: `dept-${Date.now()}`,
-      name,
-      description: "",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    departments.push(newDepartment);
-    this.saveLocalDepartments(departments);
-    return newDepartment;
   }
 
-  // Update a department
-  async update(id: string, name: string): Promise<Department> {
-    if (isSupabaseConfigured && supabase) {
+  // Create department
+  async create(name: string, description?: string): Promise<Department> {
+    if (!isSupabaseConfigured || !supabase) {
+      const departments = this.getLocalDepartments();
+      
+      // Check if name already exists
+      if (departments.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
+        throw new Error("Bu departman adı zaten kullanılıyor");
+      }
+
+      const newDepartment: Department = {
+        id: `d${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name,
+        description,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      departments.push(newDepartment);
+      this.saveLocalDepartments(departments);
+      return newDepartment;
+    }
+
+    try {
       const { data, error } = await supabase
         .from("departments")
-        .update({ name })
+        .insert({
+          name,
+          description,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("Error creating department in Supabase:", error);
+      
+      // Check for unique constraint error
+      if (error.code === "23505") {
+        throw new Error("Bu departman adı zaten kullanılıyor");
+      }
+      
+      throw new Error("Departman oluşturulamadı: " + error.message);
+    }
+  }
+
+  // Update department
+  async update(id: string, name: string, description?: string): Promise<Department> {
+    if (!isSupabaseConfigured || !supabase) {
+      const departments = this.getLocalDepartments();
+      const index = departments.findIndex((d) => d.id === id);
+
+      if (index === -1) {
+        throw new Error("Departman bulunamadı");
+      }
+
+      // Check if new name conflicts with existing departments
+      if (
+        departments.some(
+          (d) => d.id !== id && d.name.toLowerCase() === name.toLowerCase()
+        )
+      ) {
+        throw new Error("Bu departman adı zaten kullanılıyor");
+      }
+
+      departments[index] = {
+        ...departments[index],
+        name,
+        description,
+        updated_at: new Date().toISOString(),
+      };
+
+      this.saveLocalDepartments(departments);
+      return departments[index];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("departments")
+        .update({
+          name,
+          description,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
+    } catch (error: any) {
+      console.error("Error updating department in Supabase:", error);
+      
+      if (error.code === "23505") {
+        throw new Error("Bu departman adı zaten kullanılıyor");
+      }
+      
+      throw new Error("Departman güncellenemedi: " + error.message);
     }
-    
-    // Local storage implementation
-    const departments = this.getLocalDepartments();
-    const index = departments.findIndex((d) => d.id === id);
-    
-    if (index === -1) {
-      throw new Error("Departman bulunamadı");
-    }
-
-    // Check if department name already exists (excluding current)
-    if (departments.find((d) => d.name.toLowerCase() === name.toLowerCase() && d.id !== id)) {
-      throw new Error("Bu departman adı zaten kullanılıyor");
-    }
-
-    departments[index] = { ...departments[index], name };
-    this.saveLocalDepartments(departments);
-    return departments[index];
   }
 
-  // Delete a department
+  // Delete department
   async delete(id: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
+    if (!isSupabaseConfigured || !supabase) {
+      const departments = this.getLocalDepartments();
+      const filtered = departments.filter((d) => d.id !== id);
+
+      if (filtered.length === departments.length) {
+        throw new Error("Departman bulunamadı");
+      }
+
+      this.saveLocalDepartments(filtered);
+      return;
+    }
+
+    try {
       const { error } = await supabase
         .from("departments")
         .delete()
         .eq("id", id);
-      
+
       if (error) throw error;
-      return;
+    } catch (error: any) {
+      console.error("Error deleting department from Supabase:", error);
+      throw new Error("Departman silinemedi: " + error.message);
     }
-    
-    // Local storage implementation
-    const departments = this.getLocalDepartments();
-    const index = departments.findIndex((d) => d.id === id);
-    
-    if (index === -1) {
-      throw new Error("Departman bulunamadı");
-    }
-
-    departments.splice(index, 1);
-    this.saveLocalDepartments(departments);
-  }
-
-  // Seed database (for Supabase initial setup)
-  async seedDatabase(): Promise<void> {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error("Supabase not configured");
-    }
-
-    // Check if already seeded
-    const { data: existing } = await supabase
-      .from("departments")
-      .select("id")
-      .limit(1);
-
-    if (existing && existing.length > 0) {
-      return; // Already seeded
-    }
-
-    const departments = SEED_DEPARTMENTS.map((name) => ({ name }));
-    const { error } = await supabase.from("departments").insert(departments);
-    
-    if (error) throw error;
   }
 }
 
 export const departmentRepository = new DepartmentRepository();
-
