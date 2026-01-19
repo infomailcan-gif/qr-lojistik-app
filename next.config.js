@@ -23,6 +23,20 @@ const nextConfig = {
       fullUrl: false,
     },
   },
+  // Performans Optimizasyonları
+  compiler: {
+    // Production'da console.log'ları kaldır
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  // Bundle optimizasyonu
+  experimental: {
+    // Optimize package imports
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
+  },
+  // Powered by header'ını kaldır (küçük performans artışı)
+  poweredByHeader: false,
+  // Compression
+  compress: true,
 };
 
 module.exports = nextConfig;

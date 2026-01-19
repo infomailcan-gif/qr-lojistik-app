@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Truck, Plus, Package, Box, Calendar, User, Eye, Edit, Trash2, Sparkles, Send, MapPin, Shield } from "lucide-react";
+import { Truck, Plus, Package, Box, Calendar, User, Eye, Edit, Trash2, Sparkles, Send, Shield } from "lucide-react";
+import { usePerformance } from "@/hooks/use-performance";
 import {
   Dialog,
   DialogContent,
@@ -22,10 +23,19 @@ import { auth } from "@/lib/auth";
 
 export default function ShipmentsPage() {
   const router = useRouter();
+  const { shouldReduceMotion, animationDuration, staggerDelay } = usePerformance();
   const [userName, setUserName] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("user");
   const [allShipments, setAllShipments] = useState<ShipmentWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Performans optimizasyonu için animasyon ayarları
+  const motionConfig = useMemo(() => ({
+    initial: shouldReduceMotion ? {} : { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    exit: shouldReduceMotion ? {} : { opacity: 0, scale: 0.95 },
+    transition: { duration: animationDuration }
+  }), [shouldReduceMotion, animationDuration]);
 
   const [selectedShipment, setSelectedShipment] = useState<ShipmentWithCounts | null>(null);
   const [actionModalOpen, setActionModalOpen] = useState(false);
@@ -134,39 +144,21 @@ export default function ShipmentsPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <motion.div className="relative mx-auto w-20 h-20">
-            {/* Outer glow ring */}
-            <motion.div
-              className="absolute inset-0 rounded-full"
-              style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)" }}
-              animate={{ 
-                scale: [1, 1.3, 1],
-                opacity: [0.3, 0.1, 0.3]
-              }}
-              transition={{ duration: 2, repeat: Infinity }}
+          <div className="relative mx-auto w-16 h-16">
+            {/* Basit spinning border - CSS animation */}
+            <div className="absolute inset-0 rounded-full border-4 border-purple-200" />
+            <div 
+              className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-500 animate-spin"
+              style={{ animationDuration: "0.8s" }}
             />
-            {/* Spinning border */}
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-1 rounded-full border-4 border-purple-500/30 border-t-purple-500"
-            />
-            {/* Center icon */}
-            <motion.div
-              className="absolute inset-3 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center"
-              animate={{ scale: [1, 0.9, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-            >
-              <Truck className="h-6 w-6 text-white" />
-            </motion.div>
-          </motion.div>
-          <motion.p 
-            className="mt-6 text-slate-600 font-medium"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
+            {/* Center icon - statik */}
+            <div className="absolute inset-2 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <Truck className="h-5 w-5 text-white" />
+            </div>
+          </div>
+          <p className="mt-4 text-slate-600 font-medium animate-pulse">
             Sevkiyatlar yükleniyor...
-          </motion.p>
+          </p>
         </div>
       </div>
     );
@@ -316,12 +308,15 @@ export default function ShipmentsPage() {
             shipments.map((shipment, index) => (
               <motion.div
                 key={shipment.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ y: -4 }}
+                layout={!shouldReduceMotion}
+                initial={motionConfig.initial}
+                animate={motionConfig.animate}
+                exit={motionConfig.exit}
+                transition={{ 
+                  duration: animationDuration,
+                  delay: shouldReduceMotion ? 0 : staggerDelay * Math.min(index, 6)
+                }}
+                whileHover={shouldReduceMotion ? {} : { y: -2 }}
               >
                 <Card
                   className="relative overflow-hidden border-slate-200 bg-white/80 backdrop-blur-sm hover:border-purple-300 hover:shadow-xl hover:shadow-purple-500/10 transition-all cursor-pointer group"

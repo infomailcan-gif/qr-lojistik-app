@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Zap, Shield } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield } from "lucide-react";
+import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ type FilterTab = "all" | "sealed" | "draft";
 
 export default function BoxesPage() {
   const router = useRouter();
+  const { shouldReduceMotion, animationDuration, staggerDelay } = usePerformance();
   const [loading, setLoading] = useState(true);
   const [boxes, setBoxes] = useState<BoxWithDepartment[]>([]);
   const [filteredBoxes, setFilteredBoxes] = useState<BoxWithDepartment[]>([]);
@@ -41,6 +43,14 @@ export default function BoxesPage() {
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Performans optimizasyonu için animasyon ayarları
+  const motionConfig = useMemo(() => ({
+    initial: shouldReduceMotion ? {} : { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    exit: shouldReduceMotion ? {} : { opacity: 0, scale: 0.95 },
+    transition: { duration: animationDuration }
+  }), [shouldReduceMotion, animationDuration]);
 
   useEffect(() => {
     loadData();
@@ -203,39 +213,21 @@ export default function BoxesPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <motion.div className="relative mx-auto w-20 h-20">
-            {/* Outer glow ring */}
-            <motion.div
-              className="absolute inset-0 rounded-full"
-              style={{ background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)" }}
-              animate={{ 
-                scale: [1, 1.3, 1],
-                opacity: [0.3, 0.1, 0.3]
-              }}
-              transition={{ duration: 2, repeat: Infinity }}
+          <div className="relative mx-auto w-16 h-16">
+            {/* Basit spinning border - CSS animation (GPU optimized) */}
+            <div className="absolute inset-0 rounded-full border-4 border-blue-200" />
+            <div 
+              className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"
+              style={{ animationDuration: "0.8s" }}
             />
-            {/* Spinning border */}
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-1 rounded-full border-4 border-blue-500/30 border-t-blue-500"
-            />
-            {/* Center icon */}
-            <motion.div
-              className="absolute inset-3 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center"
-              animate={{ scale: [1, 0.9, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-            >
-              <Package className="h-6 w-6 text-white" />
-            </motion.div>
-          </motion.div>
-          <motion.p 
-            className="mt-6 text-slate-600 font-medium"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
+            {/* Center icon - statik */}
+            <div className="absolute inset-2 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+              <Package className="h-5 w-5 text-white" />
+            </div>
+          </div>
+          <p className="mt-4 text-slate-600 font-medium animate-pulse">
             Koliler yükleniyor...
-          </motion.p>
+          </p>
         </div>
       </div>
     );
@@ -443,12 +435,15 @@ export default function BoxesPage() {
             filteredBoxes.map((box, index) => (
               <motion.div
                 key={box.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: 0.05 * (index % 6) }}
-                whileHover={{ y: -4 }}
+                layout={!shouldReduceMotion}
+                initial={motionConfig.initial}
+                animate={motionConfig.animate}
+                exit={motionConfig.exit}
+                transition={{ 
+                  duration: animationDuration,
+                  delay: shouldReduceMotion ? 0 : staggerDelay * Math.min(index, 6)
+                }}
+                whileHover={shouldReduceMotion ? {} : { y: -2 }}
               >
                 <Card
                   className="relative overflow-hidden border-slate-200 bg-white/80 backdrop-blur-sm hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer group"
