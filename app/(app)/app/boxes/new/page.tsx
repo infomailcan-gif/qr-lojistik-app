@@ -194,7 +194,7 @@ export default function NewBoxPage() {
       );
       
       for (const line of lines) {
-        await boxRepository.addLine(box.id, {
+        await boxRepository.addLine(box.code, {
           product_name: line.product_name,
           qty: line.qty,
           kind: line.kind,
@@ -212,7 +212,7 @@ export default function NewBoxPage() {
       }
 
       if (photoDataUrl) {
-        await boxRepository.update(box.id, { photo_url: photoDataUrl });
+        await boxRepository.update(box.code, { photo_url: photoDataUrl });
         activityTracker.log(
           user,
           "box_photo_added",
@@ -265,7 +265,7 @@ export default function NewBoxPage() {
       );
       
       for (const line of lines) {
-        await boxRepository.addLine(box.id, {
+        await boxRepository.addLine(box.code, {
           product_name: line.product_name,
           qty: line.qty,
           kind: line.kind,
@@ -282,7 +282,7 @@ export default function NewBoxPage() {
         );
       }
 
-      await boxRepository.update(box.id, { 
+      await boxRepository.update(box.code, { 
         photo_url: photoDataUrl,
         status: "sealed" 
       });
