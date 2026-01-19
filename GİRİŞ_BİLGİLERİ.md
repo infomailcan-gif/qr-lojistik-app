@@ -93,3 +93,4 @@ WHERE username = 'kullaniciadi';
 **Son Güncelleme**: 19 Ocak 2026
 **Proje**: QR Lojistik App 2026
 
+

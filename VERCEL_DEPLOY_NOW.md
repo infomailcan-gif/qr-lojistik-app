@@ -155,3 +155,4 @@ Supabase: ✅ Hazır (değişmedi)
 2. 3-4 dakika bekleyin
 3. Test edin!
 
+

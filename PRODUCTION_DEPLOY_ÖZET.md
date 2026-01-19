@@ -134,3 +134,4 @@ Deployments → En son deployment → Üç nokta (...) → Redeploy
 **Durum**: %95 Tamamlandı
 **Kalan**: Sadece Vercel env vars
 
+

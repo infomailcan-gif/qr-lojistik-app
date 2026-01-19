@@ -180,3 +180,4 @@ Production URL'nizi açın ve:
 **Güvenilirlik**: %100 (Veritabanından direkt veri alındı)
 **Durum**: Hazır, test edilmeyi bekliyor
 
+

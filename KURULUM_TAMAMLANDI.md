@@ -154,3 +154,4 @@ Artık QR Lojistik uygulamanız tamamen Supabase ile entegre edildi ve kullanım
 **Proje**: QR Lojistik App 2026
 **Durum**: ✅ Production Ready
 
+

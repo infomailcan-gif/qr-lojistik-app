@@ -237,3 +237,4 @@ Tüm kriterler karşılandı:
 
 
 
+

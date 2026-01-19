@@ -212,3 +212,4 @@ Sorun mu var?
 **Tarih**: 19 Ocak 2026
 **Durum**: Kod hazır, environment variables bekleniyor
 
+

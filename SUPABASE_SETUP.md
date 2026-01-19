@@ -201,3 +201,4 @@ Uygulamayı yayınlamak için (Vercel, Netlify, vb.):
 
 **Özet:** Supabase ile artık tüm cihazlar senkronize olacak. localStorage yerine gerçek veritabanı kullanacaksın. Kurulum 15-20 dakika sürer. 🎉
 
+
