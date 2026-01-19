@@ -127,11 +127,18 @@ export default function PalletDetailPage({
         return;
       }
 
-      const [palletData, boxes] = await Promise.all([
-        palletRepository.getByCodeWithBoxes(params.code),
-        // Only show user's own boxes from their department
-        boxRepository.getAvailableForPallet(session.user.department_id, session.user.name),
+      const [palletData, allBoxes] = await Promise.all([
+        palletRepository.getByCode(params.code),
+        boxRepository.getAll(),
       ]);
+
+      // Filter boxes: only show sealed boxes from user's department that are not in a pallet
+      const boxes = allBoxes.filter(
+        (b) =>
+          b.department.id === session.user.department_id &&
+          b.status === "sealed" &&
+          !b.pallet_code
+      );
 
       if (!palletData) {
         toast({

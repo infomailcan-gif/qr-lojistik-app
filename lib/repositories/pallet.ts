@@ -134,7 +134,7 @@ class PalletRepository {
 
       return {
         ...palletData,
-        boxes: (boxesData || []).map((b) => ({
+        boxes: (boxesData || []).map((b: any) => ({
           ...b,
           department_name: Array.isArray(b.department)
             ? b.department[0]?.name || "Unknown"
@@ -313,8 +313,8 @@ class PalletRepository {
     }
   }
 
-  // Update pallet (mainly for shipment_code)
-  async update(code: string, shipmentCode: string | null): Promise<Pallet> {
+  // Update pallet
+  async update(code: string, updates: { name?: string; shipment_code?: string | null }): Promise<Pallet> {
     if (!isSupabaseConfigured || !supabase) {
       const pallets = this.getLocalPallets();
       const index = pallets.findIndex((p) => p.code === code);
@@ -325,7 +325,8 @@ class PalletRepository {
 
       pallets[index] = {
         ...pallets[index],
-        shipment_code: shipmentCode,
+        ...(updates.name !== undefined && { name: updates.name }),
+        ...(updates.shipment_code !== undefined && { shipment_code: updates.shipment_code }),
         updated_at: new Date().toISOString(),
       };
 
@@ -334,12 +335,20 @@ class PalletRepository {
     }
 
     try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (updates.name !== undefined) {
+        updateData.name = updates.name;
+      }
+      if (updates.shipment_code !== undefined) {
+        updateData.shipment_code = updates.shipment_code;
+      }
+
       const { data, error } = await supabase
         .from("pallets")
-        .update({
-          shipment_code: shipmentCode,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("code", code)
         .select()
         .single();
@@ -350,6 +359,16 @@ class PalletRepository {
       console.error("Error updating pallet in Supabase:", error);
       throw new Error("Palet güncellenemedi: " + error.message);
     }
+  }
+
+  // Set shipment code for pallet (shorthand)
+  async setShipment(code: string, shipmentCode: string | null): Promise<Pallet> {
+    return this.update(code, { shipment_code: shipmentCode });
+  }
+
+  // Clear shipment code from pallet
+  async clearShipment(code: string): Promise<Pallet> {
+    return this.update(code, { shipment_code: null });
   }
 }
 

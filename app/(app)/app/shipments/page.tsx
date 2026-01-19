@@ -84,7 +84,7 @@ export default function ShipmentsPage() {
     
     setIsDeleting(true);
     try {
-      const shipmentData = await shipmentRepository.getWithPallets(selectedShipment.code);
+      const shipmentData = await shipmentRepository.getByCode(selectedShipment.code);
       if (shipmentData) {
         for (const pallet of shipmentData.pallets) {
           await palletRepository.clearShipment(pallet.code);

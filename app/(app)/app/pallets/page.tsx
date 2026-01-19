@@ -44,7 +44,7 @@ export default function PalletsPage() {
       }
 
       setCurrentUserName(session.user.name);
-      const allPallets = await palletRepository.getAll({ createdBy: session.user.name });
+      const allPallets = await palletRepository.getAll();
       setPallets(allPallets);
     } catch (error) {
       toast({
@@ -86,7 +86,7 @@ export default function PalletsPage() {
     
     setIsDeleting(true);
     try {
-      const palletData = await palletRepository.getByCodeWithBoxes(selectedPallet.code);
+      const palletData = await palletRepository.getByCode(selectedPallet.code);
       if (palletData) {
         for (const box of palletData.boxes) {
           await boxRepository.clearPallet(box.code);

@@ -180,6 +180,7 @@ export default function NewBoxPage() {
           name: boxName.trim(),
           department_id: user.department_id,
         },
+        user.id,
         user.name
       );
       
@@ -250,6 +251,7 @@ export default function NewBoxPage() {
           name: boxName.trim(),
           department_id: user.department_id,
         },
+        user.id,
         user.name
       );
       

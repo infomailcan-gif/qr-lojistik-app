@@ -47,6 +47,9 @@ export interface BoxDetail extends BoxWithLines {
   department: Department;
 }
 
+// Type alias for compatibility
+export type BoxWithDetails = BoxDetail;
+
 // Form Types
 export interface CreateBoxData {
   name: string;

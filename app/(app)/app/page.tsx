@@ -54,8 +54,8 @@ export default function DashboardPage() {
         const userName = session.user.name;
         
         const [boxes, pallets, shipments] = await Promise.all([
-          boxRepository.getAll({ createdBy: userName }),
-          palletRepository.getAll({ createdBy: userName }),
+          boxRepository.getAll(),
+          palletRepository.getAll(),
           shipmentRepository.getAll(),
         ]);
 

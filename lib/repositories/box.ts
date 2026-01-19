@@ -388,6 +388,16 @@ class BoxRepository {
     return this.update(code, { status: "sealed" });
   }
 
+  // Set pallet for a box
+  async setPallet(boxCode: string, palletCode: string): Promise<Box> {
+    return this.update(boxCode, { pallet_code: palletCode });
+  }
+
+  // Clear pallet from a box
+  async clearPallet(boxCode: string): Promise<Box> {
+    return this.update(boxCode, { pallet_code: null });
+  }
+
   // Get boxes by pallet
   async getByPallet(palletCode: string): Promise<BoxWithDepartment[]> {
     if (!isSupabaseConfigured || !supabase) {

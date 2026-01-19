@@ -78,7 +78,7 @@ export default function ShipmentDetailPage({
 
   const loadShipment = async () => {
     try {
-      const data = await shipmentRepository.getWithPallets(params.code);
+      const data = await shipmentRepository.getByCode(params.code);
       setShipment(data);
       if (data) {
         setEditNameOrPlate(data.name_or_plate);
@@ -96,8 +96,11 @@ export default function ShipmentDetailPage({
       const session = await auth.getSession();
       if (!session) return;
       
-      // Only show user's own pallets
-      const pallets = await palletRepository.getAvailableForShipment(session.user.name);
+      // Get all pallets and filter by user and not in a shipment
+      const allPallets = await palletRepository.getAll();
+      const pallets = allPallets.filter(
+        (p) => p.created_by === session.user.name && !p.shipment_code
+      );
       setAvailablePallets(pallets);
     } catch (error) {
       console.error("Error loading available pallets:", error);
@@ -131,7 +134,7 @@ export default function ShipmentDetailPage({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const img = new Image();
+    const img = document.createElement("img");
     img.onload = () => {
       const qrSize = 600;
       const textHeight = 80;

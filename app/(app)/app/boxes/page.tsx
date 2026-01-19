@@ -63,7 +63,7 @@ export default function BoxesPage() {
       setUserRole(session.user.role);
       
       const [allBoxes, deps] = await Promise.all([
-        boxRepository.getAll({ createdBy: session.user.name }),
+        boxRepository.getAll(),
         departmentRepository.getAll(),
       ]);
       
@@ -141,7 +141,7 @@ export default function BoxesPage() {
         return;
       }
       
-      await boxRepository.delete(selectedBox.id);
+      await boxRepository.delete(selectedBox.code);
       
       toast({
         title: "Koli Silindi",

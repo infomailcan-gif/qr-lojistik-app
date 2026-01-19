@@ -60,6 +60,11 @@ class MockAuth {
     }
   }
 
+  // Alias for compatibility
+  async signOut(): Promise<void> {
+    return this.logout();
+  }
+
   async getSession(): Promise<Session | null> {
     if (typeof window === "undefined") return null;
     const stored = localStorage.getItem(SESSION_STORAGE_KEY);

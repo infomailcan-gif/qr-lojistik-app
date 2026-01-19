@@ -132,7 +132,7 @@ export default function PublicPalletPage({
 
   const loadPallet = async () => {
     try {
-      const data = await palletRepository.getByCodeWithBoxes(params.code);
+      const data = await palletRepository.getByCode(params.code);
       setPallet(data);
     } catch (error) {
       console.error("Error loading pallet:", error);

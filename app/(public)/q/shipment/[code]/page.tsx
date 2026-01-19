@@ -39,7 +39,7 @@ export default function PublicShipmentPage({
 
   const loadShipment = async () => {
     try {
-      const data = await shipmentRepository.getWithPallets(params.code);
+      const data = await shipmentRepository.getByCode(params.code);
       setShipment(data);
     } catch (error) {
       console.error("Error loading shipment:", error);

@@ -274,7 +274,7 @@ class ShipmentRepository {
       // Remove shipment_code from pallets
       const pallets = await palletRepository.getByShipment(code);
       for (const pallet of pallets) {
-        await palletRepository.update(pallet.code, null);
+        await palletRepository.update(pallet.code, { shipment_code: null });
       }
 
       this.saveLocalShipments(filtered);
@@ -306,13 +306,57 @@ class ShipmentRepository {
   // Add pallet to shipment
   async addPallet(shipmentCode: string, palletCode: string): Promise<void> {
     // Update pallet to set shipment_code
-    await palletRepository.update(palletCode, shipmentCode);
+    await palletRepository.update(palletCode, { shipment_code: shipmentCode });
   }
 
   // Remove pallet from shipment
   async removePallet(palletCode: string): Promise<void> {
     // Update pallet to remove shipment_code
-    await palletRepository.update(palletCode, null);
+    await palletRepository.update(palletCode, { shipment_code: null });
+  }
+
+  // Update shipment
+  async update(code: string, updates: { name_or_plate?: string }): Promise<Shipment> {
+    if (!isSupabaseConfigured || !supabase) {
+      const shipments = this.getLocalShipments();
+      const index = shipments.findIndex((s) => s.code === code);
+
+      if (index === -1) {
+        throw new Error("Sevkiyat bulunamadı");
+      }
+
+      shipments[index] = {
+        ...shipments[index],
+        ...(updates.name_or_plate !== undefined && { name_or_plate: updates.name_or_plate }),
+        updated_at: new Date().toISOString(),
+      };
+
+      this.saveLocalShipments(shipments);
+      return shipments[index];
+    }
+
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (updates.name_or_plate !== undefined) {
+        updateData.name_or_plate = updates.name_or_plate;
+      }
+
+      const { data, error } = await supabase
+        .from("shipments")
+        .update(updateData)
+        .eq("code", code)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("Error updating shipment in Supabase:", error);
+      throw new Error("Sevkiyat güncellenemedi: " + error.message);
+    }
   }
 }
 
