@@ -13,15 +13,17 @@ export interface MockUser {
   department_name: string;
 }
 
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  department_id: string;
+  department_name: string;
+}
+
 export interface Session {
-  user: {
-    id: string;
-    username: string;
-    name: string;
-    role: UserRole;
-    department_id: string;
-    department_name: string;
-  };
+  user: User;
 }
 
 const SESSION_STORAGE_KEY = "qr_lojistik_session";

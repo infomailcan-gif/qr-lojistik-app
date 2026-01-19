@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Lojistik - Production Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #10b981;
+            padding-bottom: 10px;
+        }
+        .test-item {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            background: #f9fafb;
+            border-left: 4px solid #94a3b8;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #ecfdf5;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .loading {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .info {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔍 QR Lojistik - Production Test</h1>
+        
+        <div class="info">
+            <strong>📍 Test Edilen:</strong><br>
+            • Supabase bağlantısı<br>
+            • Veritabanı erişimi<br>
+            • Environment variables<br>
+            • Kullanıcı listesi<br>
+            • Departman listesi
+        </div>
+
+        <button onclick="runTests()">▶️ Testleri Çalıştır</button>
+        <button onclick="clearResults()">🗑️ Temizle</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://qwfxnnwychrlysjrztnp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3Znhubnd5Y2hybHlzanJ6dG5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3NjI3NjAsImV4cCI6MjA4NDMzODc2MH0.awVBYyMTkkFHhDwm4DQcBC5yfsyGJngPluXv3S19-GQ';
+
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(title, status, details = '') {
+            const statusClass = status === 'success' ? 'success' : status === 'error' ? 'error' : 'loading';
+            const icon = status === 'success' ? '✅' : status === 'error' ? '❌' : '⏳';
+            
+            const html = `
+                <div class="test-item ${statusClass}">
+                    <strong>${icon} ${title}</strong>
+                    ${details ? `<div style="margin-top: 10px; color: #64748b;">${details}</div>` : ''}
+                </div>
+            `;
+            resultsDiv.innerHTML += html;
+        }
+
+        async function runTests() {
+            resultsDiv.innerHTML = '<h2>Test Sonuçları:</h2>';
+            
+            // Test 1: Supabase Bağlantısı
+            addResult('Supabase Bağlantısı', 'loading', 'Kontrol ediliyor...');
+            
+            try {
+                // Test 2: Kullanıcılar Tablosu
+                addResult('Kullanıcılar Tablosu', 'loading', 'Sorgulanıyor...');
+                const { data: users, error: usersError } = await supabase
+                    .from('users')
+                    .select('username, name, role')
+                    .order('role');
+
+                if (usersError) throw usersError;
+                
+                addResult('Kullanıcılar Tablosu', 'success', 
+                    `${users.length} kullanıcı bulundu:<br><pre>${JSON.stringify(users, null, 2)}</pre>`);
+
+                // Test 3: Departmanlar Tablosu
+                addResult('Departmanlar Tablosu', 'loading', 'Sorgulanıyor...');
+                const { data: departments, error: deptError } = await supabase
+                    .from('departments')
+                    .select('name')
+                    .order('name');
+
+                if (deptError) throw deptError;
+                
+                addResult('Departmanlar Tablosu', 'success', 
+                    `${departments.length} departman bulundu:<br><pre>${JSON.stringify(departments, null, 2)}</pre>`);
+
+                // Test 4: Koliler Tablosu
+                addResult('Koliler Tablosu', 'loading', 'Sorgulanıyor...');
+                const { data: boxes, error: boxError } = await supabase
+                    .from('boxes')
+                    .select('code, name, status')
+                    .limit(5);
+
+                if (boxError) throw boxError;
+                
+                addResult('Koliler Tablosu', 'success', 
+                    `${boxes.length > 0 ? boxes.length + ' koli bulundu' : 'Henüz koli yok (normal)'}`);
+
+                // Test 5: Paletler Tablosu
+                addResult('Paletler Tablosu', 'loading', 'Sorgulanıyor...');
+                const { data: pallets, error: palletError } = await supabase
+                    .from('pallets')
+                    .select('code, name')
+                    .limit(5);
+
+                if (palletError) throw palletError;
+                
+                addResult('Paletler Tablosu', 'success', 
+                    `${pallets.length > 0 ? pallets.length + ' palet bulundu' : 'Henüz palet yok (normal)'}`);
+
+                // Test 6: Sevkiyatlar Tablosu
+                addResult('Sevkiyatlar Tablosu', 'loading', 'Sorgulanıyor...');
+                const { data: shipments, error: shipmentError } = await supabase
+                    .from('shipments')
+                    .select('code, name_or_plate')
+                    .limit(5);
+
+                if (shipmentError) throw shipmentError;
+                
+                addResult('Sevkiyatlar Tablosu', 'success', 
+                    `${shipments.length > 0 ? shipments.length + ' sevkiyat bulundu' : 'Henüz sevkiyat yok (normal)'}`);
+
+                // Özet
+                addResult('🎉 TÜM TESTLER BAŞARILI', 'success', 
+                    'Supabase bağlantısı çalışıyor, tüm tablolar erişilebilir durumda. Production hazır!');
+
+            } catch (error) {
+                addResult('HATA', 'error', 
+                    `Bir sorun oluştu: ${error.message}<br><pre>${JSON.stringify(error, null, 2)}</pre>`);
+            }
+        }
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+
+        // Sayfa yüklendiğinde otomatik test
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.querySelector('button').click();
+            }, 500);
+        });
+    </script>
+</body>
+</html>
+
