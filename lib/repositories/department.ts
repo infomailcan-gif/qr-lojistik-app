@@ -294,6 +294,33 @@ class DepartmentRepository {
     }
 
     try {
+      // Önce bu departmanda koli var mı kontrol et
+      const { data: boxes, error: boxError } = await supabase
+        .from("boxes")
+        .select("id")
+        .eq("department_id", id)
+        .limit(1);
+
+      if (boxError) throw boxError;
+
+      if (boxes && boxes.length > 0) {
+        throw new Error("Bu departmana ait koliler var. Önce kolileri silin veya başka departmana taşıyın.");
+      }
+
+      // Bu departmanda kullanıcı var mı kontrol et
+      const { data: users, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("department_id", id)
+        .limit(1);
+
+      if (userError) throw userError;
+
+      if (users && users.length > 0) {
+        throw new Error("Bu departmana atanmış kullanıcılar var. Önce kullanıcıları başka departmana taşıyın.");
+      }
+
+      // Şimdi güvenle silebiliriz
       const { error } = await supabase
         .from("departments")
         .delete()
@@ -302,7 +329,13 @@ class DepartmentRepository {
       if (error) throw error;
     } catch (error: any) {
       console.error("Error deleting department from Supabase:", error);
-      throw new Error("Departman silinemedi: " + error.message);
+      
+      // Foreign key hatası için özel mesaj
+      if (error.code === "23503") {
+        throw new Error("Bu departmana bağlı kayıtlar var. Önce kolileri ve kullanıcıları başka departmana taşıyın.");
+      }
+      
+      throw new Error(error.message || "Departman silinemedi");
     }
   }
 
