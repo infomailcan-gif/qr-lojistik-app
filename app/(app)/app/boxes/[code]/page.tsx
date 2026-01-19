@@ -81,10 +81,9 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const img = new Image();
+    const img = document.createElement("img");
     img.onload = () => {
       const qrSize = 600;
-      const padding = 40;
       const textHeight = 80;
       
       canvas.width = qrSize;

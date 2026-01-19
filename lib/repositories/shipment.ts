@@ -60,35 +60,65 @@ class ShipmentRepository {
     }
 
     try {
-      const { data, error } = await supabase
+      // Get all shipments
+      const { data: shipments, error: shipmentError } = await supabase
         .from("shipments")
-        .select(
-          `
-          *,
-          pallets:pallets!shipment_code(
-            count,
-            boxes:boxes!pallet_code(count)
-          )
-        `
-        )
+        .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (shipmentError) throw shipmentError;
 
-      return (data || []).map((item) => {
-        const pallet_count = item.pallets?.[0]?.count || 0;
-        const box_count = item.pallets?.reduce(
-          (sum: number, p: any) => sum + (p.boxes?.[0]?.count || 0),
-          0
-        ) || 0;
+      // Get pallet counts for each shipment
+      const shipmentCodes = (shipments || []).map((s) => s.code);
+      
+      let palletCounts: { [key: string]: number } = {};
+      let boxCounts: { [key: string]: number } = {};
 
-        return {
-          ...item,
-          pallet_count,
-          box_count,
-          pallets: undefined,
-        };
-      });
+      if (shipmentCodes.length > 0) {
+        // Get pallets with their shipment codes
+        const { data: pallets } = await supabase
+          .from("pallets")
+          .select("code, shipment_code")
+          .in("shipment_code", shipmentCodes);
+
+        // Count pallets per shipment
+        (pallets || []).forEach((p) => {
+          if (p.shipment_code) {
+            palletCounts[p.shipment_code] = (palletCounts[p.shipment_code] || 0) + 1;
+          }
+        });
+
+        // Get boxes for these pallets
+        const palletCodes = (pallets || []).map((p) => p.code);
+        if (palletCodes.length > 0) {
+          const { data: boxes } = await supabase
+            .from("boxes")
+            .select("pallet_code")
+            .in("pallet_code", palletCodes);
+
+          // Create pallet to shipment mapping
+          const palletToShipment: { [key: string]: string } = {};
+          (pallets || []).forEach((p) => {
+            if (p.shipment_code) {
+              palletToShipment[p.code] = p.shipment_code;
+            }
+          });
+
+          // Count boxes per shipment
+          (boxes || []).forEach((b) => {
+            const shipmentCode = palletToShipment[b.pallet_code];
+            if (shipmentCode) {
+              boxCounts[shipmentCode] = (boxCounts[shipmentCode] || 0) + 1;
+            }
+          });
+        }
+      }
+
+      return (shipments || []).map((shipment) => ({
+        ...shipment,
+        pallet_count: palletCounts[shipment.code] || 0,
+        box_count: boxCounts[shipment.code] || 0,
+      }));
     } catch (error) {
       console.error("Error fetching shipments from Supabase:", error);
       // Fallback to localStorage
@@ -159,7 +189,7 @@ class ShipmentRepository {
           id,
           code,
           name,
-          boxes:boxes!pallet_code(
+          boxes:boxes!boxes_pallet_code_fkey(
             id,
             code,
             name,

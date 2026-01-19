@@ -53,7 +53,7 @@ class PalletRepository {
         .select(
           `
           *,
-          boxes:boxes!pallet_code(count)
+          boxes:boxes!boxes_pallet_code_fkey(count)
         `
         )
         .order("created_at", { ascending: false });
@@ -286,7 +286,7 @@ class PalletRepository {
         .select(
           `
           *,
-          boxes:boxes!pallet_code(count)
+          boxes:boxes!boxes_pallet_code_fkey(count)
         `
         )
         .eq("shipment_code", shipmentCode)
@@ -369,6 +369,64 @@ class PalletRepository {
   // Clear shipment code from pallet
   async clearShipment(code: string): Promise<Pallet> {
     return this.update(code, { shipment_code: null });
+  }
+
+  // Get pallets available for shipment (not assigned to any shipment, created by user)
+  async getAvailableForShipment(userName: string): Promise<PalletWithBoxCount[]> {
+    if (!isSupabaseConfigured || !supabase) {
+      const pallets = this.getLocalPallets().filter(
+        (p) => !p.shipment_code && p.created_by === userName
+      );
+      const boxes = await boxRepository.getAll();
+
+      return pallets.map((pallet) => ({
+        ...pallet,
+        box_count: boxes.filter((b) => b.pallet_code === pallet.code).length,
+      }));
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("pallets")
+        .select("*")
+        .is("shipment_code", null)
+        .eq("created_by", userName)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Get box counts separately
+      const palletCodes = (data || []).map((p) => p.code);
+      let boxCounts: { [key: string]: number } = {};
+
+      if (palletCodes.length > 0) {
+        const { data: boxData } = await supabase
+          .from("boxes")
+          .select("pallet_code")
+          .in("pallet_code", palletCodes);
+
+        (boxData || []).forEach((b) => {
+          boxCounts[b.pallet_code] = (boxCounts[b.pallet_code] || 0) + 1;
+        });
+      }
+
+      return (data || []).map((pallet) => ({
+        ...pallet,
+        box_count: boxCounts[pallet.code] || 0,
+      }));
+    } catch (error) {
+      console.error("Error fetching available pallets from Supabase:", error);
+      // Fallback to localStorage
+      const pallets = this.getLocalPallets().filter(
+        (p) => !p.shipment_code && p.created_by === userName
+      );
+      const boxes = await boxRepository.getAll();
+
+      return pallets.map((pallet) => ({
+        ...pallet,
+        box_count: boxes.filter((b) => b.pallet_code === pallet.code).length,
+      }));
+    }
   }
 }
 
