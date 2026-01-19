@@ -68,21 +68,34 @@ class DepartmentRepository {
   // localStorage methods
   private getLocalDepartments(): Department[] {
     if (typeof window === "undefined") return DEFAULT_DEPARTMENTS;
+    
     const stored = localStorage.getItem(DEPARTMENT_STORAGE_KEY);
     if (!stored) {
       this.saveLocalDepartments(DEFAULT_DEPARTMENTS);
       return DEFAULT_DEPARTMENTS;
     }
+    
     try {
-      return JSON.parse(stored);
+      const departments = JSON.parse(stored);
+      // Eğer dizi boşsa, default departmanları geri yükle
+      if (!Array.isArray(departments) || departments.length === 0) {
+        this.saveLocalDepartments(DEFAULT_DEPARTMENTS);
+        return DEFAULT_DEPARTMENTS;
+      }
+      return departments;
     } catch {
+      this.saveLocalDepartments(DEFAULT_DEPARTMENTS);
       return DEFAULT_DEPARTMENTS;
     }
   }
 
   private saveLocalDepartments(departments: Department[]): void {
     if (typeof window === "undefined") return;
-    localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
+    try {
+      localStorage.setItem(DEPARTMENT_STORAGE_KEY, JSON.stringify(departments));
+    } catch (error) {
+      console.error("Error saving departments to localStorage:", error);
+    }
   }
 
   // Get all departments
@@ -132,24 +145,33 @@ class DepartmentRepository {
 
   // Create department
   async create(name: string, description?: string): Promise<Department> {
+    // Validasyon
+    if (!name || !name.trim()) {
+      throw new Error("Departman adı gerekli");
+    }
+
+    const trimmedName = name.trim();
+
     if (!isSupabaseConfigured || !supabase) {
       const departments = this.getLocalDepartments();
       
-      // Check if name already exists
-      if (departments.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
+      // Check if name already exists (case insensitive)
+      if (departments.some((d) => d.name.toLowerCase() === trimmedName.toLowerCase())) {
         throw new Error("Bu departman adı zaten kullanılıyor");
       }
 
       const newDepartment: Department = {
-        id: `d${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name,
-        description,
+        id: `dept-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: trimmedName,
+        description: description || "",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       departments.push(newDepartment);
       this.saveLocalDepartments(departments);
+      
+      console.log("Department created locally:", newDepartment.name);
       return newDepartment;
     }
 
@@ -157,8 +179,8 @@ class DepartmentRepository {
       const { data, error } = await supabase
         .from("departments")
         .insert({
-          name,
-          description,
+          name: trimmedName,
+          description: description || "",
         })
         .select()
         .single();
@@ -179,6 +201,16 @@ class DepartmentRepository {
 
   // Update department
   async update(id: string, name: string, description?: string): Promise<Department> {
+    // Validasyon
+    if (!id) {
+      throw new Error("Departman ID gerekli");
+    }
+    if (!name || !name.trim()) {
+      throw new Error("Departman adı gerekli");
+    }
+
+    const trimmedName = name.trim();
+
     if (!isSupabaseConfigured || !supabase) {
       const departments = this.getLocalDepartments();
       const index = departments.findIndex((d) => d.id === id);
@@ -187,10 +219,10 @@ class DepartmentRepository {
         throw new Error("Departman bulunamadı");
       }
 
-      // Check if new name conflicts with existing departments
+      // Check if new name conflicts with existing departments (case insensitive)
       if (
         departments.some(
-          (d) => d.id !== id && d.name.toLowerCase() === name.toLowerCase()
+          (d) => d.id !== id && d.name.toLowerCase() === trimmedName.toLowerCase()
         )
       ) {
         throw new Error("Bu departman adı zaten kullanılıyor");
@@ -198,12 +230,14 @@ class DepartmentRepository {
 
       departments[index] = {
         ...departments[index],
-        name,
-        description,
+        name: trimmedName,
+        description: description || departments[index].description,
         updated_at: new Date().toISOString(),
       };
 
       this.saveLocalDepartments(departments);
+      
+      console.log("Department updated locally:", departments[index].name);
       return departments[index];
     }
 
@@ -211,8 +245,8 @@ class DepartmentRepository {
       const { data, error } = await supabase
         .from("departments")
         .update({
-          name,
-          description,
+          name: trimmedName,
+          description: description || "",
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
@@ -234,15 +268,28 @@ class DepartmentRepository {
 
   // Delete department
   async delete(id: string): Promise<void> {
+    // Validasyon
+    if (!id) {
+      throw new Error("Departman ID gerekli");
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       const departments = this.getLocalDepartments();
-      const filtered = departments.filter((d) => d.id !== id);
-
-      if (filtered.length === departments.length) {
+      const departmentToDelete = departments.find((d) => d.id === id);
+      
+      if (!departmentToDelete) {
         throw new Error("Departman bulunamadı");
       }
 
+      // En az 1 departman kalmalı
+      if (departments.length <= 1) {
+        throw new Error("En az bir departman bulunmalıdır");
+      }
+
+      const filtered = departments.filter((d) => d.id !== id);
       this.saveLocalDepartments(filtered);
+      
+      console.log("Department deleted locally:", departmentToDelete.name);
       return;
     }
 
@@ -257,6 +304,12 @@ class DepartmentRepository {
       console.error("Error deleting department from Supabase:", error);
       throw new Error("Departman silinemedi: " + error.message);
     }
+  }
+
+  // Reset departments to default (for debugging)
+  resetToDefault(): void {
+    this.saveLocalDepartments(DEFAULT_DEPARTMENTS);
+    console.log("Departments reset to default");
   }
 }
 

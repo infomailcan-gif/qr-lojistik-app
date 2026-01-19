@@ -4,39 +4,86 @@ import type { MockUser, UserRole } from "@/lib/auth";
 
 const USERS_STORAGE_KEY = "qr_lojistik_users";
 
-interface SupabaseUser {
-  id: string;
-  username: string;
-  password: string;
-  name: string;
-  role: UserRole;
-  department_id: string;
-  created_at: string;
-  updated_at: string;
-}
+// Default users - aynı supabase-setup.sql'deki gibi
+const DEFAULT_USERS: MockUser[] = [
+  {
+    id: "u1111111-1111-1111-1111-111111111111",
+    username: "admin",
+    password: "admin123",
+    name: "Sistem Yöneticisi",
+    role: "super_admin",
+    department_id: "d3333333-3333-3333-3333-333333333333",
+    department_name: "IT",
+  },
+  {
+    id: "u2222222-2222-2222-2222-222222222222",
+    username: "mudur",
+    password: "mudur123",
+    name: "Ahmet Müdür",
+    role: "manager",
+    department_id: "d4444444-4444-4444-4444-444444444444",
+    department_name: "Depo",
+  },
+  {
+    id: "u3333333-3333-3333-3333-333333333333",
+    username: "depo1",
+    password: "depo123",
+    name: "Mehmet Depocu",
+    role: "user",
+    department_id: "d4444444-4444-4444-4444-444444444444",
+    department_name: "Depo",
+  },
+  {
+    id: "u4444444-4444-4444-4444-444444444444",
+    username: "restoran1",
+    password: "restoran123",
+    name: "Ali Restoran",
+    role: "user",
+    department_id: "d1111111-1111-1111-1111-111111111111",
+    department_name: "Restoran",
+  },
+];
 
 class UserRepository {
   // localStorage methods
   private getLocalUsers(): MockUser[] {
-    if (typeof window === "undefined") return [];
+    if (typeof window === "undefined") return DEFAULT_USERS;
+    
     const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!stored) return [];
+    if (!stored) {
+      // İlk kez açılıyor, default kullanıcıları kaydet
+      this.saveLocalUsers(DEFAULT_USERS);
+      return DEFAULT_USERS;
+    }
+    
     try {
-      return JSON.parse(stored);
+      const users = JSON.parse(stored);
+      // Eğer dizi boşsa, default kullanıcıları geri yükle
+      if (!Array.isArray(users) || users.length === 0) {
+        this.saveLocalUsers(DEFAULT_USERS);
+        return DEFAULT_USERS;
+      }
+      return users;
     } catch {
-      return [];
+      this.saveLocalUsers(DEFAULT_USERS);
+      return DEFAULT_USERS;
     }
   }
 
   private saveLocalUsers(users: MockUser[]): void {
     if (typeof window === "undefined") return;
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    try {
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    } catch (error) {
+      console.error("Error saving users to localStorage:", error);
+    }
   }
 
   // Get all users (without password for display)
   async getAll(): Promise<Omit<MockUser, "password">[]> {
     if (!isSupabaseConfigured || !supabase) {
-      return this.getLocalUsers().map(({ password, ...user }) => user);
+      const users = this.getLocalUsers();
+      return users.map(({ password, ...user }) => user);
     }
 
     try {
@@ -67,7 +114,8 @@ class UserRepository {
     } catch (error) {
       console.error("Error fetching users from Supabase:", error);
       // Fallback to localStorage
-      return this.getLocalUsers().map(({ password, ...user }) => user);
+      const users = this.getLocalUsers();
+      return users.map(({ password, ...user }) => user);
     }
   }
 
@@ -115,21 +163,42 @@ class UserRepository {
 
   // Create user
   async create(userData: Omit<MockUser, "id">): Promise<MockUser> {
+    // Validasyon
+    if (!userData.username || !userData.username.trim()) {
+      throw new Error("Kullanıcı adı gerekli");
+    }
+    if (!userData.password || !userData.password.trim()) {
+      throw new Error("Şifre gerekli");
+    }
+    if (!userData.name || !userData.name.trim()) {
+      throw new Error("Ad soyad gerekli");
+    }
+    if (!userData.department_id) {
+      throw new Error("Departman seçimi gerekli");
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       const users = this.getLocalUsers();
 
       // Check if username already exists
-      if (users.some((u) => u.username === userData.username)) {
+      if (users.some((u) => u.username.toLowerCase() === userData.username.toLowerCase())) {
         throw new Error("Bu kullanıcı adı zaten kullanılıyor");
       }
 
       const newUser: MockUser = {
         id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        ...userData,
+        username: userData.username.trim(),
+        password: userData.password,
+        name: userData.name.trim(),
+        role: userData.role,
+        department_id: userData.department_id,
+        department_name: userData.department_name,
       };
 
       users.push(newUser);
       this.saveLocalUsers(users);
+      
+      console.log("User created locally:", newUser.username);
       return newUser;
     }
 
@@ -137,9 +206,9 @@ class UserRepository {
       const { data, error } = await supabase
         .from("users")
         .insert({
-          username: userData.username,
+          username: userData.username.trim(),
           password: userData.password,
-          name: userData.name,
+          name: userData.name.trim(),
           role: userData.role,
           department_id: userData.department_id,
         })
@@ -173,6 +242,10 @@ class UserRepository {
     userId: string,
     updates: Partial<Omit<MockUser, "id">>
   ): Promise<void> {
+    if (!userId) {
+      throw new Error("Kullanıcı ID gerekli");
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       const users = this.getLocalUsers();
       const index = users.findIndex((u) => u.id === userId);
@@ -183,13 +256,15 @@ class UserRepository {
 
       // Check if new username conflicts
       if (updates.username && updates.username !== users[index].username) {
-        if (users.some((u) => u.username === updates.username)) {
+        if (users.some((u) => u.username.toLowerCase() === updates.username!.toLowerCase())) {
           throw new Error("Bu kullanıcı adı zaten kullanılıyor");
         }
       }
 
       users[index] = { ...users[index], ...updates };
       this.saveLocalUsers(users);
+      
+      console.log("User updated locally:", users[index].username);
       return;
     }
 
@@ -198,9 +273,9 @@ class UserRepository {
         updated_at: new Date().toISOString(),
       };
 
-      if (updates.username) updateData.username = updates.username;
+      if (updates.username) updateData.username = updates.username.trim();
       if (updates.password) updateData.password = updates.password;
-      if (updates.name) updateData.name = updates.name;
+      if (updates.name) updateData.name = updates.name.trim();
       if (updates.role) updateData.role = updates.role;
       if (updates.department_id)
         updateData.department_id = updates.department_id;
@@ -224,15 +299,22 @@ class UserRepository {
 
   // Delete user
   async delete(userId: string): Promise<void> {
+    if (!userId) {
+      throw new Error("Kullanıcı ID gerekli");
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       const users = this.getLocalUsers();
-      const filtered = users.filter((u) => u.id !== userId);
-
-      if (filtered.length === users.length) {
+      const userToDelete = users.find((u) => u.id === userId);
+      
+      if (!userToDelete) {
         throw new Error("Kullanıcı bulunamadı");
       }
 
+      const filtered = users.filter((u) => u.id !== userId);
       this.saveLocalUsers(filtered);
+      
+      console.log("User deleted locally:", userToDelete.username);
       return;
     }
 
@@ -245,8 +327,12 @@ class UserRepository {
       throw new Error("Kullanıcı silinemedi: " + error.message);
     }
   }
+
+  // Reset users to default (for debugging)
+  resetToDefault(): void {
+    this.saveLocalUsers(DEFAULT_USERS);
+    console.log("Users reset to default");
+  }
 }
 
 export const userRepository = new UserRepository();
-
-

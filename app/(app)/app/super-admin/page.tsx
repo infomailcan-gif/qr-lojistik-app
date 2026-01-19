@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -18,6 +18,8 @@ import {
   Sparkles,
   Settings,
   Zap,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,8 @@ export default function SuperAdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("users");
 
   const [users, setUsers] = useState<Omit<MockUser, "password">[]>([]);
@@ -96,18 +100,31 @@ export default function SuperAdminPage() {
     loadData();
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const users = await auth.getAvailableUsers();
-      setUsers(users);
+      const [usersData, deptsData] = await Promise.all([
+        auth.getAvailableUsers(),
+        departmentRepository.getAll()
+      ]);
       
-      const depts = await departmentRepository.getAll();
-      setDepartments(depts);
+      setUsers(usersData);
+      setDepartments(deptsData);
     } catch (error) {
       console.error("Error loading data:", error);
+      toast({
+        title: "Hata",
+        description: "Veriler yüklenirken hata oluştu",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }, [toast]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
   };
 
   const handleOpenUserModal = (user?: Omit<MockUser, "password">) => {
@@ -134,13 +151,49 @@ export default function SuperAdminPage() {
   };
 
   const handleSaveUser = async () => {
+    // Validasyon
+    if (!userForm.name.trim()) {
+      toast({
+        title: "Hata",
+        description: "Ad soyad gerekli",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!userForm.username.trim()) {
+      toast({
+        title: "Hata",
+        description: "Kullanıcı adı gerekli",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!editingUser && !userForm.password) {
+      toast({
+        title: "Hata",
+        description: "Şifre gerekli",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!userForm.department_id) {
+      toast({
+        title: "Hata",
+        description: "Departman seçimi gerekli",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    
     try {
       const department = departments.find((d) => d.id === userForm.department_id);
 
       if (editingUser) {
         const updates: any = {
-          username: userForm.username,
-          name: userForm.name,
+          username: userForm.username.trim(),
+          name: userForm.name.trim(),
           role: userForm.role,
           department_id: userForm.department_id,
           department_name: department?.name || "",
@@ -154,16 +207,12 @@ export default function SuperAdminPage() {
           description: "Kullanıcı güncellendi",
         });
       } else {
-        if (!userForm.password) {
-          toast({
-            title: "Hata",
-            description: "Şifre gerekli",
-            variant: "destructive",
-          });
-          return;
-        }
         await auth.createUser({
-          ...userForm,
+          username: userForm.username.trim(),
+          password: userForm.password,
+          name: userForm.name.trim(),
+          role: userForm.role,
+          department_id: userForm.department_id,
           department_name: department?.name || "",
         });
         toast({
@@ -173,13 +222,16 @@ export default function SuperAdminPage() {
       }
 
       setShowUserModal(false);
-      loadData();
+      await loadData();
     } catch (error: any) {
+      console.error("Save user error:", error);
       toast({
         title: "Hata",
-        description: error.message,
+        description: error.message || "Kullanıcı kaydedilemedi",
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -194,21 +246,26 @@ export default function SuperAdminPage() {
   const confirmDeleteUser = async () => {
     if (!deleteDialog) return;
 
+    setSaving(true);
+    
     try {
       await auth.deleteUser(deleteDialog.id);
       toast({
         title: "Başarılı",
         description: "Kullanıcı silindi",
       });
-      loadData();
+      await loadData();
     } catch (error: any) {
+      console.error("Delete user error:", error);
       toast({
         title: "Hata",
-        description: error.message,
+        description: error.message || "Kullanıcı silinemedi",
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
+      setDeleteDialog(null);
     }
-    setDeleteDialog(null);
   };
 
   const handleOpenDepartmentModal = (department?: Department) => {
@@ -223,28 +280,44 @@ export default function SuperAdminPage() {
   };
 
   const handleSaveDepartment = async () => {
+    // Validasyon
+    if (!departmentName.trim()) {
+      toast({
+        title: "Hata",
+        description: "Departman adı gerekli",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    
     try {
       if (editingDepartment) {
-        await departmentRepository.update(editingDepartment.id, departmentName);
+        await departmentRepository.update(editingDepartment.id, departmentName.trim());
         toast({
           title: "Başarılı",
           description: "Departman güncellendi",
         });
       } else {
-        await departmentRepository.create(departmentName);
+        await departmentRepository.create(departmentName.trim());
         toast({
           title: "Başarılı",
           description: "Departman oluşturuldu",
         });
       }
       setShowDepartmentModal(false);
-      loadData();
+      setDepartmentName("");
+      await loadData();
     } catch (error: any) {
+      console.error("Save department error:", error);
       toast({
         title: "Hata",
-        description: error.message,
+        description: error.message || "Departman kaydedilemedi",
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -259,21 +332,26 @@ export default function SuperAdminPage() {
   const confirmDeleteDepartment = async () => {
     if (!deleteDialog) return;
 
+    setSaving(true);
+    
     try {
       await departmentRepository.delete(deleteDialog.id);
       toast({
         title: "Başarılı",
         description: "Departman silindi",
       });
-      loadData();
+      await loadData();
     } catch (error: any) {
+      console.error("Delete department error:", error);
       toast({
         title: "Hata",
-        description: error.message,
+        description: error.message || "Departman silinemedi",
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
+      setDeleteDialog(null);
     }
-    setDeleteDialog(null);
   };
 
   const getRoleBadge = (role: UserRole) => {
@@ -306,67 +384,58 @@ export default function SuperAdminPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <motion.div className="relative mx-auto w-16 h-16">
-            <motion.div
-              className="absolute inset-0 rounded-full border-4 border-amber-200"
+          <div className="relative mx-auto w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-4 border-amber-200" />
+            <div 
+              className="absolute inset-0 rounded-full border-4 border-transparent border-t-amber-500 animate-spin"
+              style={{ animationDuration: "0.8s" }}
             />
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 rounded-full border-4 border-amber-500 border-t-transparent"
-            />
-            <motion.div
-              className="absolute inset-2 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 opacity-20"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-          </motion.div>
-          <p className="mt-4 text-slate-500 font-medium">Yükleniyor...</p>
+            <div className="absolute inset-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+              <Crown className="h-5 w-5 text-white" />
+            </div>
+          </div>
+          <p className="mt-4 text-slate-600 font-medium animate-pulse">Yükleniyor...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 px-1">
+    <div className="space-y-4 sm:space-y-6 px-0 sm:px-1">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="flex flex-col gap-4"
       >
-        <div className="flex items-center gap-4">
-          <motion.div
-            className="relative"
-            whileHover={{ scale: 1.05 }}
-          >
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl blur-lg opacity-40"
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.3, 0.5, 0.3],
-              }}
-              transition={{ duration: 3, repeat: Infinity }}
-            />
-            <div className="relative p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-xl">
-              <Crown className="h-8 w-8 text-white" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-xl shadow-amber-500/30">
+              <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-          </motion.div>
-          
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent flex items-center gap-2">
-              Süper Admin Paneli
-              <motion.span
-                animate={{ rotate: [0, 15, -15, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <Sparkles className="h-5 w-5 text-amber-500" />
-              </motion.span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Kullanıcı ve departman yönetimi
-            </p>
+            
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent flex items-center gap-2">
+                Süper Admin
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Kullanıcı ve departman yönetimi
+              </p>
+            </div>
           </div>
+          
+          {/* Refresh Button */}
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            size="sm"
+            disabled={refreshing}
+            className="border-amber-200 hover:bg-amber-50 hover:border-amber-300"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline ml-2">Yenile</span>
+          </Button>
         </div>
       </motion.div>
 
@@ -736,16 +805,23 @@ export default function SuperAdminPage() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowUserModal(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setShowUserModal(false)} disabled={saving}>
               İptal
             </Button>
             <Button
               onClick={handleSaveUser}
-              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+              disabled={saving}
+              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 min-w-[100px]"
             >
-              <Check className="h-4 w-4 mr-2" />
-              Kaydet
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Kaydet
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -753,7 +829,7 @@ export default function SuperAdminPage() {
 
       {/* Department Modal */}
       <Dialog open={showDepartmentModal} onOpenChange={setShowDepartmentModal}>
-        <DialogContent className="border-cyan-200">
+        <DialogContent className="border-cyan-200 mx-4 sm:mx-auto max-w-md">
           <DialogHeader>
             <DialogTitle className="text-cyan-600 flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -771,29 +847,41 @@ export default function SuperAdminPage() {
                 value={departmentName}
                 onChange={(e) => setDepartmentName(e.target.value)}
                 placeholder="Departman adı"
-                className="border-slate-200 focus:border-cyan-300"
+                className="border-slate-200 focus:border-cyan-300 h-11"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !saving) {
+                    handleSaveDepartment();
+                  }
+                }}
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowDepartmentModal(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setShowDepartmentModal(false)} disabled={saving}>
               İptal
             </Button>
             <Button
               onClick={handleSaveDepartment}
-              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+              disabled={saving}
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 min-w-[100px]"
             >
-              <Check className="h-4 w-4 mr-2" />
-              Kaydet
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Kaydet
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
-        <DialogContent className="border-red-200">
+      <Dialog open={!!deleteDialog} onOpenChange={() => !saving && setDeleteDialog(null)}>
+        <DialogContent className="border-red-200 mx-4 sm:mx-auto max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="h-5 w-5" />
@@ -806,18 +894,25 @@ export default function SuperAdminPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteDialog(null)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setDeleteDialog(null)} disabled={saving}>
               İptal
             </Button>
             <Button
               onClick={
                 deleteDialog?.type === "user" ? confirmDeleteUser : confirmDeleteDepartment
               }
-              className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600"
+              disabled={saving}
+              className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 min-w-[80px]"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Sil
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Sil
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
