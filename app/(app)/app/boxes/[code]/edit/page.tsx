@@ -13,6 +13,7 @@ import { departmentRepository } from "@/lib/repositories/department";
 import { boxRepository } from "@/lib/repositories/box";
 import { auth, type User } from "@/lib/auth";
 import { activityTracker } from "@/lib/activity-tracker";
+import { uploadBoxPhoto } from "@/lib/supabase/storage";
 import type { Department, BoxWithDetails, CreateBoxLineData } from "@/lib/types/box";
 
 interface LineItemForm extends CreateBoxLineData {
@@ -229,11 +230,17 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // boxCodeRef.current kullan - bu her zaman doğru koli kodunu içerir
       const currentBoxCode = boxCodeRef.current;
       
+      // Fotoğraf yeni eklendiyse (base64) Storage'a yükle
+      let finalPhotoUrl = photoDataUrl;
+      if (photoDataUrl && photoDataUrl.startsWith("data:")) {
+        finalPhotoUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+      }
+      
       // Update box basic info
       await boxRepository.update(currentBoxCode, {
         name: boxName.trim(),
         department_id: departmentId,
-        photo_url: photoDataUrl,
+        photo_url: finalPhotoUrl,
       });
       
       // Delete removed lines
@@ -319,11 +326,17 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // boxCodeRef.current kullan - bu her zaman doğru koli kodunu içerir
       const currentBoxCode = boxCodeRef.current;
       
+      // Fotoğraf yeni eklendiyse (base64) Storage'a yükle
+      let finalPhotoUrl = photoDataUrl;
+      if (photoDataUrl && photoDataUrl.startsWith("data:")) {
+        finalPhotoUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+      }
+      
       // Update box basic info with photo
       await boxRepository.update(currentBoxCode, {
         name: boxName.trim(),
         department_id: departmentId,
-        photo_url: photoDataUrl,
+        photo_url: finalPhotoUrl,
       });
       
       // Log photo addition

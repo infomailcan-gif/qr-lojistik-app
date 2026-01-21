@@ -226,3 +226,7 @@ git push origin main
 **Beklenen**: Her şey çalışıyor olmalı
 
 
+
+
+
+

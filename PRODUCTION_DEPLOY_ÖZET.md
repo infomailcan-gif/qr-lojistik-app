@@ -135,3 +135,7 @@ Deployments → En son deployment → Üç nokta (...) → Redeploy
 **Kalan**: Sadece Vercel env vars
 
 
+
+
+
+

@@ -320,3 +320,7 @@ Palet yönetimi tam çalışır durumda:
 
 
 
+
+
+
+

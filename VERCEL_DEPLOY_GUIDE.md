@@ -213,3 +213,7 @@ Sorun mu var?
 **Durum**: Kod hazır, environment variables bekleniyor
 
 
+
+
+
+

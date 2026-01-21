@@ -155,3 +155,7 @@ Artık QR Lojistik uygulamanız tamamen Supabase ile entegre edildi ve kullanım
 **Durum**: ✅ Production Ready
 
 
+
+
+
+

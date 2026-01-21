@@ -11,6 +11,7 @@ import { toast } from "@/components/ui/use-toast";
 import { boxRepository } from "@/lib/repositories/box";
 import { auth, type User } from "@/lib/auth";
 import { activityTracker } from "@/lib/activity-tracker";
+import { uploadBoxPhoto } from "@/lib/supabase/storage";
 import type { CreateBoxLineData } from "@/lib/types/box";
 
 interface LineItemForm extends CreateBoxLineData {
@@ -212,7 +213,9 @@ export default function NewBoxPage() {
       }
 
       if (photoDataUrl) {
-        await boxRepository.update(box.code, { photo_url: photoDataUrl });
+        // Fotoğrafı Storage'a yükle (base64 yerine URL kaydedilecek)
+        const photoUrl = await uploadBoxPhoto(photoDataUrl, box.code);
+        await boxRepository.update(box.code, { photo_url: photoUrl });
         activityTracker.log(
           user,
           "box_photo_added",
@@ -282,8 +285,11 @@ export default function NewBoxPage() {
         );
       }
 
+      // Fotoğrafı Storage'a yükle (base64 yerine URL kaydedilecek)
+      const photoUrl = await uploadBoxPhoto(photoDataUrl!, box.code);
+      
       await boxRepository.update(box.code, { 
-        photo_url: photoDataUrl,
+        photo_url: photoUrl,
         status: "sealed" 
       });
       

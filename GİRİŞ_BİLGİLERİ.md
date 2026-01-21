@@ -94,3 +94,7 @@ WHERE username = 'kullaniciadi';
 **Proje**: QR Lojistik App 2026
 
 
+
+
+
+
