@@ -23,6 +23,8 @@ interface LineItemForm extends CreateBoxLineData {
 export default function EditBoxPage({ params }: { params: { code: string } }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // URL'deki box kodunu sabit tutmak için ref kullan - state güncellemelerinden etkilenmez
+  const boxCodeRef = useRef<string>(params.code);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -54,6 +56,8 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
   }>({});
 
   useEffect(() => {
+    // params.code değiştiğinde ref'i güncelle
+    boxCodeRef.current = params.code;
     loadData();
   }, [params.code]);
 
@@ -65,9 +69,12 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
         setCurrentUser(session.user);
       }
 
+      // URL'deki kodu kullan (boxCodeRef'ten)
+      const currentCode = boxCodeRef.current;
+      
       const [deps, boxData] = await Promise.all([
         departmentRepository.getAll(),
-        boxRepository.getByCode(params.code),
+        boxRepository.getByCode(currentCode),
       ]);
       
       setDepartments(deps);
@@ -75,12 +82,15 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       if (!boxData) {
         toast({
           title: "Koli bulunamadı",
-          description: `${params.code} kodlu koli bulunamadı`,
+          description: `${currentCode} kodlu koli bulunamadı`,
           variant: "destructive",
         });
         router.push("/app/boxes");
         return;
       }
+      
+      // boxCodeRef'i gerçek veritabanı code değeriyle güncelle (güvenlik için)
+      boxCodeRef.current = boxData.code;
       
       setBox(boxData);
       setDepartmentId(boxData.department_id);
@@ -216,8 +226,11 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
     
     setSaving(true);
     try {
+      // boxCodeRef.current kullan - bu her zaman doğru koli kodunu içerir
+      const currentBoxCode = boxCodeRef.current;
+      
       // Update box basic info
-      await boxRepository.update(box.id, {
+      await boxRepository.update(currentBoxCode, {
         name: boxName.trim(),
         department_id: departmentId,
         photo_url: photoDataUrl,
@@ -232,7 +245,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
             currentUser,
             "box_line_removed",
             "box",
-            box.code,
+            currentBoxCode,
             box.name
           );
         }
@@ -241,7 +254,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // Add new lines (those without existingId)
       for (const line of lines) {
         if (!line.existingId) {
-          await boxRepository.addLine(box.id, {
+          await boxRepository.addLine(currentBoxCode, {
             product_name: line.product_name,
             qty: line.qty,
             kind: line.kind,
@@ -252,7 +265,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
               currentUser,
               "box_line_added",
               "box",
-              box.code,
+              currentBoxCode,
               box.name,
               line.product_name
             );
@@ -266,17 +279,17 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
           currentUser,
           "box_updated",
           "box",
-          box.code,
+          currentBoxCode,
           box.name
         );
       }
       
       toast({
         title: "Değişiklikler kaydedildi",
-        description: `${box.code} başarıyla güncellendi`,
+        description: `${currentBoxCode} başarıyla güncellendi`,
       });
       
-      router.push(`/app/boxes/${box.code}`);
+      router.push(`/app/boxes/${currentBoxCode}`);
     } catch (error) {
       toast({
         title: "Hata",
@@ -303,8 +316,11 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
     
     setSaving(true);
     try {
+      // boxCodeRef.current kullan - bu her zaman doğru koli kodunu içerir
+      const currentBoxCode = boxCodeRef.current;
+      
       // Update box basic info with photo
-      await boxRepository.update(box.id, {
+      await boxRepository.update(currentBoxCode, {
         name: boxName.trim(),
         department_id: departmentId,
         photo_url: photoDataUrl,
@@ -316,7 +332,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
           currentUser,
           "box_photo_added",
           "box",
-          box.code,
+          currentBoxCode,
           box.name
         );
       }
@@ -329,7 +345,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // Add new lines (those without existingId)
       for (const line of lines) {
         if (!line.existingId) {
-          await boxRepository.addLine(box.id, {
+          await boxRepository.addLine(currentBoxCode, {
             product_name: line.product_name,
             qty: line.qty,
             kind: line.kind,
@@ -338,7 +354,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       }
       
       // Seal the box
-      await boxRepository.update(box.id, { status: "sealed" });
+      await boxRepository.update(currentBoxCode, { status: "sealed" });
       
       // Log box sealed
       if (currentUser) {
@@ -346,17 +362,17 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
           currentUser,
           "box_sealed",
           "box",
-          box.code,
+          currentBoxCode,
           box.name
         );
       }
       
       toast({
         title: "Koli kapatıldı",
-        description: `${box.code} başarıyla güncellendi ve kapatıldı`,
+        description: `${currentBoxCode} başarıyla güncellendi ve kapatıldı`,
       });
       
-      router.push(`/app/boxes/${box.code}`);
+      router.push(`/app/boxes/${currentBoxCode}`);
     } catch (error) {
       toast({
         title: "Hata",
