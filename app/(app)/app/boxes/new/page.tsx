@@ -635,6 +635,7 @@ export default function NewBoxPage() {
               <p className="text-sm text-red-500">{errors.lines}</p>
             )}
             
+            <div className="max-h-[500px] overflow-y-auto pr-2">
             <AnimatePresence>
               {lines.map((line, index) => (
                 <motion.div
