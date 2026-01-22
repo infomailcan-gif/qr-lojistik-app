@@ -1196,7 +1196,7 @@ export default function PalletDetailPage({
                 </p>
               </motion.div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                 {pallet.boxes.map((box, index) => (
                   <motion.div
                     key={box.id}

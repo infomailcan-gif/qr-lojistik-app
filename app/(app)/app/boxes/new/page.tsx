@@ -730,6 +730,7 @@ export default function NewBoxPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+            </div>
 
             {lines.length === 0 && (
               <div className="text-center py-8 text-slate-400">

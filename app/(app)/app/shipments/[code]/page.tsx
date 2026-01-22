@@ -915,7 +915,7 @@ export default function ShipmentDetailPage({
                 <h2 className="text-lg font-semibold mb-4">
                   Sevkiyattaki Paletler ({shipment.pallets.length})
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                   {shipment.pallets.map((pallet) => (
                     <motion.div
                       key={pallet.id}

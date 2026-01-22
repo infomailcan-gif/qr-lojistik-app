@@ -579,7 +579,7 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
                 <p>Bu kolide henüz ürün yok</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
                 {box.lines.map((line, index) => (
                   <motion.div
                     key={line.id}
