@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -23,6 +23,7 @@ import {
   X,
   Image as ImageIcon,
   Printer,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,7 @@ export default function PalletDetailPage({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoIndex, setPhotoIndex] = useState<1 | 2>(1);
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -235,9 +237,24 @@ export default function PalletDetailPage({
     }
   };
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processPhotoFile = useCallback((file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Hata",
+        description: "Lütfen geçerli bir resim dosyası seçin",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Hata",
+        description: "Dosya boyutu 5MB'dan küçük olmalı",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -245,7 +262,34 @@ export default function PalletDetailPage({
       setPhotoPreview(result);
     };
     reader.readAsDataURL(file);
+  }, []);
+
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processPhotoFile(file);
   };
+
+  const handlePhotoDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(true);
+  }, []);
+
+  const handlePhotoDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(false);
+  }, []);
+
+  const handlePhotoDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(false);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processPhotoFile(files[0]);
+    }
+  }, [processPhotoFile]);
 
   const handlePhotoUpload = async () => {
     if (!photoPreview || !pallet) return;
@@ -1290,7 +1334,10 @@ export default function PalletDetailPage({
       {/* Photo Dialog */}
       <Dialog open={photoDialogOpen} onOpenChange={(open) => {
         setPhotoDialogOpen(open);
-        if (!open) setPhotoPreview(null);
+        if (!open) {
+          setPhotoPreview(null);
+          setIsDraggingPhoto(false);
+        }
       }}>
         <DialogContent className="bg-slate-900 border-slate-700 max-w-md">
           <DialogHeader>
@@ -1299,7 +1346,7 @@ export default function PalletDetailPage({
               Palet Fotoğrafı {photoIndex}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              Palet için fotoğraf çekin veya seçin
+              Palet için fotoğraf çekin, seçin veya sürükleyip bırakın
             </DialogDescription>
           </DialogHeader>
           
@@ -1321,11 +1368,36 @@ export default function PalletDetailPage({
                 </motion.button>
               </div>
             ) : (
-              <label className="block">
-                <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-cyan-500/50 rounded-xl bg-cyan-500/5 hover:bg-cyan-500/10 cursor-pointer transition-colors">
-                  <Camera className="h-12 w-12 text-cyan-400 mb-3" />
-                  <span className="text-cyan-400 font-medium">Fotoğraf Çek / Seç</span>
-                  <span className="text-slate-500 text-sm mt-1">Dokunarak kamera açın</span>
+              <label 
+                className="block"
+                onDragOver={handlePhotoDragOver}
+                onDragLeave={handlePhotoDragLeave}
+                onDrop={handlePhotoDrop}
+              >
+                <div className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+                  isDraggingPhoto 
+                    ? "border-cyan-400 bg-cyan-500/20 scale-[1.02]" 
+                    : "border-cyan-500/50 bg-cyan-500/5 hover:bg-cyan-500/10"
+                }`}>
+                  {isDraggingPhoto ? (
+                    <>
+                      <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                        <Upload className="h-12 w-12 text-cyan-400 mb-3" />
+                      </motion.div>
+                      <span className="text-cyan-300 font-semibold">Bırakın!</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3 mb-3">
+                        <Camera className="h-10 w-10 text-cyan-400" />
+                        <span className="text-cyan-500/50 text-2xl">/</span>
+                        <Upload className="h-10 w-10 text-cyan-400" />
+                      </div>
+                      <span className="text-cyan-400 font-medium">Fotoğraf Çek / Seç</span>
+                      <span className="text-slate-500 text-sm mt-1">veya sürükleyip bırakın</span>
+                      <span className="text-slate-600 text-xs mt-1">Max 5MB</span>
+                    </>
+                  )}
                 </div>
                 <input
                   type="file"

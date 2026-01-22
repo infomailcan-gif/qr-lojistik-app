@@ -230,7 +230,14 @@ CREATE POLICY "Public insert access" ON page_visits FOR INSERT WITH CHECK (true)
 CREATE POLICY "Public update access" ON page_visits FOR UPDATE USING (true);
 
 -- ============================================
--- 10. EK SÜTUNLAR - photo_url_2 desteği
+-- 10. EK SÜTUNLAR - Kullanıcı Aktivite Takibi
+-- ============================================
+-- active_sessions tablosuna sayfa takibi için sütunlar ekle
+ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS current_page TEXT;
+ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS current_action TEXT;
+
+-- ============================================
+-- 11. EK SÜTUNLAR - photo_url_2 desteği
 -- ============================================
 -- boxes tablosuna photo_url_2 ekle
 ALTER TABLE boxes ADD COLUMN IF NOT EXISTS photo_url_2 TEXT;

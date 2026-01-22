@@ -28,6 +28,8 @@ export interface ActiveSession {
   user_agent: string | null;
   last_activity: string;
   created_at: string;
+  current_page?: string;
+  current_action?: string;
 }
 
 class LoginLogRepository {
@@ -307,8 +309,8 @@ class LoginLogRepository {
     }
   }
 
-  // Aktivite güncelle (heartbeat)
-  async updateActivity(user_id: string): Promise<void> {
+  // Aktivite güncelle (heartbeat) - sayfa ve işlem bilgisi ile
+  async updateActivity(user_id: string, currentPage?: string, currentAction?: string): Promise<void> {
     const now = new Date().toISOString();
 
     if (!isSupabaseConfigured || !supabase) {
@@ -316,15 +318,21 @@ class LoginLogRepository {
       const session = sessions.find(s => s.user_id === user_id);
       if (session) {
         session.last_activity = now;
+        if (currentPage) session.current_page = currentPage;
+        if (currentAction) session.current_action = currentAction;
         this.saveLocalSessions(sessions);
       }
       return;
     }
 
     try {
+      const updateData: any = { last_activity: now };
+      if (currentPage) updateData.current_page = currentPage;
+      if (currentAction) updateData.current_action = currentAction;
+      
       await supabase
         .from("active_sessions")
-        .update({ last_activity: now })
+        .update(updateData)
         .eq("user_id", user_id);
     } catch (error) {
       console.error("Error updating activity:", error);

@@ -23,6 +23,8 @@ import {
   Eye,
   Trash2,
   ChevronDown,
+  MapPin,
+  Zap,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -421,6 +423,19 @@ export default function AdminLogsPage() {
                           </div>
                         </div>
                         <div className="mt-3 space-y-1.5 text-xs text-slate-500">
+                          {/* Şu anki sayfa/işlem */}
+                          {session.current_page && (
+                            <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-green-50 border border-green-200">
+                              <MapPin className="h-3 w-3 text-green-600" />
+                              <span className="text-green-700 font-medium">{session.current_page}</span>
+                            </div>
+                          )}
+                          {session.current_action && (
+                            <div className="flex items-center gap-1.5">
+                              <Zap className="h-3 w-3 text-amber-500" />
+                              <span className="text-slate-600">{session.current_action}</span>
+                            </div>
+                          )}
                           {session.department_name && (
                             <div className="flex items-center gap-1.5">
                               <Shield className="h-3 w-3" />

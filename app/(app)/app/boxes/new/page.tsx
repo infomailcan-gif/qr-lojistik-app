@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Building2, Package, Sparkles, CheckCircle, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Building2, Package, Sparkles, CheckCircle, Pencil, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +47,10 @@ export default function NewBoxPage() {
   const [editProductName, setEditProductName] = useState("");
   const [editQty, setEditQty] = useState("");
   const [editKind, setEditKind] = useState("");
+  
+  // Drag & drop state'leri
+  const [isDragging1, setIsDragging1] = useState(false);
+  const [isDragging2, setIsDragging2] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -151,10 +155,8 @@ export default function NewBoxPage() {
     cancelEditLine();
   };
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Dosya işleme fonksiyonu
+  const processFile = useCallback((file: File, target: 1 | 2) => {
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Hata",
@@ -175,10 +177,24 @@ export default function NewBoxPage() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      setPhotoDataUrl(event.target?.result as string);
-      setErrors((prev) => ({ ...prev, photo: undefined }));
+      if (target === 1) {
+        setPhotoDataUrl(event.target?.result as string);
+        setErrors((prev) => ({ ...prev, photo: undefined }));
+      } else {
+        setPhotoDataUrl2(event.target?.result as string);
+      }
     };
     reader.readAsDataURL(file);
+  }, []);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file, 1);
+  };
+
+  const handlePhoto2Select = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file, 2);
   };
 
   const removePhoto = () => {
@@ -188,41 +204,39 @@ export default function NewBoxPage() {
     }
   };
 
-  const handlePhoto2Select = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Hata",
-        description: "Lütfen geçerli bir resim dosyası seçin",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Hata",
-        description: "Dosya boyutu 5MB'dan küçük olmalı",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPhotoDataUrl2(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const removePhoto2 = () => {
     setPhotoDataUrl2(null);
     if (fileInput2Ref.current) {
       fileInput2Ref.current.value = "";
     }
   };
+
+  // Drag & Drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent, target: 1 | 2) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (target === 1) setIsDragging1(true);
+    else setIsDragging2(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent, target: 1 | 2) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (target === 1) setIsDragging1(false);
+    else setIsDragging2(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, target: 1 | 2) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (target === 1) setIsDragging1(false);
+    else setIsDragging2(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processFile(files[0], target);
+    }
+  }, [processFile]);
 
   const validateBox = (): boolean => {
     const newErrors: typeof errors = {};
@@ -795,15 +809,37 @@ export default function NewBoxPage() {
                 ) : (
                   <motion.div
                     onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => handleDragOver(e, 1)}
+                    onDragLeave={(e) => handleDragLeave(e, 1)}
+                    onDrop={(e) => handleDrop(e, 1)}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 hover:border-blue-400 hover:bg-blue-50/50 ${
-                      errors.photo ? "border-red-400 bg-red-50/50" : "border-slate-300"
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
+                      isDragging1 
+                        ? "border-blue-500 bg-blue-100 scale-[1.02]" 
+                        : errors.photo 
+                        ? "border-red-400 bg-red-50/50" 
+                        : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/50"
                     }`}
                   >
-                    <Camera className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-                    <p className="text-slate-600 font-medium text-sm">Fotoğraf 1 ekle</p>
-                    <p className="text-xs text-slate-400">Max 5MB</p>
+                    {isDragging1 ? (
+                      <>
+                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                          <Upload className="h-10 w-10 mx-auto text-blue-500 mb-2" />
+                        </motion.div>
+                        <p className="text-blue-600 font-semibold text-sm">Bırakın!</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <Camera className="h-8 w-8 text-slate-400" />
+                          <span className="text-slate-300 text-lg">/</span>
+                          <Upload className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <p className="text-slate-600 font-medium text-sm">Fotoğraf 1 ekle</p>
+                        <p className="text-xs text-slate-400 mt-1">Tıklayın veya sürükleyin • Max 5MB</p>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </div>
@@ -834,13 +870,35 @@ export default function NewBoxPage() {
                 ) : (
                   <motion.div
                     onClick={() => fileInput2Ref.current?.click()}
+                    onDragOver={(e) => handleDragOver(e, 2)}
+                    onDragLeave={(e) => handleDragLeave(e, 2)}
+                    onDrop={(e) => handleDrop(e, 2)}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 hover:border-blue-400 hover:bg-blue-50/50 border-slate-300"
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
+                      isDragging2 
+                        ? "border-blue-500 bg-blue-100 scale-[1.02]" 
+                        : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/50"
+                    }`}
                   >
-                    <Camera className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-                    <p className="text-slate-600 font-medium text-sm">Fotoğraf 2 ekle</p>
-                    <p className="text-xs text-slate-400">Max 5MB</p>
+                    {isDragging2 ? (
+                      <>
+                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                          <Upload className="h-10 w-10 mx-auto text-blue-500 mb-2" />
+                        </motion.div>
+                        <p className="text-blue-600 font-semibold text-sm">Bırakın!</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <Camera className="h-8 w-8 text-slate-400" />
+                          <span className="text-slate-300 text-lg">/</span>
+                          <Upload className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <p className="text-slate-600 font-medium text-sm">Fotoğraf 2 ekle</p>
+                        <p className="text-xs text-slate-400 mt-1">Tıklayın veya sürükleyin • Max 5MB</p>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </div>

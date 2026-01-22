@@ -170,10 +170,10 @@ class MockAuth {
   }
 
   // Aktivite güncelle (heartbeat) - sayfa açıkken düzenli çağrılacak
-  async updateActivity(): Promise<void> {
+  async updateActivity(currentPage?: string, currentAction?: string): Promise<void> {
     const session = await this.getSession();
     if (session) {
-      await loginLogRepository.updateActivity(session.user.id);
+      await loginLogRepository.updateActivity(session.user.id, currentPage, currentAction);
     }
   }
 

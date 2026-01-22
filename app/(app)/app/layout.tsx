@@ -90,13 +90,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Sayfa ilk yüklendiğinde oturum başlat (yoksa oluştur, varsa güncelle)
     auth.ensureSession();
 
+    // İlk yüklemede aktivite güncelle
+    const pageName = getPageName(pathname);
+    auth.updateActivity(pageName, `${pageName} görüntüleniyor`);
+
     // Periyodik güncelleme - her 30 saniyede
     const interval = setInterval(() => {
-      auth.updateActivity();
+      const currentPageName = getPageName(pathname);
+      auth.updateActivity(currentPageName, `${currentPageName} görüntüleniyor`);
     }, 30000); // Her 30 saniyede
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, pathname]);
 
   const checkAuth = async () => {
     const session = await auth.getSession();
