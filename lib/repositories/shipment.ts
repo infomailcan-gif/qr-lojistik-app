@@ -264,6 +264,7 @@ class ShipmentRepository {
         name_or_plate: data.name_or_plate,
         created_by: userName,
         photo_url: null,
+        photo_url_2: null,
         created_at: now,
         updated_at: now,
       };
