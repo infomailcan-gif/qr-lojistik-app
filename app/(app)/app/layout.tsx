@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { AnimatedBackground } from "@/components/app/AnimatedBackground";
 import { TopBar } from "@/components/app/TopBar";
 import { BottomNav } from "@/components/app/BottomNav";
@@ -9,17 +9,94 @@ import { Sidebar } from "@/components/app/Sidebar";
 import { LoadingPage } from "@/components/app/Loading";
 import { PageTransition } from "@/components/app/PageTransition";
 import { auth, type User } from "@/lib/auth";
+import { activityTracker } from "@/lib/activity-tracker";
 import { motion } from "framer-motion";
 import { Cpu, Sparkles } from "lucide-react";
 
+// Sayfa adı çevirisi
+const getPageName = (path: string): string => {
+  const pageNames: Record<string, string> = {
+    "/app": "Ana Sayfa",
+    "/app/dashboard": "Kontrol Paneli",
+    "/app/boxes": "Koliler",
+    "/app/boxes/new": "Yeni Koli",
+    "/app/pallets": "Paletler",
+    "/app/pallets/new": "Yeni Palet",
+    "/app/shipments": "Sevkiyatlar",
+    "/app/shipments/new": "Yeni Sevkiyat",
+    "/app/admin": "Admin Paneli",
+    "/app/super-admin": "Süper Admin",
+    "/app/admin-logs": "Sistem Logları",
+  };
+  
+  // Dinamik sayfa yolları için kontrol
+  if (path.match(/\/app\/boxes\/[^/]+\/edit$/)) return "Koli Düzenleme";
+  if (path.match(/\/app\/boxes\/[^/]+$/)) return "Koli Detay";
+  if (path.match(/\/app\/pallets\/[^/]+$/)) return "Palet Detay";
+  if (path.match(/\/app\/shipments\/[^/]+$/)) return "Sevkiyat Detay";
+  
+  return pageNames[path] || "Sayfa";
+};
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const currentVisitIdRef = useRef<string | null>(null);
+  const lastPathnameRef = useRef<string | null>(null);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Sayfa ziyaret takibi
+  useEffect(() => {
+    if (!user || !pathname) return;
+
+    // Aynı sayfa ise skip
+    if (lastPathnameRef.current === pathname) return;
+
+    // Önceki sayfa ziyaretini bitir
+    if (currentVisitIdRef.current) {
+      activityTracker.endPageVisit(currentVisitIdRef.current);
+    }
+
+    // Yeni sayfa ziyaretini başlat
+    const pageName = getPageName(pathname);
+    activityTracker.startPageVisit(
+      { id: user.id, name: user.name },
+      pathname,
+      pageName
+    ).then(visitId => {
+      currentVisitIdRef.current = visitId;
+    });
+
+    lastPathnameRef.current = pathname;
+
+    // Cleanup: sayfa değiştiğinde veya unmount olduğunda
+    return () => {
+      if (currentVisitIdRef.current) {
+        activityTracker.endPageVisit(currentVisitIdRef.current);
+        currentVisitIdRef.current = null;
+      }
+    };
+  }, [user, pathname]);
+
+  // Aktivite heartbeat - her 30 saniyede bir sunucuya aktif olduğumuzu bildir
+  useEffect(() => {
+    if (!user) return;
+
+    // Sayfa ilk yüklendiğinde oturum başlat (yoksa oluştur, varsa güncelle)
+    auth.ensureSession();
+
+    // Periyodik güncelleme - her 30 saniyede
+    const interval = setInterval(() => {
+      auth.updateActivity();
+    }, 30000); // Her 30 saniyede
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const checkAuth = async () => {
     const session = await auth.getSession();

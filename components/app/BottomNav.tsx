@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Package, Layers, Truck, ShieldCheck, Crown, LayoutDashboard } from "lucide-react";
+import { Home, Package, Layers, Truck, ShieldCheck, Crown, LayoutDashboard, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { UserRole } from "@/lib/auth";
@@ -81,6 +81,16 @@ const navItems = [
     color: "from-amber-500 to-orange-500",
     activeColor: "text-amber-600",
     activeBg: "bg-amber-50",
+  },
+  {
+    name: "Loglar",
+    shortName: "Log",
+    href: "/app/admin-logs",
+    icon: Activity,
+    roles: ["super_admin"],
+    color: "from-rose-500 to-red-500",
+    activeColor: "text-rose-600",
+    activeBg: "bg-rose-50",
   },
 ];
 

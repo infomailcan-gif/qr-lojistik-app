@@ -182,6 +182,8 @@ class PalletRepository {
         name: data.name,
         created_by: userName,
         shipment_code: null,
+        photo_url: null,
+        photo_url_2: null,
         created_at: now,
         updated_at: now,
       };
@@ -314,7 +316,7 @@ class PalletRepository {
   }
 
   // Update pallet
-  async update(code: string, updates: { name?: string; shipment_code?: string | null }): Promise<Pallet> {
+  async update(code: string, updates: { name?: string; shipment_code?: string | null; photo_url?: string | null }): Promise<Pallet> {
     if (!isSupabaseConfigured || !supabase) {
       const pallets = this.getLocalPallets();
       const index = pallets.findIndex((p) => p.code === code);
@@ -327,6 +329,7 @@ class PalletRepository {
         ...pallets[index],
         ...(updates.name !== undefined && { name: updates.name }),
         ...(updates.shipment_code !== undefined && { shipment_code: updates.shipment_code }),
+        ...(updates.photo_url !== undefined && { photo_url: updates.photo_url }),
         updated_at: new Date().toISOString(),
       };
 
@@ -344,6 +347,9 @@ class PalletRepository {
       }
       if (updates.shipment_code !== undefined) {
         updateData.shipment_code = updates.shipment_code;
+      }
+      if (updates.photo_url !== undefined) {
+        updateData.photo_url = updates.photo_url;
       }
 
       const { data, error } = await supabase

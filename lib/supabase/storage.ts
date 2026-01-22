@@ -2,6 +2,8 @@
 import { supabase, isSupabaseConfigured } from "./client";
 
 const BUCKET_NAME = "box-photos";
+const PALLET_BUCKET_NAME = "pallet-photos";
+const SHIPMENT_BUCKET_NAME = "shipment-photos";
 
 /**
  * Base64 data URL'i Supabase Storage'a yükler ve public URL döner
@@ -129,4 +131,111 @@ function getExtensionFromMimeType(mimeType: string): string {
   
   return mimeToExt[mimeType] || "jpg";
 }
+
+/**
+ * Base64 data URL'i Supabase Storage'a yükler (Palet fotoğrafı için)
+ * @param dataUrl - base64 data URL (örn: "data:image/jpeg;base64,...")
+ * @param palletCode - Palet kodu (dosya adı için)
+ * @returns Public URL veya null (hata durumunda)
+ */
+export async function uploadPalletPhoto(
+  dataUrl: string,
+  palletCode: string
+): Promise<string | null> {
+  // Supabase yapılandırılmamışsa base64'ü direkt döndür (localStorage fallback)
+  if (!isSupabaseConfigured || !supabase) {
+    return dataUrl;
+  }
+
+  try {
+    // Base64 data URL'den blob oluştur
+    const blob = await dataUrlToBlob(dataUrl);
+    
+    // Dosya uzantısını belirle
+    const extension = getExtensionFromMimeType(blob.type);
+    
+    // Benzersiz dosya adı oluştur
+    const timestamp = Date.now();
+    const fileName = `${palletCode}-${timestamp}.${extension}`;
+    
+    // Supabase Storage'a yükle (box-photos bucket'ını kullan, ayrı bucket gerekli değil)
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(`pallets/${fileName}`, blob, {
+        contentType: blob.type,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      // Hata durumunda base64'ü döndür (fallback)
+      return dataUrl;
+    }
+
+    // Public URL al
+    const { data: urlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error("Pallet photo upload error:", error);
+    // Hata durumunda base64'ü döndür (fallback)
+    return dataUrl;
+  }
+}
+
+/**
+ * Base64 data URL'i Supabase Storage'a yükler (Sevkiyat fotoğrafı için)
+ * @param dataUrl - base64 data URL (örn: "data:image/jpeg;base64,...")
+ * @param shipmentCode - Sevkiyat kodu (dosya adı için)
+ * @returns Public URL veya null (hata durumunda)
+ */
+export async function uploadShipmentPhoto(
+  dataUrl: string,
+  shipmentCode: string
+): Promise<string | null> {
+  // Supabase yapılandırılmamışsa base64'ü direkt döndür (localStorage fallback)
+  if (!isSupabaseConfigured || !supabase) {
+    return dataUrl;
+  }
+
+  try {
+    // Base64 data URL'den blob oluştur
+    const blob = await dataUrlToBlob(dataUrl);
+    
+    // Dosya uzantısını belirle
+    const extension = getExtensionFromMimeType(blob.type);
+    
+    // Benzersiz dosya adı oluştur
+    const timestamp = Date.now();
+    const fileName = `${shipmentCode}-${timestamp}.${extension}`;
+    
+    // Supabase Storage'a yükle (box-photos bucket'ını kullan, ayrı bucket gerekli değil)
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(`shipments/${fileName}`, blob, {
+        contentType: blob.type,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      // Hata durumunda base64'ü döndür (fallback)
+      return dataUrl;
+    }
+
+    // Public URL al
+    const { data: urlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error("Shipment photo upload error:", error);
+    // Hata durumunda base64'ü döndür (fallback)
+    return dataUrl;
+  }
+}
+
 

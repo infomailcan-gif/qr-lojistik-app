@@ -20,6 +20,8 @@ import {
   Trash2,
   Edit,
   Layers,
+  Camera,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +39,7 @@ import { toast } from "@/components/ui/use-toast";
 import { shipmentRepository } from "@/lib/repositories/shipment";
 import { palletRepository } from "@/lib/repositories/pallet";
 import { auth } from "@/lib/auth";
+import { uploadShipmentPhoto } from "@/lib/supabase/storage";
 import type { ShipmentWithPallets } from "@/lib/types/shipment";
 import type { PalletWithBoxCount } from "@/lib/types/pallet";
 import QRCode from "qrcode";
@@ -64,6 +67,12 @@ export default function ShipmentDetailPage({
   const [editNameOrPlate, setEditNameOrPlate] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Photo states
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState<1 | 2>(1);
 
   useEffect(() => {
     loadShipment();
@@ -169,6 +178,87 @@ export default function ShipmentDetailPage({
       toast({
         title: "QR Kod İndirildi",
         description: `${shipment.code} QR kodu indirildi`,
+      });
+    };
+    img.src = qrCodeUrl;
+  };
+
+  const printQRCode = () => {
+    if (!qrCodeUrl || !shipment) return;
+    
+    // Create canvas with QR code and name
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = document.createElement("img");
+    img.onload = () => {
+      const qrSize = 600;
+      const textHeight = 80;
+      
+      canvas.width = qrSize;
+      canvas.height = qrSize + textHeight;
+      
+      // White background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw QR code
+      ctx.drawImage(img, 0, 0, qrSize, qrSize);
+      
+      // Draw name below QR
+      ctx.fillStyle = "#9333ea";
+      ctx.font = "bold 32px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      
+      const shipmentName = shipment.name_or_plate;
+      ctx.fillText(shipmentName, qrSize / 2, qrSize + textHeight / 2);
+      
+      // Open print window
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>QR Kod - ${shipment.code}</title>
+              <style>
+                body { 
+                  margin: 0; 
+                  display: flex; 
+                  justify-content: center; 
+                  align-items: center; 
+                  min-height: 100vh;
+                  background: white;
+                }
+                img { 
+                  max-width: 100%; 
+                  height: auto; 
+                }
+                @media print {
+                  body { margin: 0; }
+                  img { width: 100%; max-width: 400px; }
+                }
+              </style>
+            </head>
+            <body>
+              <img src="${canvas.toDataURL("image/png")}" alt="QR Code" />
+              <script>
+                window.onload = function() {
+                  window.print();
+                  window.onafterprint = function() { window.close(); };
+                }
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+      
+      toast({
+        title: "Yazdırma",
+        description: `${shipment.code} QR kodu yazdırılıyor`,
       });
     };
     img.src = qrCodeUrl;
@@ -424,6 +514,82 @@ export default function ShipmentDetailPage({
     }
   };
 
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setPhotoPreview(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!photoPreview || !shipment) return;
+
+    setUploadingPhoto(true);
+    try {
+      const photoUrl = await uploadShipmentPhoto(photoPreview, photoIndex === 1 ? shipment.code : `${shipment.code}-2`);
+      
+      if (photoIndex === 1) {
+        await shipmentRepository.update(shipment.code, { photo_url: photoUrl });
+      } else {
+        await shipmentRepository.update(shipment.code, { photo_url_2: photoUrl });
+      }
+      
+      toast({
+        title: "Fotoğraf Yüklendi",
+        description: `Sevkiyat fotoğrafı ${photoIndex} başarıyla eklendi`,
+      });
+      
+      setPhotoDialogOpen(false);
+      setPhotoPreview(null);
+      await loadShipment();
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Fotoğraf yüklenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async (index: 1 | 2) => {
+    if (!shipment) return;
+    
+    if (!confirm(`Sevkiyat fotoğrafı ${index}'i silmek istediğinize emin misiniz?`)) return;
+
+    try {
+      if (index === 1) {
+        await shipmentRepository.update(shipment.code, { photo_url: null });
+      } else {
+        await shipmentRepository.update(shipment.code, { photo_url_2: null });
+      }
+      
+      toast({
+        title: "Fotoğraf Silindi",
+        description: `Sevkiyat fotoğrafı ${index} başarıyla silindi`,
+      });
+      
+      await loadShipment();
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Fotoğraf silinirken bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openPhotoDialog = (index: 1 | 2) => {
+    setPhotoIndex(index);
+    setPhotoDialogOpen(true);
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return new Intl.DateTimeFormat("tr-TR", {
@@ -515,14 +681,22 @@ export default function ShipmentDetailPage({
                     <QrCode className="w-5 h-5 text-purple-500" />
                     Sevkiyat QR & Dökümanlar
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <Button
                       onClick={downloadQRCode}
                       disabled={!qrCodeUrl}
                       className="h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                     >
                       <Download className="w-4 h-4 mr-2" />
-                      QR Kod İndir
+                      QR İndir
+                    </Button>
+                    <Button
+                      onClick={printQRCode}
+                      disabled={!qrCodeUrl}
+                      className="h-12 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                    >
+                      <Printer className="w-4 h-4 mr-2" />
+                      QR Yazdır
                     </Button>
                     <Button
                       onClick={downloadPalletListPDF}
@@ -542,11 +716,90 @@ export default function ShipmentDetailPage({
           </Card>
         </motion.div>
 
-        {/* Shipment Meta */}
+        {/* Shipment Photos */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
+        >
+          <Card>
+            <CardContent className="p-5">
+              <h3 className="font-semibold flex items-center gap-2 mb-4">
+                <Camera className="w-5 h-5 text-purple-500" />
+                Sevkiyat Fotoğrafları (maksimum 2)
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Fotoğraf 1 */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Fotoğraf 1</p>
+                  {shipment.photo_url ? (
+                    <div className="relative rounded-xl overflow-hidden border border-border">
+                      <img
+                        src={shipment.photo_url}
+                        alt="Sevkiyat fotoğrafı 1"
+                        className="w-full h-40 object-contain bg-accent"
+                      />
+                      <button
+                        onClick={() => handleRemovePhoto(1)}
+                        className="absolute top-2 right-2 p-2 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => openPhotoDialog(1)}
+                      className="w-full h-40 bg-purple-500/10 hover:bg-purple-500/20 border-2 border-dashed border-purple-500/50 text-purple-600"
+                      variant="ghost"
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <Camera className="h-6 w-6" />
+                        <span className="text-sm">Fotoğraf 1 Ekle</span>
+                      </div>
+                    </Button>
+                  )}
+                </div>
+
+                {/* Fotoğraf 2 */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Fotoğraf 2 (opsiyonel)</p>
+                  {(shipment as any).photo_url_2 ? (
+                    <div className="relative rounded-xl overflow-hidden border border-border">
+                      <img
+                        src={(shipment as any).photo_url_2}
+                        alt="Sevkiyat fotoğrafı 2"
+                        className="w-full h-40 object-contain bg-accent"
+                      />
+                      <button
+                        onClick={() => handleRemovePhoto(2)}
+                        className="absolute top-2 right-2 p-2 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => openPhotoDialog(2)}
+                      className="w-full h-40 bg-purple-500/10 hover:bg-purple-500/20 border-2 border-dashed border-purple-500/50 text-purple-600"
+                      variant="ghost"
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <Camera className="h-6 w-6" />
+                        <span className="text-sm">Fotoğraf 2 Ekle</span>
+                      </div>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Shipment Meta */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
         >
           <Card>
             <CardContent className="p-5">
@@ -859,6 +1112,76 @@ export default function ShipmentDetailPage({
             </Button>
             <Button variant="destructive" onClick={handleDeleteShipment} disabled={isDeleting}>
               {isDeleting ? "Siliniyor..." : "Sil"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Dialog */}
+      <Dialog open={photoDialogOpen} onOpenChange={(open) => {
+        setPhotoDialogOpen(open);
+        if (!open) setPhotoPreview(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5 text-purple-500" />
+              Sevkiyat Fotoğrafı {photoIndex}
+            </DialogTitle>
+            <DialogDescription>
+              Sevkiyat için fotoğraf çekin veya seçin
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {photoPreview ? (
+              <div className="relative">
+                <img
+                  src={photoPreview}
+                  alt="Önizleme"
+                  className="w-full max-h-64 object-contain rounded-lg border border-border"
+                />
+                <button
+                  onClick={() => setPhotoPreview(null)}
+                  className="absolute top-2 right-2 p-2 rounded-full bg-background/80 hover:bg-background text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="block">
+                <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-purple-500/50 rounded-xl bg-purple-500/5 hover:bg-purple-500/10 cursor-pointer transition-colors">
+                  <Camera className="h-12 w-12 text-purple-500 mb-3" />
+                  <span className="text-purple-600 font-medium">Fotoğraf Çek / Seç</span>
+                  <span className="text-muted-foreground text-sm mt-1">Dokunarak kamera açın</span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handlePhotoCapture}
+                />
+              </label>
+            )}
+          </div>
+          
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPhotoDialogOpen(false);
+                setPhotoPreview(null);
+              }}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={handlePhotoUpload}
+              disabled={!photoPreview || uploadingPhoto}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            >
+              {uploadingPhoto ? "Yükleniyor..." : "Kaydet"}
             </Button>
           </DialogFooter>
         </DialogContent>

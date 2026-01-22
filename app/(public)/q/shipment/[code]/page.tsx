@@ -32,6 +32,7 @@ export default function PublicShipmentPage({
   const [expandedPallets, setExpandedPallets] = useState<Set<string>>(
     new Set()
   );
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadShipment();
@@ -179,12 +180,56 @@ export default function PublicShipmentPage({
             </Card>
           </motion.div>
 
+          {/* Shipment Photos */}
+          {(shipment.photo_url || (shipment as any).photo_url_2) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="bg-white/70 backdrop-blur-xl border-slate-200 shadow-lg overflow-hidden">
+                <CardContent className="p-5">
+                  <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    📷 Sevkiyat Fotoğrafları
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {shipment.photo_url && (
+                      <div 
+                        className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-purple-400 transition-colors"
+                        onClick={() => setFullscreenPhoto(shipment.photo_url)}
+                      >
+                        <img
+                          src={shipment.photo_url}
+                          alt={`${shipment.name_or_plate} fotoğrafı 1`}
+                          className="w-full h-48 object-contain bg-slate-50"
+                        />
+                      </div>
+                    )}
+                    {(shipment as any).photo_url_2 && (
+                      <div 
+                        className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-purple-400 transition-colors"
+                        onClick={() => setFullscreenPhoto((shipment as any).photo_url_2)}
+                      >
+                        <img
+                          src={(shipment as any).photo_url_2}
+                          alt={`${shipment.name_or_plate} fotoğrafı 2`}
+                          className="w-full h-48 object-contain bg-slate-50"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 text-center mt-2">Büyütmek için fotoğrafa tıklayın</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {/* Pallets */}
           {shipment.pallets.length > 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: shipment.photo_url ? 0.3 : 0.2 }}
             >
               <Card className="bg-white/70 backdrop-blur-xl border-slate-200 shadow-lg">
                 <CardContent className="p-5">
@@ -294,7 +339,7 @@ export default function PublicShipmentPage({
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: shipment.photo_url ? 0.3 : 0.2 }}
             >
               <Card className="bg-white/70 backdrop-blur-xl border-slate-200 shadow-lg">
                 <CardContent className="p-8 text-center">
@@ -317,6 +362,31 @@ export default function PublicShipmentPage({
             Powered by <span className="font-semibold text-slate-600">Canberk Şıklı</span>
           </motion.p>
         </div>
+
+        {/* Fullscreen Photo Modal */}
+        {fullscreenPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+            onClick={() => setFullscreenPhoto(null)}
+          >
+            <motion.img
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              src={fullscreenPhoto}
+              alt="Fotoğraf"
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setFullscreenPhoto(null)}
+              className="absolute top-4 right-4 p-3 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
       </div>
     </PageTransition>
   );

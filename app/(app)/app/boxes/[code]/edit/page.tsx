@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Pencil, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,8 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
   const [boxName, setBoxName] = useState("");
   const [lines, setLines] = useState<LineItemForm[]>([]);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [photoDataUrl2, setPhotoDataUrl2] = useState<string | null>(null);
+  const fileInput2Ref = useRef<HTMLInputElement>(null);
   
   // Current line being added
   const [productName, setProductName] = useState("");
@@ -55,6 +57,12 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
     qty?: string;
     photo?: string;
   }>({});
+
+  // Ürün düzenleme state'leri
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editProductName, setEditProductName] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editKind, setEditKind] = useState("");
 
   useEffect(() => {
     // params.code değiştiğinde ref'i güncelle
@@ -97,6 +105,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       setDepartmentId(boxData.department_id);
       setBoxName(boxData.name);
       setPhotoDataUrl(boxData.photo_url);
+      setPhotoDataUrl2((boxData as any).photo_url_2 || null);
       
       // Convert existing lines to form format
       const formLines: LineItemForm[] = boxData.lines.map((line) => ({
@@ -170,6 +179,41 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
     });
   };
 
+  const startEditLine = (line: LineItemForm) => {
+    setEditingLineId(line.tempId);
+    setEditProductName(line.product_name);
+    setEditQty(line.qty.toString());
+    setEditKind(line.kind || "");
+  };
+
+  const cancelEditLine = () => {
+    setEditingLineId(null);
+    setEditProductName("");
+    setEditQty("");
+    setEditKind("");
+  };
+
+  const saveEditLine = () => {
+    if (!editProductName.trim()) {
+      toast({ title: "Hata", description: "Ürün adı gerekli", variant: "destructive" });
+      return;
+    }
+    const qtyNum = parseInt(editQty);
+    if (!editQty || isNaN(qtyNum) || qtyNum < 1) {
+      toast({ title: "Hata", description: "Adet 1 veya daha fazla olmalı", variant: "destructive" });
+      return;
+    }
+
+    setLines(lines.map((line) => 
+      line.tempId === editingLineId 
+        ? { ...line, product_name: editProductName.trim(), qty: qtyNum, kind: editKind.trim() }
+        : line
+    ));
+    
+    toast({ title: "Ürün güncellendi" });
+    cancelEditLine();
+  };
+
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -207,6 +251,42 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
     }
   };
 
+  const handlePhoto2Select = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Hata",
+        description: "Lütfen geçerli bir resim dosyası seçin",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Hata",
+        description: "Dosya boyutu 5MB'dan küçük olmalı",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPhotoDataUrl2(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto2 = () => {
+    setPhotoDataUrl2(null);
+    if (fileInput2Ref.current) {
+      fileInput2Ref.current.value = "";
+    }
+  };
+
   const validateBox = (): boolean => {
     const newErrors: typeof errors = {};
     
@@ -230,18 +310,50 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // boxCodeRef.current kullan - bu her zaman doğru koli kodunu içerir
       const currentBoxCode = boxCodeRef.current;
       
-      // Fotoğraf yeni eklendiyse (base64) Storage'a yükle
-      let finalPhotoUrl = photoDataUrl;
-      if (photoDataUrl && photoDataUrl.startsWith("data:")) {
-        finalPhotoUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+      // Fotoğraf değişikliklerini hazırla
+      let finalPhotoUrl: string | null | undefined = undefined;
+      let finalPhotoUrl2: string | null | undefined = undefined;
+      
+      // Fotoğraf 1 değişti mi kontrol et
+      if (photoDataUrl !== box.photo_url) {
+        if (photoDataUrl && photoDataUrl.startsWith("data:")) {
+          // Yeni fotoğraf yüklendi
+          const uploadedUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+          finalPhotoUrl = uploadedUrl;
+        } else {
+          // Fotoğraf silindi veya değişmedi
+          finalPhotoUrl = photoDataUrl;
+        }
+      }
+      
+      // Fotoğraf 2 değişti mi kontrol et
+      const originalPhotoUrl2 = (box as any).photo_url_2 || null;
+      if (photoDataUrl2 !== originalPhotoUrl2) {
+        if (photoDataUrl2 && photoDataUrl2.startsWith("data:")) {
+          // Yeni fotoğraf yüklendi
+          const uploadedUrl2 = await uploadBoxPhoto(photoDataUrl2, `${currentBoxCode}-2`);
+          finalPhotoUrl2 = uploadedUrl2;
+        } else {
+          // Fotoğraf silindi veya değişmedi
+          finalPhotoUrl2 = photoDataUrl2;
+        }
+      }
+      
+      // Update objesi hazırla - sadece değişen alanları gönder
+      const updateData: any = {
+        name: boxName.trim(),
+        department_id: departmentId,
+      };
+      
+      if (finalPhotoUrl !== undefined) {
+        updateData.photo_url = finalPhotoUrl;
+      }
+      if (finalPhotoUrl2 !== undefined) {
+        updateData.photo_url_2 = finalPhotoUrl2;
       }
       
       // Update box basic info
-      await boxRepository.update(currentBoxCode, {
-        name: boxName.trim(),
-        department_id: departmentId,
-        photo_url: finalPhotoUrl,
-      });
+      await boxRepository.update(currentBoxCode, updateData);
       
       // Delete removed lines
       for (const lineId of deletedLineIds) {
@@ -297,10 +409,11 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       });
       
       router.push(`/app/boxes/${currentBoxCode}`);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Box save error:", error);
       toast({
         title: "Hata",
-        description: "Değişiklikler kaydedilemedi",
+        description: error?.message || "Değişiklikler kaydedilemedi",
         variant: "destructive",
       });
     } finally {
@@ -326,10 +439,17 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // boxCodeRef.current kullan - bu her zaman doğru koli kodunu içerir
       const currentBoxCode = boxCodeRef.current;
       
-      // Fotoğraf yeni eklendiyse (base64) Storage'a yükle
-      let finalPhotoUrl = photoDataUrl;
+      // Fotoğraf değişikliklerini hazırla
+      let finalPhotoUrl: string | null = photoDataUrl;
       if (photoDataUrl && photoDataUrl.startsWith("data:")) {
-        finalPhotoUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+        const uploadedUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+        finalPhotoUrl = uploadedUrl;
+      }
+      
+      let finalPhotoUrl2: string | null = photoDataUrl2;
+      if (photoDataUrl2 && photoDataUrl2.startsWith("data:")) {
+        const uploadedUrl2 = await uploadBoxPhoto(photoDataUrl2, `${currentBoxCode}-2`);
+        finalPhotoUrl2 = uploadedUrl2;
       }
       
       // Update box basic info with photo
@@ -337,6 +457,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
         name: boxName.trim(),
         department_id: departmentId,
         photo_url: finalPhotoUrl,
+        photo_url_2: finalPhotoUrl2,
       });
       
       // Log photo addition
@@ -580,26 +701,91 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-200"
+                  className="p-3 rounded-lg bg-white border border-slate-200"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="font-medium text-slate-800">{line.product_name}</p>
-                    <p className="text-sm text-slate-500">
-                      Adet: {line.qty}
-                      {line.kind && ` • Cins: ${line.kind}`}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeLine(line.tempId)}
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {editingLineId === line.tempId ? (
+                    // Düzenleme modu
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="text-xs font-medium mb-1 block text-slate-700">Ürün Adı *</label>
+                          <Input
+                            placeholder="Ürün adı"
+                            value={editProductName}
+                            onChange={(e) => setEditProductName(e.target.value)}
+                            className="bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium mb-1 block text-slate-700">Adet *</label>
+                          <Input
+                            type="number"
+                            placeholder="Adet"
+                            value={editQty}
+                            onChange={(e) => setEditQty(e.target.value)}
+                            min="1"
+                            className="bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium mb-1 block text-slate-700">Cins (opsiyonel)</label>
+                        <Input
+                          placeholder="Örn: Porselen, Cam, Metal"
+                          value={editKind}
+                          onChange={(e) => setEditKind(e.target.value)}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={saveEditLine}
+                          className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Kaydet
+                        </Button>
+                        <Button
+                          onClick={cancelEditLine}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          İptal
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Görüntüleme modu
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="font-medium text-slate-800">{line.product_name}</p>
+                        <p className="text-sm text-slate-500">
+                          Adet: {line.qty}
+                          {line.kind && ` • Cins: ${line.kind}`}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEditLine(line)}
+                        className="text-slate-400 hover:text-blue-500 hover:bg-blue-50"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeLine(line.tempId)}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -626,11 +812,12 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
                 4
               </span>
-              Koli Fotoğrafı
+              Koli Fotoğrafları
             </CardTitle>
-            <CardDescription>Kolinin son halinin fotoğrafını yükleyin {box.status === "draft" ? "(kapatmak için zorunlu)" : ""}</CardDescription>
+            <CardDescription>Kolinin fotoğraflarını yükleyin {box.status === "draft" ? "(en az 1 fotoğraf kapatmak için zorunlu)" : ""} - Maksimum 2 fotoğraf</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Gizli input'lar */}
             <input
               type="file"
               ref={fileInputRef}
@@ -638,39 +825,82 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
               accept="image/*"
               className="hidden"
             />
+            <input
+              type="file"
+              ref={fileInput2Ref}
+              onChange={handlePhoto2Select}
+              accept="image/*"
+              className="hidden"
+            />
 
-            {photoDataUrl ? (
-              <div className="relative">
-                <img
-                  src={photoDataUrl}
-                  alt="Koli fotoğrafı"
-                  className="w-full max-h-80 object-contain rounded-lg border border-slate-200"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2"
-                  onClick={removePhoto}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fotoğraf 1 */}
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">Fotoğraf 1 {box.status === "draft" && "*"}</p>
+                {photoDataUrl ? (
+                  <div className="relative">
+                    <img
+                      src={photoDataUrl}
+                      alt="Koli fotoğrafı 1"
+                      className="w-full h-48 object-contain rounded-lg border border-slate-200 bg-slate-50"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2"
+                      onClick={removePhoto}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 hover:border-blue-400 hover:bg-blue-50/50 ${
+                      errors.photo ? "border-red-500 bg-red-50/50" : "border-slate-300"
+                    }`}
+                  >
+                    <Camera className="h-10 w-10 mx-auto text-slate-400 mb-2" />
+                    <p className="text-sm text-slate-600">Fotoğraf 1 ekle</p>
+                    <p className="text-xs text-slate-400">Max 5MB</p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors hover:border-blue-400 hover:bg-blue-50/50 ${
-                  errors.photo ? "border-red-500 bg-red-50/50" : "border-slate-300"
-                }`}
-              >
-                <Camera className="h-12 w-12 mx-auto text-slate-400 mb-4" />
-                <p className="text-slate-600 font-medium mb-1">Fotoğraf yüklemek için tıklayın</p>
-                <p className="text-sm text-slate-400">veya dosyayı buraya sürükleyin</p>
-                <p className="text-xs text-slate-400 mt-2">Maksimum 5MB, JPG/PNG/GIF</p>
+
+              {/* Fotoğraf 2 */}
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">Fotoğraf 2 (opsiyonel)</p>
+                {photoDataUrl2 ? (
+                  <div className="relative">
+                    <img
+                      src={photoDataUrl2}
+                      alt="Koli fotoğrafı 2"
+                      className="w-full h-48 object-contain rounded-lg border border-slate-200 bg-slate-50"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2"
+                      onClick={removePhoto2}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInput2Ref.current?.click()}
+                    className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 hover:border-blue-400 hover:bg-blue-50/50 border-slate-300"
+                  >
+                    <Camera className="h-10 w-10 mx-auto text-slate-400 mb-2" />
+                    <p className="text-sm text-slate-600">Fotoğraf 2 ekle</p>
+                    <p className="text-xs text-slate-400">Max 5MB</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {errors.photo && (
-              <p className="text-sm text-red-500 mt-2">{errors.photo}</p>
+              <p className="text-sm text-red-500">{errors.photo}</p>
             )}
           </CardContent>
         </Card>

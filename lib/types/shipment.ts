@@ -4,6 +4,8 @@ export interface Shipment {
   code: string;
   name_or_plate: string;
   created_by: string;
+  photo_url: string | null;
+  photo_url_2: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -22,6 +22,12 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +77,11 @@ export default function AdminPage() {
   const [shipmentUser, setShipmentUser] = useState("all");
   const [shipmentDateFrom, setShipmentDateFrom] = useState("");
   const [shipmentDateTo, setShipmentDateTo] = useState("");
+
+  // Personel detay modal
+  const [personnelModalOpen, setPersonnelModalOpen] = useState(false);
+  const [selectedPersonnel, setSelectedPersonnel] = useState<string | null>(null);
+  const [personnelViewType, setPersonnelViewType] = useState<"boxes" | "pallets" | "shipments" | null>(null);
 
   useEffect(() => {
     checkManagerAccess();
@@ -396,6 +407,23 @@ export default function AdminPage() {
     }).format(date);
   };
 
+  // Personel tıklama handler
+  const handlePersonnelClick = (personnelName: string) => {
+    setSelectedPersonnel(personnelName);
+    setPersonnelViewType(null);
+    setPersonnelModalOpen(true);
+  };
+
+  // Personelin verileri
+  const getPersonnelData = () => {
+    if (!selectedPersonnel) return { boxes: [], pallets: [], shipments: [] };
+    return {
+      boxes: boxes.filter(b => b.created_by === selectedPersonnel),
+      pallets: pallets.filter(p => p.created_by === selectedPersonnel),
+      shipments: shipments.filter(s => s.created_by === selectedPersonnel),
+    };
+  };
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -551,13 +579,14 @@ export default function AdminPage() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-300 transition-colors"
+                      onClick={() => handlePersonnelClick(user)}
+                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white">
                           {index + 1}
                         </div>
-                        <span className="text-slate-800 font-medium">{user}</span>
+                        <span className="text-slate-800 font-medium hover:text-blue-600 transition-colors">{user}</span>
                       </div>
                       <Badge className="bg-blue-100 text-blue-700 border-0">{count} koli</Badge>
                     </motion.div>
@@ -665,14 +694,15 @@ export default function AdminPage() {
               {userStats.map((user, index) => (
                 <TableRow
                   key={user.user}
-                  className="border-slate-200 hover:bg-slate-50 transition-colors"
+                  className="border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                  onClick={() => handlePersonnelClick(user.user)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white">
                         {index + 1}
                       </div>
-                      <span className="text-slate-800 font-medium">{user.user}</span>
+                      <span className="text-slate-800 font-medium hover:text-blue-600 transition-colors">{user.user}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -990,6 +1020,196 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Personnel Detail Modal */}
+      <Dialog open={personnelModalOpen} onOpenChange={setPersonnelModalOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600">
+                <Users className="h-5 w-5 text-white" />
+              </div>
+              {selectedPersonnel}
+            </DialogTitle>
+          </DialogHeader>
+
+          {personnelViewType === null ? (
+            <div className="space-y-3 py-4">
+              <p className="text-sm text-slate-500 mb-4">Hangi kayıtları görüntülemek istiyorsunuz?</p>
+              
+              {(() => {
+                const data = getPersonnelData();
+                return (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="w-full h-16 justify-start gap-4 hover:bg-blue-50 hover:border-blue-300"
+                      onClick={() => setPersonnelViewType("boxes")}
+                    >
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+                        <Package className="h-5 w-5" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-semibold text-slate-700">Koliler</p>
+                        <p className="text-xs text-slate-400">{data.boxes.length} koli oluşturmuş</p>
+                      </div>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full h-16 justify-start gap-4 hover:bg-cyan-50 hover:border-cyan-300"
+                      onClick={() => setPersonnelViewType("pallets")}
+                    >
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 text-white">
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-semibold text-slate-700">Paletler</p>
+                        <p className="text-xs text-slate-400">{data.pallets.length} palet oluşturmuş</p>
+                      </div>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full h-16 justify-start gap-4 hover:bg-purple-50 hover:border-purple-300"
+                      onClick={() => setPersonnelViewType("shipments")}
+                    >
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 text-white">
+                        <Truck className="h-5 w-5" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-semibold text-slate-700">Sevkiyatlar</p>
+                        <p className="text-xs text-slate-400">{data.shipments.length} sevkiyat oluşturmuş</p>
+                      </div>
+                    </Button>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPersonnelViewType(null)}
+                className="text-slate-500"
+              >
+                ← Geri
+              </Button>
+
+              {personnelViewType === "boxes" && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                    <Package className="h-4 w-4 text-blue-600" />
+                    Koliler ({getPersonnelData().boxes.length})
+                  </h4>
+                  {getPersonnelData().boxes.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">Koli bulunamadı</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {getPersonnelData().boxes.map((box) => (
+                        <motion.div
+                          key={box.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="p-3 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-300 cursor-pointer transition-all"
+                          onClick={() => {
+                            setPersonnelModalOpen(false);
+                            router.push(`/app/boxes/${box.code}`);
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-slate-800">{box.name}</p>
+                              <p className="text-xs text-slate-500 font-mono">{box.code}</p>
+                            </div>
+                            <Badge className={box.status === "sealed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}>
+                              {box.status === "sealed" ? "Kapalı" : "Açık"}
+                            </Badge>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {personnelViewType === "pallets" && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-cyan-600" />
+                    Paletler ({getPersonnelData().pallets.length})
+                  </h4>
+                  {getPersonnelData().pallets.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">Palet bulunamadı</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {getPersonnelData().pallets.map((pallet) => (
+                        <motion.div
+                          key={pallet.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="p-3 rounded-lg bg-slate-50 border border-slate-200 hover:border-cyan-300 cursor-pointer transition-all"
+                          onClick={() => {
+                            setPersonnelModalOpen(false);
+                            router.push(`/app/pallets/${pallet.code}`);
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-slate-800">{pallet.name}</p>
+                              <p className="text-xs text-slate-500 font-mono">{pallet.code}</p>
+                            </div>
+                            <Badge className="bg-cyan-100 text-cyan-700">{pallet.box_count} koli</Badge>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {personnelViewType === "shipments" && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                    <Truck className="h-4 w-4 text-purple-600" />
+                    Sevkiyatlar ({getPersonnelData().shipments.length})
+                  </h4>
+                  {getPersonnelData().shipments.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">Sevkiyat bulunamadı</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {getPersonnelData().shipments.map((shipment) => (
+                        <motion.div
+                          key={shipment.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="p-3 rounded-lg bg-slate-50 border border-slate-200 hover:border-purple-300 cursor-pointer transition-all"
+                          onClick={() => {
+                            setPersonnelModalOpen(false);
+                            router.push(`/app/shipments/${shipment.code}`);
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-slate-800">{shipment.name_or_plate}</p>
+                              <p className="text-xs text-slate-500 font-mono">{shipment.code}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Badge className="bg-purple-100 text-purple-700">{shipment.pallet_count} palet</Badge>
+                              <Badge className="bg-blue-100 text-blue-700">{shipment.box_count} koli</Badge>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

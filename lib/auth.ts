@@ -1,5 +1,6 @@
 // Authentication System - Supabase with localStorage fallback
 import { userRepository } from "@/lib/repositories/user";
+import { loginLogRepository } from "@/lib/repositories/login-log";
 
 export type UserRole = "user" | "manager" | "super_admin";
 
@@ -33,6 +34,14 @@ class MockAuth {
     const user = await userRepository.getByUsername(username);
 
     if (!user || user.password !== password) {
+      // Başarısız giriş logu
+      await loginLogRepository.logAction({
+        user_id: null,
+        username: username,
+        user_name: "Bilinmeyen",
+        department_name: null,
+        action: "failed_login",
+      });
       throw new Error("Kullanıcı adı veya şifre hatalı");
     }
 
@@ -51,10 +60,42 @@ class MockAuth {
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
     }
 
+    // Başarılı giriş logu
+    await loginLogRepository.logAction({
+      user_id: user.id,
+      username: user.username,
+      user_name: user.name,
+      department_name: user.department_name,
+      action: "login",
+    });
+
+    // Aktif oturum başlat
+    await loginLogRepository.startSession({
+      user_id: user.id,
+      username: user.username,
+      user_name: user.name,
+      department_name: user.department_name,
+    });
+
     return session;
   }
 
   async logout(): Promise<void> {
+    // Çıkış logu
+    const session = await this.getSession();
+    if (session) {
+      await loginLogRepository.logAction({
+        user_id: session.user.id,
+        username: session.user.username,
+        user_name: session.user.name,
+        department_name: session.user.department_name,
+        action: "logout",
+      });
+
+      // Aktif oturumu sonlandır
+      await loginLogRepository.endSession(session.user.id);
+    }
+
     if (typeof window !== "undefined") {
       localStorage.removeItem(SESSION_STORAGE_KEY);
     }
@@ -126,6 +167,28 @@ class MockAuth {
     }
 
     await userRepository.delete(userId);
+  }
+
+  // Aktivite güncelle (heartbeat) - sayfa açıkken düzenli çağrılacak
+  async updateActivity(): Promise<void> {
+    const session = await this.getSession();
+    if (session) {
+      await loginLogRepository.updateActivity(session.user.id);
+    }
+  }
+
+  // Oturum başlat veya güncelle - sayfa ilk yüklendiğinde çağrılacak
+  async ensureSession(): Promise<void> {
+    const session = await this.getSession();
+    if (session) {
+      // Aktif oturum başlat/güncelle
+      await loginLogRepository.startSession({
+        user_id: session.user.id,
+        username: session.user.username,
+        user_name: session.user.name,
+        department_name: session.user.department_name,
+      });
+    }
   }
 }
 

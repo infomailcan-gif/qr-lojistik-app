@@ -13,6 +13,7 @@ import type { BoxWithDetails } from "@/lib/types/box";
 export default function PublicBoxPage({ params }: { params: { code: string } }) {
   const [loading, setLoading] = useState(true);
   const [box, setBox] = useState<BoxWithDetails | null>(null);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadBox();
@@ -173,11 +174,57 @@ export default function PublicBoxPage({ params }: { params: { code: string } }) 
             </Card>
           </motion.div>
 
+          {/* Box Photos */}
+          {(box.photo_url || (box as any).photo_url_2) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Card className="border-green-200 bg-white/70 backdrop-blur-xl shadow-lg overflow-hidden">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-xl text-slate-800 flex items-center gap-2">
+                    📷 Koli Fotoğrafları
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {box.photo_url && (
+                      <div 
+                        className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-blue-400 transition-colors"
+                        onClick={() => setFullscreenPhoto(box.photo_url)}
+                      >
+                        <img
+                          src={box.photo_url}
+                          alt={`${box.name} fotoğrafı 1`}
+                          className="w-full h-48 object-contain bg-slate-50"
+                        />
+                      </div>
+                    )}
+                    {(box as any).photo_url_2 && (
+                      <div 
+                        className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-blue-400 transition-colors"
+                        onClick={() => setFullscreenPhoto((box as any).photo_url_2)}
+                      >
+                        <img
+                          src={(box as any).photo_url_2}
+                          alt={`${box.name} fotoğrafı 2`}
+                          className="w-full h-48 object-contain bg-slate-50"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 text-center mt-2">Büyütmek için fotoğrafa tıklayın</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {/* Content List */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: box.photo_url ? 0.4 : 0.3 }}
           >
             <Card className="border-blue-200 bg-white/70 backdrop-blur-xl shadow-lg">
               <CardHeader>
@@ -237,6 +284,31 @@ export default function PublicBoxPage({ params }: { params: { code: string } }) 
             </p>
           </motion.div>
         </div>
+
+        {/* Fullscreen Photo Modal */}
+        {fullscreenPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+            onClick={() => setFullscreenPhoto(null)}
+          >
+            <motion.img
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              src={fullscreenPhoto}
+              alt="Fotoğraf"
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setFullscreenPhoto(null)}
+              className="absolute top-4 right-4 p-3 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
       </div>
     </PageTransition>
   );

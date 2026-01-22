@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { departmentRepository } from "@/lib/repositories/department";
 import { auth } from "@/lib/auth";
 import type { BoxWithDepartment, Department } from "@/lib/types/box";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 type FilterTab = "all" | "sealed" | "draft";
 
@@ -38,11 +39,13 @@ export default function BoxesPage() {
   const [currentUserName, setCurrentUserName] = useState("");
   const [userDepartmentId, setUserDepartmentId] = useState("");
   const [userRole, setUserRole] = useState<string>("user");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedBox, setSelectedBox] = useState<BoxWithDepartment | null>(null);
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   
   // Performans optimizasyonu için animasyon ayarları
   const motionConfig = useMemo(() => ({
@@ -58,7 +61,7 @@ export default function BoxesPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole]);
+  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole, searchQuery]);
 
   const loadData = async () => {
     try {
@@ -95,12 +98,35 @@ export default function BoxesPage() {
     }
   };
 
+  // Türkçe karakter desteği ile case-insensitive arama
+  const turkishToLower = (text: string): string => {
+    const map: { [key: string]: string } = {
+      'İ': 'i', 'I': 'ı', 'Ş': 'ş', 'Ğ': 'ğ', 'Ü': 'ü', 'Ö': 'ö', 'Ç': 'ç'
+    };
+    let result = text;
+    for (const [upper, lower] of Object.entries(map)) {
+      result = result.split(upper).join(lower);
+    }
+    return result.toLowerCase();
+  };
+
   const applyFilters = () => {
     let filtered = [...boxes];
     
     // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi kolilerini görsün
     if (userRole === "user") {
       filtered = filtered.filter((b) => b.created_by === currentUserName);
+    }
+    
+    // Arama filtresi - Türkçe karakter destekli
+    if (searchQuery.trim()) {
+      const query = turkishToLower(searchQuery.trim());
+      filtered = filtered.filter((b) => 
+        turkishToLower(b.name).includes(query) ||
+        turkishToLower(b.code).includes(query) ||
+        turkishToLower(b.department.name).includes(query) ||
+        turkishToLower(b.created_by).includes(query)
+      );
     }
     
     if (activeTab === "sealed") {
@@ -298,6 +324,17 @@ export default function BoxesPage() {
         transition={{ delay: 0.1 }}
         className="space-y-3 sm:space-y-4"
       >
+        {/* Search Input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Koli ara (ad, kod, departman)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-11 bg-white/80 border-slate-200 focus:border-blue-400"
+          />
+        </div>
+
         {/* Filter Tabs - Horizontal scroll on mobile */}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
           {tabs.map((tab, index) => (
@@ -459,6 +496,22 @@ export default function BoxesPage() {
 
                   <CardContent className="p-5 space-y-3 relative">
                     <div className="flex items-start justify-between gap-2">
+                      {/* Küçük resim */}
+                      {box.photo_url && (
+                        <div 
+                          className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 cursor-pointer hover:border-blue-400 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFullscreenPhoto(box.photo_url);
+                          }}
+                        >
+                          <img 
+                            src={box.photo_url} 
+                            alt={box.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-lg truncate text-slate-800 group-hover:text-blue-600 transition-colors">
                           {box.name}
@@ -590,6 +643,24 @@ export default function BoxesPage() {
               {isDeleting ? "Siliniyor..." : "Sil"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen Photo Modal */}
+      <Dialog open={!!fullscreenPhoto} onOpenChange={() => setFullscreenPhoto(null)}>
+        <DialogContent className="max-w-4xl p-2 bg-black/95 border-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Fotoğraf</DialogTitle>
+          </DialogHeader>
+          {fullscreenPhoto && (
+            <div className="relative flex items-center justify-center min-h-[50vh]">
+              <img
+                src={fullscreenPhoto}
+                alt="Koli fotoğrafı"
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

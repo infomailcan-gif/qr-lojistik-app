@@ -16,8 +16,6 @@ import {
   User,
   AlertTriangle,
   Sparkles,
-  Settings,
-  Zap,
   RefreshCw,
   Loader2,
 } from "lucide-react";
@@ -44,9 +42,10 @@ import {
 } from "@/components/ui/dialog";
 import { auth, type UserRole, type MockUser } from "@/lib/auth";
 import { departmentRepository } from "@/lib/repositories/department";
+import { activityTracker, type PageVisit } from "@/lib/activity-tracker";
 import type { Department } from "@/lib/types/box";
 import { useToast } from "@/components/ui/use-toast";
-import { ActivityTracker } from "@/lib/activity-tracker";
+import { Eye, Clock, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface UserFormData {
   username: string;
@@ -66,6 +65,9 @@ export default function SuperAdminPage() {
 
   const [users, setUsers] = useState<Omit<MockUser, "password">[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [pageVisits, setPageVisits] = useState<PageVisit[]>([]);
+  const [activityPage, setActivityPage] = useState(1);
+  const activityPerPage = 20;
 
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<MockUser, "password"> | null>(null);
@@ -102,13 +104,15 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData] = await Promise.all([
+      const [usersData, deptsData, visitsData] = await Promise.all([
         auth.getAvailableUsers(),
-        departmentRepository.getAll()
+        departmentRepository.getAll(),
+        activityTracker.getAllRecentPageVisits(200)
       ]);
       
       setUsers(usersData);
       setDepartments(deptsData);
+      setPageVisits(visitsData);
     } catch (error) {
       console.error("Error loading data:", error);
       toast({
@@ -457,9 +461,12 @@ export default function SuperAdminPage() {
                 {departments.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="system" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-rose-500 data-[state=active]:text-white">
-              <Settings className="h-4 w-4" />
-              Sistem
+            <TabsTrigger value="activity" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white">
+              <Eye className="h-4 w-4" />
+              Kullanıcı Aktiviteleri
+              <Badge variant="secondary" className="ml-1 bg-white/20">
+                {pageVisits.length}
+              </Badge>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -637,66 +644,135 @@ export default function SuperAdminPage() {
           </div>
         </TabsContent>
 
-        {/* System Tab */}
-        <TabsContent value="system" className="space-y-6">
-          <Card className="border-red-200 bg-gradient-to-br from-red-50 to-rose-50">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-lg">
-                  <AlertTriangle className="h-6 w-6 text-white" />
+        {/* User Activity Tab */}
+        <TabsContent value="activity" className="space-y-6">
+          <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
+                  <Eye className="h-5 w-5 text-white" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-red-800 mb-2">
-                    Tüm Verileri Temizle
-                  </h3>
-                  <p className="text-sm text-red-600 mb-4">
-                    Bu işlem tüm kolileri, paletleri, sevkiyatları ve aktivite geçmişini silecektir.
-                    Bu işlem geri alınamaz! Mobil ve web arasında veri uyumsuzluğu yaşıyorsanız
-                    bu butonu kullanarak tüm verileri sıfırlayabilirsiniz.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        if (confirm("Tüm verileri silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
-                          ActivityTracker.clearAllData();
-                          toast({
-                            title: "Veriler Temizlendi",
-                            description: "Tüm koliler, paletler, sevkiyatlar ve aktiviteler silindi. Sayfayı yenileyin.",
-                          });
-                          setTimeout(() => {
-                            window.location.reload();
-                          }, 1500);
-                        }
-                      }}
-                      className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Tüm Verileri Sil
-                    </Button>
-                  </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800">Kullanıcı Sayfa Aktiviteleri</h3>
+                  <p className="text-xs text-slate-500">Kullanıcıların hangi sayfada ne kadar kaldığını görün</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 shadow-lg">
-                  <Zap className="h-6 w-6 text-white" />
+              {pageVisits.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Henüz aktivite kaydı yok</p>
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-amber-800 mb-2">
-                    Veri Depolama Bilgisi
-                  </h3>
-                  <p className="text-sm text-amber-700">
-                    Bu uygulama verileri tarayıcınızın yerel depolama alanında (localStorage) saklamaktadır.
-                    Bu nedenle farklı tarayıcılar veya cihazlar arasında veriler senkronize olmaz.
-                    Her tarayıcı/cihaz kendi verilerini tutar.
-                  </p>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">
+                            Kullanıcı
+                          </th>
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">
+                            Sayfa
+                          </th>
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">
+                            Süre
+                          </th>
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">
+                            Tarih/Saat
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <AnimatePresence>
+                          {pageVisits
+                            .slice((activityPage - 1) * activityPerPage, activityPage * activityPerPage)
+                            .map((visit, index) => (
+                              <motion.tr
+                                key={visit.id}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 10 }}
+                                transition={{ delay: index * 0.02 }}
+                                className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                              >
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-semibold text-sm">
+                                      {visit.user_name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="font-medium text-slate-800">{visit.user_name}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-slate-400" />
+                                    <div>
+                                      <p className="text-sm font-medium text-slate-700">{visit.page_name}</p>
+                                      <p className="text-xs text-slate-400 font-mono">{visit.page_path}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-500" />
+                                    <span className="text-sm font-semibold text-slate-700">
+                                      {visit.duration_seconds > 60 
+                                        ? `${Math.floor(visit.duration_seconds / 60)} dk ${visit.duration_seconds % 60} sn`
+                                        : `${visit.duration_seconds} sn`}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="text-sm text-slate-600">
+                                    {new Date(visit.entered_at).toLocaleString("tr-TR", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </div>
+                                </td>
+                              </motion.tr>
+                            ))}
+                        </AnimatePresence>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {pageVisits.length > activityPerPage && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
+                      <div className="text-sm text-slate-500">
+                        Sayfa {activityPage} / {Math.ceil(pageVisits.length / activityPerPage)} ({pageVisits.length} kayıt)
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setActivityPage(Math.max(1, activityPage - 1))}
+                          disabled={activityPage === 1}
+                          className="h-9"
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Önceki
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setActivityPage(Math.min(Math.ceil(pageVisits.length / activityPerPage), activityPage + 1))}
+                          disabled={activityPage >= Math.ceil(pageVisits.length / activityPerPage)}
+                          className="h-9"
+                        >
+                          Sonraki
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

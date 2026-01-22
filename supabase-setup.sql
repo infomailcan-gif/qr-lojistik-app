@@ -128,6 +128,122 @@ CREATE POLICY "Public update access" ON shipments FOR UPDATE USING (true);
 CREATE POLICY "Public delete access" ON shipments FOR DELETE USING (true);
 
 -- ============================================
+-- 6. Kullanıcılar Tablosu (Users)
+-- ============================================
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT NOT NULL UNIQUE,
+  password TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('user', 'manager', 'super_admin')),
+  department_id UUID REFERENCES departments(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Örnek kullanıcılar
+INSERT INTO users (id, username, password, name, role, department_id) VALUES
+  ('u1111111-1111-1111-1111-111111111111', 'admin', 'admin123', 'Sistem Yöneticisi', 'super_admin', 'd3333333-3333-3333-3333-333333333333'),
+  ('u2222222-2222-2222-2222-222222222222', 'mudur', 'mudur123', 'Ahmet Müdür', 'manager', 'd4444444-4444-4444-4444-444444444444'),
+  ('u3333333-3333-3333-3333-333333333333', 'depo1', 'depo123', 'Mehmet Depocu', 'user', 'd4444444-4444-4444-4444-444444444444'),
+  ('u4444444-4444-4444-4444-444444444444', 'restoran1', 'restoran123', 'Ali Restoran', 'user', 'd1111111-1111-1111-1111-111111111111')
+ON CONFLICT (username) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON users FOR SELECT USING (true);
+CREATE POLICY "Public insert access" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update access" ON users FOR UPDATE USING (true);
+CREATE POLICY "Public delete access" ON users FOR DELETE USING (true);
+
+-- ============================================
+-- 7. Giriş Logları Tablosu (Login Logs)
+-- ============================================
+CREATE TABLE IF NOT EXISTS login_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  username TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  department_name TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  action TEXT NOT NULL CHECK (action IN ('login', 'logout', 'failed_login')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_logs_user_id ON login_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_login_logs_username ON login_logs(username);
+CREATE INDEX IF NOT EXISTS idx_login_logs_action ON login_logs(action);
+CREATE INDEX IF NOT EXISTS idx_login_logs_created_at ON login_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_logs_ip_address ON login_logs(ip_address);
+
+ALTER TABLE login_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON login_logs FOR SELECT USING (true);
+CREATE POLICY "Public insert access" ON login_logs FOR INSERT WITH CHECK (true);
+
+-- ============================================
+-- 8. Aktif Oturumlar Tablosu (Active Sessions) - Anlık online takibi için
+-- ============================================
+CREATE TABLE IF NOT EXISTS active_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  user_name TEXT NOT NULL,
+  department_name TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  last_activity TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_active_sessions_user_id ON active_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_last_activity ON active_sessions(last_activity DESC);
+
+ALTER TABLE active_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON active_sessions FOR SELECT USING (true);
+CREATE POLICY "Public insert access" ON active_sessions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update access" ON active_sessions FOR UPDATE USING (true);
+CREATE POLICY "Public delete access" ON active_sessions FOR DELETE USING (true);
+
+-- ============================================
+-- 9. Sayfa Ziyaretleri Tablosu (Page Visits) - Kullanıcı aktivite takibi
+-- ============================================
+CREATE TABLE IF NOT EXISTS page_visits (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_name TEXT NOT NULL,
+  page_path TEXT NOT NULL,
+  page_name TEXT NOT NULL,
+  duration_seconds INTEGER DEFAULT 0,
+  entered_at TIMESTAMPTZ DEFAULT NOW(),
+  left_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_visits_user_id ON page_visits(user_id);
+CREATE INDEX IF NOT EXISTS idx_page_visits_entered_at ON page_visits(entered_at DESC);
+
+ALTER TABLE page_visits ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON page_visits FOR SELECT USING (true);
+CREATE POLICY "Public insert access" ON page_visits FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update access" ON page_visits FOR UPDATE USING (true);
+
+-- ============================================
+-- 10. EK SÜTUNLAR - photo_url_2 desteği
+-- ============================================
+-- boxes tablosuna photo_url_2 ekle
+ALTER TABLE boxes ADD COLUMN IF NOT EXISTS photo_url_2 TEXT;
+
+-- pallets tablosuna photo_url ve photo_url_2 ekle
+ALTER TABLE pallets ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE pallets ADD COLUMN IF NOT EXISTS photo_url_2 TEXT;
+
+-- shipments tablosuna photo_url ve photo_url_2 ekle
+ALTER TABLE shipments ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE shipments ADD COLUMN IF NOT EXISTS photo_url_2 TEXT;
+
+-- ============================================
 -- BAŞARILI! 🎉
 -- ============================================
 -- Veritabanı hazır. Şimdi Storage bucket'ı oluşturun.

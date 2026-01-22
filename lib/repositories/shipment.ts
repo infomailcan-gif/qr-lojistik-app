@@ -263,6 +263,7 @@ class ShipmentRepository {
         code,
         name_or_plate: data.name_or_plate,
         created_by: userName,
+        photo_url: null,
         created_at: now,
         updated_at: now,
       };
@@ -346,7 +347,7 @@ class ShipmentRepository {
   }
 
   // Update shipment
-  async update(code: string, updates: { name_or_plate?: string }): Promise<Shipment> {
+  async update(code: string, updates: { name_or_plate?: string; photo_url?: string | null; photo_url_2?: string | null }): Promise<Shipment> {
     if (!isSupabaseConfigured || !supabase) {
       const shipments = this.getLocalShipments();
       const index = shipments.findIndex((s) => s.code === code);
@@ -358,6 +359,8 @@ class ShipmentRepository {
       shipments[index] = {
         ...shipments[index],
         ...(updates.name_or_plate !== undefined && { name_or_plate: updates.name_or_plate }),
+        ...(updates.photo_url !== undefined && { photo_url: updates.photo_url }),
+        ...(updates.photo_url_2 !== undefined && { photo_url_2: updates.photo_url_2 }),
         updated_at: new Date().toISOString(),
       };
 
@@ -372,6 +375,14 @@ class ShipmentRepository {
 
       if (updates.name_or_plate !== undefined) {
         updateData.name_or_plate = updates.name_or_plate;
+      }
+
+      if (updates.photo_url !== undefined) {
+        updateData.photo_url = updates.photo_url;
+      }
+
+      if (updates.photo_url_2 !== undefined) {
+        updateData.photo_url_2 = updates.photo_url_2;
       }
 
       const { data, error } = await supabase

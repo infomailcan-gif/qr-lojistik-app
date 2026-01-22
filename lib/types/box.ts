@@ -17,6 +17,7 @@ export interface Box {
   revision: number;
   pallet_code: string | null;
   photo_url: string | null;
+  photo_url_2: string | null;
   needs_reprint: boolean;
   created_at: string;
   updated_at: string;
@@ -62,6 +63,7 @@ export interface UpdateBoxData {
   status?: "draft" | "sealed";
   pallet_code?: string | null;
   photo_url?: string | null;
+  photo_url_2?: string | null;
   needs_reprint?: boolean;
 }
 

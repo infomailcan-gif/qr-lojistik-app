@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Truck, Plus, Package, Box, Calendar, User, Eye, Edit, Trash2, Sparkles, Send, Shield } from "lucide-react";
+import { Truck, Plus, Package, Box, Calendar, User, Eye, Edit, Trash2, Sparkles, Send, Shield, Search } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import {
   Dialog,
@@ -20,6 +20,7 @@ import { shipmentRepository } from "@/lib/repositories/shipment";
 import { palletRepository } from "@/lib/repositories/pallet";
 import type { ShipmentWithCounts } from "@/lib/types/shipment";
 import { auth } from "@/lib/auth";
+import { Input } from "@/components/ui/input";
 
 export default function ShipmentsPage() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function ShipmentsPage() {
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     loadData();
@@ -68,11 +70,23 @@ export default function ShipmentsPage() {
   
   // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi sevkiyatlarını görsün
   const shipments = useMemo(() => {
+    let filtered = allShipments;
+    
     if (userRole === "user") {
-      return allShipments.filter(s => s.created_by === userName);
+      filtered = filtered.filter(s => s.created_by === userName);
     }
-    return allShipments;
-  }, [allShipments, userRole, userName]);
+    
+    // Arama filtresi
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(s => 
+        s.name_or_plate.toLowerCase().includes(query) ||
+        s.code.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [allShipments, userRole, userName, searchQuery]);
 
   const handleShipmentClick = (shipment: ShipmentWithCounts) => {
     setSelectedShipment(shipment);
@@ -222,11 +236,28 @@ export default function ShipmentsPage() {
         </motion.div>
       </motion.div>
 
-      {/* Stats */}
+      {/* Search Input */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
+      >
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Sevkiyat ara (isim, plaka, kod)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-11 bg-white/80 border-slate-200 focus:border-purple-400"
+          />
+        </div>
+      </motion.div>
+
+      {/* Stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
         className="flex items-center gap-3 flex-wrap"
       >
         <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">

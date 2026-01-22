@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Building2, Package, Sparkles, CheckCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Building2, Package, Sparkles, CheckCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +21,14 @@ interface LineItemForm extends CreateBoxLineData {
 export default function NewBoxPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInput2Ref = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   
   const [boxName, setBoxName] = useState("");
   const [lines, setLines] = useState<LineItemForm[]>([]);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [photoDataUrl2, setPhotoDataUrl2] = useState<string | null>(null);
   
   const [productName, setProductName] = useState("");
   const [qty, setQty] = useState("");
@@ -39,6 +41,12 @@ export default function NewBoxPage() {
     qty?: string;
     photo?: string;
   }>({});
+  
+  // Ürün düzenleme state'leri
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editProductName, setEditProductName] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editKind, setEditKind] = useState("");
 
   useEffect(() => {
     loadUser();
@@ -108,6 +116,41 @@ export default function NewBoxPage() {
     });
   };
 
+  const startEditLine = (line: LineItemForm) => {
+    setEditingLineId(line.tempId);
+    setEditProductName(line.product_name);
+    setEditQty(line.qty.toString());
+    setEditKind(line.kind || "");
+  };
+
+  const cancelEditLine = () => {
+    setEditingLineId(null);
+    setEditProductName("");
+    setEditQty("");
+    setEditKind("");
+  };
+
+  const saveEditLine = () => {
+    if (!editProductName.trim()) {
+      toast({ title: "Hata", description: "Ürün adı gerekli", variant: "destructive" });
+      return;
+    }
+    const qtyNum = parseInt(editQty);
+    if (!editQty || isNaN(qtyNum) || qtyNum < 1) {
+      toast({ title: "Hata", description: "Adet 1 veya daha fazla olmalı", variant: "destructive" });
+      return;
+    }
+
+    setLines(lines.map((line) => 
+      line.tempId === editingLineId 
+        ? { ...line, product_name: editProductName.trim(), qty: qtyNum, kind: editKind.trim() }
+        : line
+    ));
+    
+    toast({ title: "Ürün güncellendi" });
+    cancelEditLine();
+  };
+
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -142,6 +185,42 @@ export default function NewBoxPage() {
     setPhotoDataUrl(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const handlePhoto2Select = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Hata",
+        description: "Lütfen geçerli bir resim dosyası seçin",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Hata",
+        description: "Dosya boyutu 5MB'dan küçük olmalı",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPhotoDataUrl2(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto2 = () => {
+    setPhotoDataUrl2(null);
+    if (fileInput2Ref.current) {
+      fileInput2Ref.current.value = "";
     }
   };
 
@@ -215,7 +294,8 @@ export default function NewBoxPage() {
       if (photoDataUrl) {
         // Fotoğrafı Storage'a yükle (base64 yerine URL kaydedilecek)
         const photoUrl = await uploadBoxPhoto(photoDataUrl, box.code);
-        await boxRepository.update(box.code, { photo_url: photoUrl });
+        const photoUrl2 = photoDataUrl2 ? await uploadBoxPhoto(photoDataUrl2, `${box.code}-2`) : null;
+        await boxRepository.update(box.code, { photo_url: photoUrl, photo_url_2: photoUrl2 });
         activityTracker.log(
           user,
           "box_photo_added",
@@ -287,9 +367,11 @@ export default function NewBoxPage() {
 
       // Fotoğrafı Storage'a yükle (base64 yerine URL kaydedilecek)
       const photoUrl = await uploadBoxPhoto(photoDataUrl!, box.code);
+      const photoUrl2 = photoDataUrl2 ? await uploadBoxPhoto(photoDataUrl2, `${box.code}-2`) : null;
       
       await boxRepository.update(box.code, { 
         photo_url: photoUrl,
+        photo_url_2: photoUrl2,
         status: "sealed" 
       });
       
@@ -511,26 +593,91 @@ export default function NewBoxPage() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all"
+                  className="p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-lg">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="font-medium text-slate-800">{line.product_name}</p>
-                    <p className="text-sm text-slate-500">
-                      Adet: <span className="font-semibold text-blue-600">{line.qty}</span>
-                      {line.kind && <span className="ml-2">• Cins: {line.kind}</span>}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeLine(line.tempId)}
-                    className="text-slate-400 hover:text-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {editingLineId === line.tempId ? (
+                    // Düzenleme modu
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="text-xs font-medium mb-1 block text-slate-600">Ürün Adı *</label>
+                          <Input
+                            placeholder="Ürün adı"
+                            value={editProductName}
+                            onChange={(e) => setEditProductName(e.target.value)}
+                            className="bg-white border-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium mb-1 block text-slate-600">Adet *</label>
+                          <Input
+                            type="number"
+                            placeholder="Adet"
+                            value={editQty}
+                            onChange={(e) => setEditQty(e.target.value)}
+                            min="1"
+                            className="bg-white border-slate-200"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium mb-1 block text-slate-600">Cins (opsiyonel)</label>
+                        <Input
+                          placeholder="Örn: Porselen, Cam, Metal"
+                          value={editKind}
+                          onChange={(e) => setEditKind(e.target.value)}
+                          className="bg-white border-slate-200"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={saveEditLine}
+                          className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Kaydet
+                        </Button>
+                        <Button
+                          onClick={cancelEditLine}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          İptal
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Görüntüleme modu
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white shadow-lg">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="font-medium text-slate-800">{line.product_name}</p>
+                        <p className="text-sm text-slate-500">
+                          Adet: <span className="font-semibold text-blue-600">{line.qty}</span>
+                          {line.kind && <span className="ml-2">• Cins: {line.kind}</span>}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEditLine(line)}
+                        className="text-slate-400 hover:text-blue-500 hover:bg-blue-50"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeLine(line.tempId)}
+                        className="text-slate-400 hover:text-red-500 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -566,11 +713,11 @@ export default function NewBoxPage() {
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-lg">
                 3
               </span>
-              Koli Fotoğrafı
+              Koli Fotoğrafları
             </CardTitle>
-            <CardDescription>Kolinin son halinin fotoğrafını yükleyin (zorunlu)</CardDescription>
+            <CardDescription>Kolinin fotoğraflarını yükleyin (1. zorunlu, 2. opsiyonel)</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <input
               type="file"
               ref={fileInputRef}
@@ -578,54 +725,94 @@ export default function NewBoxPage() {
               accept="image/*"
               className="hidden"
             />
+            <input
+              type="file"
+              ref={fileInput2Ref}
+              onChange={handlePhoto2Select}
+              accept="image/*"
+              className="hidden"
+            />
 
-            {photoDataUrl ? (
-              <motion.div 
-                className="relative"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
-                <img
-                  src={photoDataUrl}
-                  alt="Koli fotoğrafı"
-                  className="w-full max-h-80 object-contain rounded-xl border border-slate-200 shadow-lg"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 shadow-lg"
-                  onClick={removePhoto}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-                <div className="absolute bottom-2 left-2 flex items-center gap-2 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm shadow-lg">
-                  <CheckCircle className="h-4 w-4" />
-                  Fotoğraf yüklendi
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                onClick={() => fileInputRef.current?.click()}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-blue-50/50 ${
-                  errors.photo ? "border-red-400 bg-red-50/50" : "border-slate-300"
-                }`}
-              >
-                <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <Camera className="h-14 w-14 mx-auto text-slate-300 mb-4" />
-                </motion.div>
-                <p className="text-slate-600 font-medium mb-1">Fotoğraf yüklemek için tıklayın</p>
-                <p className="text-sm text-slate-400">veya dosyayı buraya sürükleyin</p>
-                <p className="text-xs text-slate-400 mt-2">Maksimum 5MB, JPG/PNG/GIF</p>
-              </motion.div>
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fotoğraf 1 */}
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">Fotoğraf 1 *</p>
+                {photoDataUrl ? (
+                  <motion.div 
+                    className="relative"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                  >
+                    <img
+                      src={photoDataUrl}
+                      alt="Koli fotoğrafı 1"
+                      className="w-full h-48 object-contain rounded-xl border border-slate-200 shadow-lg bg-slate-50"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 shadow-lg"
+                      onClick={removePhoto}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    onClick={() => fileInputRef.current?.click()}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 hover:border-blue-400 hover:bg-blue-50/50 ${
+                      errors.photo ? "border-red-400 bg-red-50/50" : "border-slate-300"
+                    }`}
+                  >
+                    <Camera className="h-10 w-10 mx-auto text-slate-300 mb-2" />
+                    <p className="text-slate-600 font-medium text-sm">Fotoğraf 1 ekle</p>
+                    <p className="text-xs text-slate-400">Max 5MB</p>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Fotoğraf 2 */}
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">Fotoğraf 2 (opsiyonel)</p>
+                {photoDataUrl2 ? (
+                  <motion.div 
+                    className="relative"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                  >
+                    <img
+                      src={photoDataUrl2}
+                      alt="Koli fotoğrafı 2"
+                      className="w-full h-48 object-contain rounded-xl border border-slate-200 shadow-lg bg-slate-50"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 shadow-lg"
+                      onClick={removePhoto2}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    onClick={() => fileInput2Ref.current?.click()}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 hover:border-blue-400 hover:bg-blue-50/50 border-slate-300"
+                  >
+                    <Camera className="h-10 w-10 mx-auto text-slate-300 mb-2" />
+                    <p className="text-slate-600 font-medium text-sm">Fotoğraf 2 ekle</p>
+                    <p className="text-xs text-slate-400">Max 5MB</p>
+                  </motion.div>
+                )}
+              </div>
+            </div>
 
             {errors.photo && (
-              <p className="text-sm text-red-500 mt-2">{errors.photo}</p>
+              <p className="text-sm text-red-500">{errors.photo}</p>
             )}
           </CardContent>
         </Card>

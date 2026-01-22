@@ -242,3 +242,4 @@ Tüm kriterler karşılandı:
 
 
 
+

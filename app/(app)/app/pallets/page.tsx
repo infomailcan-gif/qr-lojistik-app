@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Layers, Plus, Package, Sparkles, Zap, ArrowRight, Eye, Edit, Trash2, Shield } from "lucide-react";
+import { Layers, Plus, Package, Sparkles, Zap, ArrowRight, Eye, Edit, Trash2, Shield, Search } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { palletRepository } from "@/lib/repositories/pallet";
 import { boxRepository } from "@/lib/repositories/box";
 import { auth } from "@/lib/auth";
 import type { PalletWithBoxCount } from "@/lib/types/pallet";
+import { Input } from "@/components/ui/input";
 
 export default function PalletsPage() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function PalletsPage() {
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     loadData();
@@ -71,11 +73,23 @@ export default function PalletsPage() {
   
   // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi paletlerini görsün
   const filteredPallets = useMemo(() => {
+    let filtered = pallets;
+    
     if (userRole === "user") {
-      return pallets.filter(p => p.created_by === currentUserName);
+      filtered = filtered.filter(p => p.created_by === currentUserName);
     }
-    return pallets;
-  }, [pallets, userRole, currentUserName]);
+    
+    // Arama filtresi
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(query) ||
+        p.code.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [pallets, userRole, currentUserName, searchQuery]);
 
   const handlePalletClick = (pallet: PalletWithBoxCount) => {
     setSelectedPallet(pallet);
@@ -224,11 +238,28 @@ export default function PalletsPage() {
         </motion.div>
       </motion.div>
 
-      {/* Stats Bar */}
+      {/* Search Input */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
+      >
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Palet ara (ad, kod)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-11 bg-white/80 border-slate-200 focus:border-cyan-400"
+          />
+        </div>
+      </motion.div>
+
+      {/* Stats Bar */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
         className="flex items-center gap-3 flex-wrap"
       >
         <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-xl border border-cyan-200">

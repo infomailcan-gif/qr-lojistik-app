@@ -55,3 +55,4 @@ Vercel'deki URL'iniz (örn: `qr-lojistik.vercel.app`) artık çalışıyor!
 
 
 
+

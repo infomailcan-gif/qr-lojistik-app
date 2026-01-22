@@ -206,3 +206,4 @@ Uygulamayı yayınlamak için (Vercel, Netlify, vb.):
 
 
 
+

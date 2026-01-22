@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Package, Calendar, User, Building2, Edit, Download, QrCode, FileText, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Package, Calendar, User, Building2, Edit, Download, QrCode, FileText, Image as ImageIcon, Printer, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +117,87 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
       toast({
         title: "QR Kod İndirildi",
         description: `${box.code} QR kodu indirildi`,
+      });
+    };
+    img.src = qrCodeUrl;
+  };
+
+  const printQRCode = () => {
+    if (!qrCodeUrl || !box) return;
+    
+    // Create canvas with QR code and name
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = document.createElement("img");
+    img.onload = () => {
+      const qrSize = 600;
+      const textHeight = 80;
+      
+      canvas.width = qrSize;
+      canvas.height = qrSize + textHeight;
+      
+      // White background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw QR code
+      ctx.drawImage(img, 0, 0, qrSize, qrSize);
+      
+      // Draw name below QR
+      ctx.fillStyle = "#1e40af";
+      ctx.font = "bold 32px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      
+      const boxName = box.name;
+      ctx.fillText(boxName, qrSize / 2, qrSize + textHeight / 2);
+      
+      // Open print window
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>QR Kod - ${box.code}</title>
+              <style>
+                body { 
+                  margin: 0; 
+                  display: flex; 
+                  justify-content: center; 
+                  align-items: center; 
+                  min-height: 100vh;
+                  background: white;
+                }
+                img { 
+                  max-width: 100%; 
+                  height: auto; 
+                }
+                @media print {
+                  body { margin: 0; }
+                  img { width: 100%; max-width: 400px; }
+                }
+              </style>
+            </head>
+            <body>
+              <img src="${canvas.toDataURL("image/png")}" alt="QR Code" />
+              <script>
+                window.onload = function() {
+                  window.print();
+                  window.onafterprint = function() { window.close(); };
+                }
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+      
+      toast({
+        title: "Yazdırma",
+        description: `${box.code} QR kodu yazdırılıyor`,
       });
     };
     img.src = qrCodeUrl;
@@ -341,17 +422,29 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
       >
         <Button
           onClick={downloadQRCode}
           disabled={!qrCodeUrl}
           className="h-16 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
         >
-          <QrCode className="h-6 w-6 mr-3" />
+          <Download className="h-6 w-6 mr-3" />
           <div className="text-left">
             <p className="font-semibold">QR Kod İndir</p>
             <p className="text-xs opacity-80">600x600 PNG</p>
+          </div>
+        </Button>
+        
+        <Button
+          onClick={printQRCode}
+          disabled={!qrCodeUrl}
+          className="h-16 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700"
+        >
+          <Printer className="h-6 w-6 mr-3" />
+          <div className="text-left">
+            <p className="font-semibold">QR Kod Yazdır</p>
+            <p className="text-xs opacity-80">Direkt yazdır</p>
           </div>
         </Button>
         
@@ -524,7 +617,7 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="flex justify-center pb-8"
+        className="flex flex-col sm:flex-row justify-center gap-4 pb-8"
       >
         <Button 
           size="lg" 
@@ -533,6 +626,15 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
         >
           <Edit className="h-4 w-4 mr-2" />
           Koliyi Düzenle
+        </Button>
+        <Button 
+          size="lg" 
+          variant="outline"
+          className="min-w-[200px] border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400"
+          onClick={() => router.push("/app/boxes/new")}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Yeni Koli Oluştur
         </Button>
       </motion.div>
     </div>

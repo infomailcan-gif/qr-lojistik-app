@@ -42,8 +42,20 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    checkRoleAndLoad();
   }, []);
+
+  // Müdür ve super_admin rolü için dashboard'a yönlendir
+  const checkRoleAndLoad = async () => {
+    const session = await auth.getSession();
+    if (session) {
+      if (session.user.role === "manager" || session.user.role === "super_admin") {
+        router.replace("/app/dashboard");
+        return;
+      }
+    }
+    loadData();
+  };
 
   const loadData = async () => {
     try {
@@ -59,11 +71,14 @@ export default function DashboardPage() {
           shipmentRepository.getAll(),
         ]);
 
+        // Sadece kullanıcının kendi oluşturduğu kayıtları filtrele
+        const myBoxes = boxes.filter(b => b.created_by === userName);
+        const myPallets = pallets.filter(p => p.created_by === userName);
         const myShipments = shipments.filter(s => s.created_by === userName);
 
         setStats({
-          myBoxes: boxes.length,
-          myPallets: pallets.length,
+          myBoxes: myBoxes.length,
+          myPallets: myPallets.length,
           myShipments: myShipments.length,
         });
       }

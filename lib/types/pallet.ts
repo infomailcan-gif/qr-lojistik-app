@@ -5,6 +5,8 @@ export interface Pallet {
   name: string;
   created_by: string;
   shipment_code: string | null;
+  photo_url: string | null;
+  photo_url_2: string | null;
   created_at: string;
   updated_at: string;
 }
