@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -494,35 +494,44 @@ export default function BoxesPage() {
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
                   />
 
-                  <CardContent className="p-5 space-y-3 relative">
-                    <div className="flex items-start justify-between gap-2">
-                      {/* Küçük resim */}
+                  <CardContent className="p-4 sm:p-5 space-y-3 relative">
+                    <div className="flex items-start gap-3">
+                      {/* Küçük resim - Hem web hem mobil için */}
                       {box.photo_url && (
-                        <div 
-                          className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 cursor-pointer hover:border-blue-400 transition-colors"
+                        <motion.div 
+                          className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 flex-shrink-0 cursor-pointer hover:border-blue-400 active:border-blue-500 transition-colors shadow-sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             setFullscreenPhoto(box.photo_url);
                           }}
+                          whileTap={{ scale: 0.95 }}
                         >
                           <img 
                             src={box.photo_url} 
                             alt={box.name}
                             className="w-full h-full object-cover"
                           />
-                        </div>
+                          {/* Büyütme ikonu overlay - Mobilde her zaman görünür */}
+                          <div className="absolute inset-0 bg-black/20 sm:bg-black/0 sm:hover:bg-black/30 active:bg-black/40 transition-colors flex items-center justify-center">
+                            <Eye className="h-4 w-4 text-white drop-shadow-lg" />
+                          </div>
+                        </motion.div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-lg truncate text-slate-800 group-hover:text-blue-600 transition-colors">
-                          {box.name}
-                        </h3>
-                        <p className="text-sm text-slate-400 font-mono truncate">
-                          {box.code}
-                        </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-base sm:text-lg truncate text-slate-800 group-hover:text-blue-600 transition-colors">
+                              {box.name}
+                            </h3>
+                            <p className="text-xs sm:text-sm text-slate-400 font-mono truncate">
+                              {box.code}
+                            </p>
+                          </div>
+                          <Badge className={`${getStatusColor(box.status)} text-xs`}>
+                            {getStatusText(box.status)}
+                          </Badge>
+                        </div>
                       </div>
-                      <Badge className={getStatusColor(box.status)}>
-                        {getStatusText(box.status)}
-                      </Badge>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -646,18 +655,38 @@ export default function BoxesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Fullscreen Photo Modal */}
+      {/* Fullscreen Photo Modal - Mobil ve Web için optimize edildi */}
       <Dialog open={!!fullscreenPhoto} onOpenChange={() => setFullscreenPhoto(null)}>
-        <DialogContent className="max-w-4xl p-2 bg-black/95 border-0">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl w-full p-0 bg-black/95 border-0 rounded-xl overflow-hidden">
           <DialogHeader className="sr-only">
             <DialogTitle>Fotoğraf</DialogTitle>
           </DialogHeader>
           {fullscreenPhoto && (
-            <div className="relative flex items-center justify-center min-h-[50vh]">
-              <img
+            <div className="relative flex items-center justify-center min-h-[50vh] sm:min-h-[60vh]">
+              {/* Kapatma butonu - Mobil için büyük ve görünür */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 z-50 h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-black/50 hover:bg-black/70 text-white border border-white/20"
+                onClick={() => setFullscreenPhoto(null)}
+              >
+                <X className="h-5 w-5 sm:h-4 sm:w-4" />
+              </Button>
+              
+              {/* Fotoğraf */}
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
                 src={fullscreenPhoto}
                 alt="Koli fotoğrafı"
-                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+                className="max-w-full max-h-[85vh] sm:max-h-[80vh] object-contain p-2"
+                onClick={(e) => e.stopPropagation()}
+              />
+              
+              {/* Mobilde kapatmak için tıklama alanı */}
+              <div 
+                className="absolute inset-0 -z-10"
+                onClick={() => setFullscreenPhoto(null)}
               />
             </div>
           )}
