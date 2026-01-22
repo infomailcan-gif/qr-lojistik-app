@@ -317,9 +317,19 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // Fotoğraf 1 değişti mi kontrol et
       if (photoDataUrl !== box.photo_url) {
         if (photoDataUrl && photoDataUrl.startsWith("data:")) {
-          // Yeni fotoğraf yüklendi
-          const uploadedUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
-          finalPhotoUrl = uploadedUrl;
+          // Yeni fotoğraf yüklendi - Storage'a yükle
+          try {
+            const uploadedUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+            finalPhotoUrl = uploadedUrl;
+          } catch (uploadError: any) {
+            toast({
+              title: "Fotoğraf Yükleme Hatası",
+              description: uploadError?.message || "Fotoğraf 1 yüklenemedi",
+              variant: "destructive",
+            });
+            setSaving(false);
+            return;
+          }
         } else {
           // Fotoğraf silindi veya değişmedi
           finalPhotoUrl = photoDataUrl;
@@ -330,9 +340,19 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       const originalPhotoUrl2 = (box as any).photo_url_2 || null;
       if (photoDataUrl2 !== originalPhotoUrl2) {
         if (photoDataUrl2 && photoDataUrl2.startsWith("data:")) {
-          // Yeni fotoğraf yüklendi
-          const uploadedUrl2 = await uploadBoxPhoto(photoDataUrl2, `${currentBoxCode}-2`);
-          finalPhotoUrl2 = uploadedUrl2;
+          // Yeni fotoğraf yüklendi - Storage'a yükle
+          try {
+            const uploadedUrl2 = await uploadBoxPhoto(photoDataUrl2, `${currentBoxCode}-2`);
+            finalPhotoUrl2 = uploadedUrl2;
+          } catch (uploadError: any) {
+            toast({
+              title: "Fotoğraf Yükleme Hatası",
+              description: uploadError?.message || "Fotoğraf 2 yüklenemedi",
+              variant: "destructive",
+            });
+            setSaving(false);
+            return;
+          }
         } else {
           // Fotoğraf silindi veya değişmedi
           finalPhotoUrl2 = photoDataUrl2;
@@ -442,14 +462,34 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // Fotoğraf değişikliklerini hazırla
       let finalPhotoUrl: string | null = photoDataUrl;
       if (photoDataUrl && photoDataUrl.startsWith("data:")) {
-        const uploadedUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
-        finalPhotoUrl = uploadedUrl;
+        try {
+          const uploadedUrl = await uploadBoxPhoto(photoDataUrl, currentBoxCode);
+          finalPhotoUrl = uploadedUrl;
+        } catch (uploadError: any) {
+          toast({
+            title: "Fotoğraf Yükleme Hatası",
+            description: uploadError?.message || "Fotoğraf 1 yüklenemedi",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
       }
       
       let finalPhotoUrl2: string | null = photoDataUrl2;
       if (photoDataUrl2 && photoDataUrl2.startsWith("data:")) {
-        const uploadedUrl2 = await uploadBoxPhoto(photoDataUrl2, `${currentBoxCode}-2`);
-        finalPhotoUrl2 = uploadedUrl2;
+        try {
+          const uploadedUrl2 = await uploadBoxPhoto(photoDataUrl2, `${currentBoxCode}-2`);
+          finalPhotoUrl2 = uploadedUrl2;
+        } catch (uploadError: any) {
+          toast({
+            title: "Fotoğraf Yükleme Hatası",
+            description: uploadError?.message || "Fotoğraf 2 yüklenemedi",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
       }
       
       // Update box basic info with photo
@@ -507,10 +547,11 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       });
       
       router.push(`/app/boxes/${currentBoxCode}`);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Seal box error:", error);
       toast({
         title: "Hata",
-        description: "İşlem tamamlanamadı",
+        description: error?.message || "İşlem tamamlanamadı",
         variant: "destructive",
       });
     } finally {

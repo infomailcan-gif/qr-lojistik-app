@@ -255,6 +255,26 @@ export default function NewBoxPage() {
     
     setLoading(true);
     try {
+      // Fotoğraf varsa önce yükle
+      let photoUrl: string | null = null;
+      let photoUrl2: string | null = null;
+      
+      if (photoDataUrl) {
+        try {
+          photoUrl = await uploadBoxPhoto(photoDataUrl, `draft-${Date.now()}`);
+          if (photoDataUrl2) {
+            photoUrl2 = await uploadBoxPhoto(photoDataUrl2, `draft-${Date.now()}-2`);
+          }
+        } catch (uploadError: any) {
+          toast({
+            title: "Fotoğraf Yükleme Hatası",
+            description: uploadError?.message || "Fotoğraf yüklenemedi. Taslak fotoğrafsız kaydedilecek.",
+            variant: "destructive",
+          });
+          // Fotoğrafsız devam et
+        }
+      }
+      
       const box = await boxRepository.create(
         {
           name: boxName.trim(),
@@ -291,10 +311,7 @@ export default function NewBoxPage() {
         );
       }
 
-      if (photoDataUrl) {
-        // Fotoğrafı Storage'a yükle (base64 yerine URL kaydedilecek)
-        const photoUrl = await uploadBoxPhoto(photoDataUrl, box.code);
-        const photoUrl2 = photoDataUrl2 ? await uploadBoxPhoto(photoDataUrl2, `${box.code}-2`) : null;
+      if (photoUrl) {
         await boxRepository.update(box.code, { photo_url: photoUrl, photo_url_2: photoUrl2 });
         activityTracker.log(
           user,
@@ -311,10 +328,11 @@ export default function NewBoxPage() {
       });
       
       router.push(`/app/boxes/${box.code}`);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Draft save error:", error);
       toast({
         title: "Hata",
-        description: "Taslak kaydedilemedi",
+        description: error?.message || "Taslak kaydedilemedi. Lütfen tekrar deneyin.",
         variant: "destructive",
       });
     } finally {
@@ -329,6 +347,25 @@ export default function NewBoxPage() {
     
     setLoading(true);
     try {
+      // Önce fotoğrafı yüklemeyi dene - hata varsa erken yakala
+      let photoUrl: string;
+      let photoUrl2: string | null = null;
+      
+      try {
+        photoUrl = await uploadBoxPhoto(photoDataUrl!, `temp-${Date.now()}`);
+        if (photoDataUrl2) {
+          photoUrl2 = await uploadBoxPhoto(photoDataUrl2, `temp-${Date.now()}-2`);
+        }
+      } catch (uploadError: any) {
+        toast({
+          title: "Fotoğraf Yükleme Hatası",
+          description: uploadError?.message || "Fotoğraf yüklenemedi. Lütfen tekrar deneyin.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
       const box = await boxRepository.create(
         {
           name: boxName.trim(),
@@ -365,10 +402,7 @@ export default function NewBoxPage() {
         );
       }
 
-      // Fotoğrafı Storage'a yükle (base64 yerine URL kaydedilecek)
-      const photoUrl = await uploadBoxPhoto(photoDataUrl!, box.code);
-      const photoUrl2 = photoDataUrl2 ? await uploadBoxPhoto(photoDataUrl2, `${box.code}-2`) : null;
-      
+      // Fotoğraf URL'lerini kaydet
       await boxRepository.update(box.code, { 
         photo_url: photoUrl,
         photo_url_2: photoUrl2,
@@ -398,10 +432,11 @@ export default function NewBoxPage() {
       });
       
       router.push(`/app/boxes/${box.code}`);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Box creation error:", error);
       toast({
         title: "Hata",
-        description: "Koli oluşturulamadı",
+        description: error?.message || "Koli oluşturulamadı. Lütfen tekrar deneyin.",
         variant: "destructive",
       });
     } finally {

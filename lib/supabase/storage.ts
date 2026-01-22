@@ -14,10 +14,10 @@ const SHIPMENT_BUCKET_NAME = "shipment-photos";
 export async function uploadBoxPhoto(
   dataUrl: string,
   boxCode: string
-): Promise<string | null> {
-  // Supabase yapılandırılmamışsa base64'ü direkt döndür (localStorage fallback)
+): Promise<string> {
+  // Supabase yapılandırılmamışsa hata fırlat - base64 çok büyük veritabanına kaydedilemez
   if (!isSupabaseConfigured || !supabase) {
-    return dataUrl;
+    throw new Error("Supabase Storage yapılandırılmamış. Fotoğraf yüklenemedi.");
   }
 
   try {
@@ -41,8 +41,7 @@ export async function uploadBoxPhoto(
 
     if (error) {
       console.error("Storage upload error:", error);
-      // Hata durumunda base64'ü döndür (fallback)
-      return dataUrl;
+      throw new Error(`Fotoğraf yüklenemedi: ${error.message}`);
     }
 
     // Public URL al
@@ -51,10 +50,9 @@ export async function uploadBoxPhoto(
       .getPublicUrl(data.path);
 
     return urlData.publicUrl;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Photo upload error:", error);
-    // Hata durumunda base64'ü döndür (fallback)
-    return dataUrl;
+    throw new Error(error?.message || "Fotoğraf yüklenirken bir hata oluştu");
   }
 }
 
@@ -141,10 +139,10 @@ function getExtensionFromMimeType(mimeType: string): string {
 export async function uploadPalletPhoto(
   dataUrl: string,
   palletCode: string
-): Promise<string | null> {
-  // Supabase yapılandırılmamışsa base64'ü direkt döndür (localStorage fallback)
+): Promise<string> {
+  // Supabase yapılandırılmamışsa hata fırlat
   if (!isSupabaseConfigured || !supabase) {
-    return dataUrl;
+    throw new Error("Supabase Storage yapılandırılmamış. Fotoğraf yüklenemedi.");
   }
 
   try {
@@ -168,8 +166,7 @@ export async function uploadPalletPhoto(
 
     if (error) {
       console.error("Storage upload error:", error);
-      // Hata durumunda base64'ü döndür (fallback)
-      return dataUrl;
+      throw new Error(`Fotoğraf yüklenemedi: ${error.message}`);
     }
 
     // Public URL al
@@ -178,10 +175,9 @@ export async function uploadPalletPhoto(
       .getPublicUrl(data.path);
 
     return urlData.publicUrl;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Pallet photo upload error:", error);
-    // Hata durumunda base64'ü döndür (fallback)
-    return dataUrl;
+    throw new Error(error?.message || "Fotoğraf yüklenirken bir hata oluştu");
   }
 }
 
@@ -194,10 +190,10 @@ export async function uploadPalletPhoto(
 export async function uploadShipmentPhoto(
   dataUrl: string,
   shipmentCode: string
-): Promise<string | null> {
-  // Supabase yapılandırılmamışsa base64'ü direkt döndür (localStorage fallback)
+): Promise<string> {
+  // Supabase yapılandırılmamışsa hata fırlat
   if (!isSupabaseConfigured || !supabase) {
-    return dataUrl;
+    throw new Error("Supabase Storage yapılandırılmamış. Fotoğraf yüklenemedi.");
   }
 
   try {
@@ -221,8 +217,7 @@ export async function uploadShipmentPhoto(
 
     if (error) {
       console.error("Storage upload error:", error);
-      // Hata durumunda base64'ü döndür (fallback)
-      return dataUrl;
+      throw new Error(`Fotoğraf yüklenemedi: ${error.message}`);
     }
 
     // Public URL al
@@ -231,10 +226,9 @@ export async function uploadShipmentPhoto(
       .getPublicUrl(data.path);
 
     return urlData.publicUrl;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Shipment photo upload error:", error);
-    // Hata durumunda base64'ü döndür (fallback)
-    return dataUrl;
+    throw new Error(error?.message || "Fotoğraf yüklenirken bir hata oluştu");
   }
 }
 
