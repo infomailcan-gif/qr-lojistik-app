@@ -23,6 +23,7 @@ import {
   Camera,
   Printer,
   Upload,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -75,6 +76,7 @@ export default function ShipmentDetailPage({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoIndex, setPhotoIndex] = useState<1 | 2>(1);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadShipment();
@@ -777,15 +779,21 @@ export default function ShipmentDetailPage({
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Fotoğraf 1</p>
                   {shipment.photo_url ? (
-                    <div className="relative rounded-xl overflow-hidden border border-border">
+                    <div className="relative rounded-xl overflow-hidden border border-border group cursor-pointer">
                       <img
                         src={shipment.photo_url}
                         alt="Sevkiyat fotoğrafı 1"
                         className="w-full h-40 object-contain bg-accent"
+                        onClick={() => setFullscreenPhoto(shipment.photo_url)}
                       />
+                      <div 
+                        className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none"
+                      >
+                        <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                       <button
-                        onClick={() => handleRemovePhoto(1)}
-                        className="absolute top-2 right-2 p-2 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleRemovePhoto(1); }}
+                        className="absolute top-2 right-2 p-2 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors z-10"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1158,6 +1166,34 @@ export default function ShipmentDetailPage({
               {isDeleting ? "Siliniyor..." : "Sil"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen Photo Modal */}
+      <Dialog open={!!fullscreenPhoto} onOpenChange={() => setFullscreenPhoto(null)}>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl w-full p-0 bg-black/95 border-0 rounded-xl overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Fotoğraf</DialogTitle>
+          </DialogHeader>
+          {fullscreenPhoto && (
+            <div className="relative flex items-center justify-center min-h-[50vh] sm:min-h-[60vh]">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 z-50 h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-black/50 hover:bg-black/70 text-white border border-white/20"
+                onClick={() => setFullscreenPhoto(null)}
+              >
+                <X className="h-5 w-5 sm:h-4 sm:w-4" />
+              </Button>
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                src={fullscreenPhoto}
+                alt="Sevkiyat fotoğrafı"
+                className="max-w-full max-h-[85vh] sm:max-h-[80vh] object-contain p-2"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
