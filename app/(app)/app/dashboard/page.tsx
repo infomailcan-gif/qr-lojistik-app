@@ -59,6 +59,7 @@ export default function ManagerDashboard() {
   const [selectedBox, setSelectedBox] = useState<BoxWithDetails | null>(null);
   const [boxModalOpen, setBoxModalOpen] = useState(false);
   const [loadingBox, setLoadingBox] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   const [activities, setActivities] = useState<ActivityType[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
@@ -1543,12 +1544,18 @@ export default function ManagerDashboard() {
 
               {/* Box Photo */}
               {selectedBox.photo_url && (
-                <div className="rounded-xl overflow-hidden border border-slate-200">
+                <div 
+                  className="rounded-xl overflow-hidden border border-slate-200 relative cursor-pointer group"
+                  onClick={() => setFullscreenPhoto(selectedBox.photo_url)}
+                >
                   <img
                     src={selectedBox.photo_url}
                     alt="Koli fotoğrafı"
                     className="w-full max-h-64 object-contain bg-slate-50"
                   />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                    <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
                 </div>
               )}
 
@@ -1615,6 +1622,34 @@ export default function ManagerDashboard() {
             <div className="text-center py-12 text-slate-400">
               <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>Koli bulunamadı</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen Photo Modal */}
+      <Dialog open={!!fullscreenPhoto} onOpenChange={() => setFullscreenPhoto(null)}>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl w-full p-0 bg-black/95 border-0 rounded-xl overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Fotoğraf</DialogTitle>
+          </DialogHeader>
+          {fullscreenPhoto && (
+            <div className="relative flex items-center justify-center min-h-[50vh] sm:min-h-[60vh]">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 z-50 h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-black/50 hover:bg-black/70 text-white border border-white/20"
+                onClick={() => setFullscreenPhoto(null)}
+              >
+                <X className="h-5 w-5 sm:h-4 sm:w-4" />
+              </Button>
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                src={fullscreenPhoto}
+                alt="Fotoğraf"
+                className="max-w-full max-h-[85vh] sm:max-h-[80vh] object-contain p-2"
+              />
             </div>
           )}
         </DialogContent>
