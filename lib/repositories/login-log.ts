@@ -147,7 +147,11 @@ class LoginLogRepository {
         logs = logs.filter(l => l.action === options.action);
       }
       if (options?.username) {
-        logs = logs.filter(l => l.username.toLowerCase().includes(options.username!.toLowerCase()));
+        const searchTerm = options.username.toLowerCase();
+        logs = logs.filter(l => 
+          l.username.toLowerCase().includes(searchTerm) ||
+          l.user_name.toLowerCase().includes(searchTerm)
+        );
       }
       if (options?.startDate) {
         logs = logs.filter(l => new Date(l.created_at) >= options.startDate!);
@@ -173,7 +177,8 @@ class LoginLogRepository {
         query = query.eq("action", options.action);
       }
       if (options?.username) {
-        query = query.ilike("username", `%${options.username}%`);
+        // Hem username hem user_name üzerinde arama yap
+        query = query.or(`username.ilike.%${options.username}%,user_name.ilike.%${options.username}%`);
       }
       if (options?.startDate) {
         query = query.gte("created_at", options.startDate.toISOString());

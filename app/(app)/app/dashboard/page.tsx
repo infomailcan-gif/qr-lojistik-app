@@ -1188,7 +1188,7 @@ export default function ManagerDashboard() {
           transition={{ delay: 0.2 }}
           className="lg:col-span-1"
         >
-          <Card className="border-0 bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden relative flex flex-col" style={{ minHeight: "600px" }}>
+          <Card className="border-0 bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden relative flex flex-col" style={{ height: "600px" }}>
             <div className="absolute inset-0 opacity-20 pointer-events-none">
               <svg className="w-full h-full">
                 <defs>
@@ -1235,7 +1235,7 @@ export default function ManagerDashboard() {
               </CardTitle>
             </CardHeader>
             
-            <CardContent className="relative p-4 space-y-3 flex-1 overflow-y-auto" style={{ minHeight: "500px" }}>
+            <CardContent className="relative p-4 space-y-3 flex-1 overflow-y-auto" style={{ maxHeight: "500px" }}>
               <AnimatePresence mode="popLayout">
                 {activities.length === 0 ? (
                   <motion.div

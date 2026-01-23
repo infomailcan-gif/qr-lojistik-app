@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,10 @@ export default function BoxesPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   
   // Performans optimizasyonu için animasyon ayarları
   const motionConfig = useMemo(() => ({
@@ -469,7 +473,9 @@ export default function BoxesPage() {
               </Card>
             </motion.div>
           ) : (
-            filteredBoxes.map((box, index) => (
+            filteredBoxes
+              .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+              .map((box, index) => (
               <motion.div
                 key={box.id}
                 layout={!shouldReduceMotion}
@@ -560,6 +566,72 @@ export default function BoxesPage() {
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* Pagination */}
+      {filteredBoxes.length > itemsPerPage && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-xl border border-slate-200"
+        >
+          <div className="text-sm text-slate-500">
+            Sayfa {currentPage} / {Math.ceil(filteredBoxes.length / itemsPerPage)} ({filteredBoxes.length} koli)
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="h-9 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Önceki
+            </Button>
+            
+            {/* Page Numbers */}
+            <div className="hidden sm:flex items-center gap-1">
+              {Array.from({ length: Math.min(5, Math.ceil(filteredBoxes.length / itemsPerPage)) }, (_, i) => {
+                const totalPages = Math.ceil(filteredBoxes.length / itemsPerPage);
+                let pageNum;
+                
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-9 h-9 ${currentPage === pageNum ? "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700" : "border-blue-200 hover:bg-blue-50"}`}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.min(Math.ceil(filteredBoxes.length / itemsPerPage), currentPage + 1))}
+              disabled={currentPage >= Math.ceil(filteredBoxes.length / itemsPerPage)}
+              className="h-9 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
+            >
+              Sonraki
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Action Modal */}
       <Dialog open={actionModalOpen} onOpenChange={setActionModalOpen}>
