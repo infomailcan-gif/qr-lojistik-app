@@ -56,42 +56,6 @@ import {
 } from "@/components/ui/dialog";
 import QRCode from "qrcode";
 
-// Shimmer animation component
-const ShimmerEffect = () => (
-  <motion.div
-    className="absolute inset-0 -translate-x-full"
-    animate={{ x: ["0%", "200%"] }}
-    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-    style={{
-      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)",
-    }}
-  />
-);
-
-// Floating particles
-const FloatingParticles = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    {[...Array(6)].map((_, i) => (
-      <motion.div
-        key={i}
-        className="absolute w-2 h-2 rounded-full bg-cyan-400/30"
-        initial={{ x: Math.random() * 100, y: Math.random() * 100, opacity: 0 }}
-        animate={{
-          y: [0, -30, 0],
-          opacity: [0, 0.8, 0],
-          scale: [0.5, 1, 0.5],
-        }}
-        transition={{
-          duration: 3 + Math.random() * 2,
-          repeat: Infinity,
-          delay: Math.random() * 2,
-        }}
-        style={{ left: `${15 + i * 15}%`, top: `${60 + Math.random() * 30}%` }}
-      />
-    ))}
-  </div>
-);
-
 export default function PalletDetailPage({
   params,
 }: {
@@ -716,8 +680,8 @@ export default function PalletDetailPage({
 
   const getStatusColor = (status: "draft" | "sealed") => {
     return status === "sealed"
-      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-      : "bg-amber-500/10 text-amber-400 border-amber-500/30";
+      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+      : "bg-amber-100 text-amber-700 border-amber-200";
   };
 
   const getStatusText = (status: "draft" | "sealed") => {
@@ -728,26 +692,19 @@ export default function PalletDetailPage({
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <motion.div
-            className="relative"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          >
-            <div className="h-16 w-16 border-4 border-cyan-500/30 rounded-full" />
-            <div className="absolute inset-0 h-16 w-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-            <motion.div
-              className="absolute inset-2 h-12 w-12 border-2 border-teal-400 border-b-transparent rounded-full"
-              animate={{ rotate: -360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          <div className="relative mx-auto w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-4 border-cyan-200" />
+            <div 
+              className="absolute inset-0 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin"
+              style={{ animationDuration: "0.8s" }}
             />
-          </motion.div>
-          <motion.p
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-            className="mt-6 text-cyan-400 font-medium"
-          >
-            Yükleniyor...
-          </motion.p>
+            <div className="absolute inset-2 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
+              <Layers className="h-5 w-5 text-white" />
+            </div>
+          </div>
+          <p className="mt-4 text-slate-600 font-medium animate-pulse">
+            Palet yükleniyor...
+          </p>
         </div>
       </div>
     );
@@ -758,47 +715,49 @@ export default function PalletDetailPage({
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header with glow effect */}
+    <div className="space-y-4 sm:space-y-6 px-0 sm:px-1 max-w-6xl mx-auto">
+      {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -30 }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-start justify-between gap-4 relative"
+        className="flex items-start justify-between gap-4"
       >
-        <div className="flex items-start gap-4 flex-1">
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+        <div className="flex items-start gap-3 sm:gap-4 flex-1">
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={() => router.back()}
-              className="bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700"
+              className="bg-white/80 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-300"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
             </Button>
           </motion.div>
           <div className="flex-1">
-            <motion.div 
-              className="flex items-center gap-3 mb-2"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-            >
+            <div className="flex items-center gap-3 mb-1">
               <motion.div
-                animate={{ 
-                  boxShadow: ["0 0 20px rgba(6,182,212,0.3)", "0 0 40px rgba(6,182,212,0.5)", "0 0 20px rgba(6,182,212,0.3)"]
-                }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="p-2 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600"
+                className="relative"
+                whileHover={{ scale: 1.05 }}
               >
-                <Layers className="h-8 w-8 text-white" />
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-br from-cyan-500 to-teal-500 rounded-xl blur-lg opacity-40"
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.3, 0.5, 0.3],
+                  }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                />
+                <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 shadow-xl shadow-cyan-500/30">
+                  <Layers className="h-6 w-6 text-white" />
+                </div>
               </motion.div>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-teal-300 bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent">
                   {pallet.name}
                 </h1>
-                <p className="text-slate-400 font-mono text-sm">{pallet.code}</p>
+                <p className="text-slate-500 font-mono text-xs sm:text-sm">{pallet.code}</p>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
         
@@ -809,9 +768,9 @@ export default function PalletDetailPage({
               variant="outline"
               size="icon"
               onClick={() => setEditDialogOpen(true)}
-              className="bg-slate-800/50 hover:bg-slate-700/50 border-slate-700"
+              className="bg-white/80 hover:bg-amber-50 border-slate-200 hover:border-amber-300"
             >
-              <Edit className="h-4 w-4" />
+              <Edit className="h-4 w-4 text-amber-600" />
             </Button>
           </motion.div>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -819,7 +778,7 @@ export default function PalletDetailPage({
               variant="outline"
               size="icon"
               onClick={() => setDeleteDialogOpen(true)}
-              className="bg-slate-800/50 hover:bg-red-500/20 hover:border-red-500/50 border-slate-700 text-red-400"
+              className="bg-white/80 hover:bg-red-50 border-slate-200 hover:border-red-300 text-red-500"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -833,11 +792,9 @@ export default function PalletDetailPage({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
       >
-        <Card className="border-cyan-500/30 bg-gradient-to-br from-slate-900/80 to-slate-800/80 backdrop-blur-xl overflow-hidden relative">
-          <FloatingParticles />
-          <ShimmerEffect />
+        <Card className="border-cyan-200 bg-gradient-to-br from-cyan-50 to-teal-50 overflow-hidden relative">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3 text-cyan-300">
+            <CardTitle className="flex items-center gap-3 text-cyan-700">
               <motion.div
                 animate={{ rotate: [0, 10, -10, 0] }}
                 transition={{ duration: 2, repeat: Infinity }}
@@ -849,14 +806,14 @@ export default function PalletDetailPage({
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
               >
-                <Sparkles className="h-4 w-4 text-yellow-400" />
+                <Sparkles className="h-4 w-4 text-amber-500" />
               </motion.span>
             </CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardDescription className="text-slate-500">
               Paleti hızlıca bulmak için QR kodu taratın
             </CardDescription>
           </CardHeader>
-          <CardContent className="relative z-10">
+          <CardContent>
             <div className="flex flex-col sm:flex-row items-center gap-6">
               {/* QR Code Preview */}
               {qrCodeUrl && (
@@ -867,7 +824,7 @@ export default function PalletDetailPage({
                   className="relative"
                 >
                   <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-2xl" />
-                  <div className="relative p-3 bg-white rounded-2xl shadow-2xl text-center">
+                  <div className="relative p-3 bg-white rounded-2xl shadow-lg border border-cyan-200 text-center">
                     <img src={qrCodeUrl} alt="QR Code" className="w-36 h-36" />
                     <p className="mt-2 text-sm font-bold text-cyan-700">{pallet.name}</p>
                   </div>
@@ -884,11 +841,8 @@ export default function PalletDetailPage({
                     <Button
                       onClick={downloadQRCode}
                       disabled={!qrCodeUrl}
-                      className="w-full h-14 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-semibold shadow-lg shadow-cyan-500/25 relative overflow-hidden group"
+                      className="w-full h-14 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-semibold shadow-lg shadow-cyan-500/25"
                     >
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"
-                      />
                       <Download className="h-5 w-5 mr-2" />
                       <span>İndir</span>
                     </Button>
@@ -900,11 +854,8 @@ export default function PalletDetailPage({
                     <Button
                       onClick={printQRCode}
                       disabled={!qrCodeUrl}
-                      className="w-full h-14 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-lg shadow-emerald-500/25 relative overflow-hidden group"
+                      className="w-full h-14 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold shadow-lg shadow-emerald-500/25"
                     >
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"
-                      />
                       <Printer className="h-5 w-5 mr-2" />
                       <span>Yazdır</span>
                     </Button>
@@ -925,13 +876,13 @@ export default function PalletDetailPage({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
       >
-        <Card className="border-cyan-500/20 bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl overflow-hidden">
+        <Card className="border-slate-200 bg-white/80 backdrop-blur-sm overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-cyan-300 flex items-center gap-2">
-              <Camera className="h-5 w-5" />
+            <CardTitle className="text-slate-800 flex items-center gap-2">
+              <Camera className="h-5 w-5 text-cyan-600" />
               Palet Fotoğrafları
             </CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardDescription className="text-slate-500">
               Palete fotoğraf ekleyerek QR taratıldığında görüntülenmesini sağlayın (maksimum 2 fotoğraf)
             </CardDescription>
           </CardHeader>
@@ -939,13 +890,13 @@ export default function PalletDetailPage({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Fotoğraf 1 */}
               <div>
-                <p className="text-sm text-slate-400 mb-2">Fotoğraf 1</p>
+                <p className="text-sm text-slate-600 mb-2 font-medium">Fotoğraf 1</p>
                 {pallet.photo_url ? (
-                  <div className="relative rounded-xl overflow-hidden border border-cyan-500/30 group cursor-pointer">
+                  <div className="relative rounded-xl overflow-hidden border border-slate-200 group cursor-pointer hover:border-cyan-300 transition-colors">
                     <img
                       src={pallet.photo_url}
                       alt="Palet fotoğrafı 1"
-                      className="w-full h-40 object-contain bg-slate-800"
+                      className="w-full h-40 object-contain bg-slate-50"
                       onClick={() => setFullscreenPhoto(pallet.photo_url)}
                     />
                     <div 
@@ -966,12 +917,12 @@ export default function PalletDetailPage({
                   <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                     <Button
                       onClick={() => openPhotoDialog(1)}
-                      className="w-full h-40 bg-gradient-to-r from-cyan-500/20 to-teal-500/20 hover:from-cyan-500/30 hover:to-teal-500/30 border-2 border-dashed border-cyan-500/50 text-cyan-400"
+                      className="w-full h-40 bg-gradient-to-r from-cyan-50 to-teal-50 hover:from-cyan-100 hover:to-teal-100 border-2 border-dashed border-cyan-300 text-cyan-600"
                       variant="ghost"
                     >
                       <div className="flex flex-col items-center gap-2">
                         <Camera className="h-6 w-6" />
-                        <span className="text-sm">Fotoğraf 1 Ekle</span>
+                        <span className="text-sm font-medium">Fotoğraf 1 Ekle</span>
                       </div>
                     </Button>
                   </motion.div>
@@ -980,13 +931,13 @@ export default function PalletDetailPage({
 
               {/* Fotoğraf 2 */}
               <div>
-                <p className="text-sm text-slate-400 mb-2">Fotoğraf 2 (opsiyonel)</p>
+                <p className="text-sm text-slate-600 mb-2 font-medium">Fotoğraf 2 (opsiyonel)</p>
                 {(pallet as any).photo_url_2 ? (
-                  <div className="relative rounded-xl overflow-hidden border border-cyan-500/30 group cursor-pointer">
+                  <div className="relative rounded-xl overflow-hidden border border-slate-200 group cursor-pointer hover:border-cyan-300 transition-colors">
                     <img
                       src={(pallet as any).photo_url_2}
                       alt="Palet fotoğrafı 2"
-                      className="w-full h-40 object-contain bg-slate-800"
+                      className="w-full h-40 object-contain bg-slate-50"
                       onClick={() => setFullscreenPhoto((pallet as any).photo_url_2)}
                     />
                     <div 
@@ -1007,12 +958,12 @@ export default function PalletDetailPage({
                   <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
                     <Button
                       onClick={() => openPhotoDialog(2)}
-                      className="w-full h-40 bg-gradient-to-r from-cyan-500/20 to-teal-500/20 hover:from-cyan-500/30 hover:to-teal-500/30 border-2 border-dashed border-cyan-500/50 text-cyan-400"
+                      className="w-full h-40 bg-gradient-to-r from-cyan-50 to-teal-50 hover:from-cyan-100 hover:to-teal-100 border-2 border-dashed border-cyan-300 text-cyan-600"
                       variant="ghost"
                     >
                       <div className="flex flex-col items-center gap-2">
                         <Camera className="h-6 w-6" />
-                        <span className="text-sm">Fotoğraf 2 Ekle</span>
+                        <span className="text-sm font-medium">Fotoğraf 2 Ekle</span>
                       </div>
                     </Button>
                   </motion.div>
@@ -1029,56 +980,56 @@ export default function PalletDetailPage({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
-        <Card className="border-cyan-500/20 bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl overflow-hidden">
+        <Card className="border-slate-200 bg-white/80 backdrop-blur-sm overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-cyan-300 flex items-center gap-2">
-              <Zap className="h-5 w-5" />
+            <CardTitle className="text-slate-800 flex items-center gap-2">
+              <Zap className="h-5 w-5 text-cyan-600" />
               Palet Bilgileri
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <motion.div 
-              whileHover={{ scale: 1.03, y: -2 }}
-              className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20"
+              whileHover={{ scale: 1.02, y: -2 }}
+              className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200"
             >
-              <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/30">
-                <User className="h-5 w-5 text-blue-400" />
+              <div className="p-3 rounded-xl bg-blue-100 border border-blue-200">
+                <User className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-xs text-slate-400">Oluşturan</p>
-                <p className="font-semibold text-slate-200">{pallet.created_by}</p>
+                <p className="text-xs text-slate-500">Oluşturan</p>
+                <p className="font-semibold text-slate-800">{pallet.created_by}</p>
               </div>
             </motion.div>
 
             <motion.div 
-              whileHover={{ scale: 1.03, y: -2 }}
-              className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20"
+              whileHover={{ scale: 1.02, y: -2 }}
+              className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200"
             >
-              <div className="p-3 rounded-xl bg-purple-500/20 border border-purple-500/30">
-                <Calendar className="h-5 w-5 text-purple-400" />
+              <div className="p-3 rounded-xl bg-purple-100 border border-purple-200">
+                <Calendar className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-xs text-slate-400">Oluşturulma</p>
-                <p className="font-semibold text-sm text-slate-200">
+                <p className="text-xs text-slate-500">Oluşturulma</p>
+                <p className="font-semibold text-sm text-slate-800">
                   {formatDate(pallet.created_at)}
                 </p>
               </div>
             </motion.div>
 
             <motion.div 
-              whileHover={{ scale: 1.03, y: -2 }}
-              className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20"
+              whileHover={{ scale: 1.02, y: -2 }}
+              className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200"
             >
-              <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30">
-                <Package className="h-5 w-5 text-emerald-400" />
+              <div className="p-3 rounded-xl bg-emerald-100 border border-emerald-200">
+                <Package className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-xs text-slate-400">Koli Sayısı</p>
+                <p className="text-xs text-slate-500">Koli Sayısı</p>
                 <motion.p 
                   key={pallet.boxes.length}
                   initial={{ scale: 1.3 }}
                   animate={{ scale: 1 }}
-                  className="font-bold text-2xl text-emerald-400"
+                  className="font-bold text-2xl text-emerald-600"
                 >
                   {pallet.boxes.length}
                 </motion.p>
@@ -1094,9 +1045,9 @@ export default function PalletDetailPage({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.22 }}
       >
-        <Card className={`${pallet.shipment_code ? 'border-purple-500/30 bg-gradient-to-br from-purple-900/20 to-purple-800/20' : 'border-amber-500/30 bg-gradient-to-br from-amber-900/20 to-amber-800/20'} backdrop-blur-xl overflow-hidden`}>
+        <Card className={`${pallet.shipment_code ? 'border-purple-200 bg-gradient-to-br from-purple-50 to-violet-50' : 'border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50'} overflow-hidden`}>
           <CardHeader>
-            <CardTitle className={`${pallet.shipment_code ? 'text-purple-300' : 'text-amber-300'} flex items-center gap-2`}>
+            <CardTitle className={`${pallet.shipment_code ? 'text-purple-700' : 'text-amber-700'} flex items-center gap-2`}>
               {pallet.shipment_code ? (
                 <Truck className="h-5 w-5" />
               ) : (
@@ -1109,26 +1060,26 @@ export default function PalletDetailPage({
             {pallet.shipment_code ? (
               <motion.div 
                 whileHover={{ scale: 1.01 }}
-                className="flex items-center gap-4 p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 cursor-pointer"
+                className="flex items-center gap-4 p-4 rounded-xl bg-purple-100 border border-purple-200 cursor-pointer hover:border-purple-300 transition-colors"
                 onClick={() => router.push(`/app/shipments/${pallet.shipment_code}`)}
               >
-                <div className="p-3 rounded-xl bg-purple-500/20 border border-purple-500/30">
-                  <Truck className="h-6 w-6 text-purple-400" />
+                <div className="p-3 rounded-xl bg-purple-200 border border-purple-300">
+                  <Truck className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-xs text-purple-400">Sevkiyat Kodu</p>
-                  <p className="font-semibold text-purple-300 font-mono">{pallet.shipment_code}</p>
-                  <p className="text-xs text-purple-400 mt-1">Sevkiyat detayını görüntülemek için tıklayın</p>
+                  <p className="text-xs text-purple-600">Sevkiyat Kodu</p>
+                  <p className="font-semibold text-purple-700 font-mono">{pallet.shipment_code}</p>
+                  <p className="text-xs text-purple-600 mt-1">Sevkiyat detayını görüntülemek için tıklayın</p>
                 </div>
               </motion.div>
             ) : (
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500/30">
-                  <AlertCircle className="h-6 w-6 text-amber-400" />
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-100 border border-amber-200">
+                <div className="p-3 rounded-xl bg-amber-200 border border-amber-300">
+                  <AlertCircle className="h-6 w-6 text-amber-600" />
                 </div>
                 <div>
-                  <p className="font-semibold text-amber-300">Bu palet henüz bir sevkiyata eklenmemiş</p>
-                  <p className="text-sm text-amber-400 mt-1">Sevkiyat oluşturup bu paleti ekleyebilirsiniz.</p>
+                  <p className="font-semibold text-amber-700">Bu palet henüz bir sevkiyata eklenmemiş</p>
+                  <p className="text-sm text-amber-600 mt-1">Sevkiyat oluşturup bu paleti ekleyebilirsiniz.</p>
                 </div>
               </div>
             )}
@@ -1142,12 +1093,12 @@ export default function PalletDetailPage({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
       >
-        <Card className="border-cyan-500/20 bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl overflow-hidden">
+        <Card className="border-slate-200 bg-white/80 backdrop-blur-sm overflow-hidden">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-cyan-300">Koli Ekle</CardTitle>
-                <CardDescription className="text-slate-400">
+                <CardTitle className="text-slate-800">Koli Ekle</CardTitle>
+                <CardDescription className="text-slate-500">
                   Palete kapalı koliler ekleyebilirsiniz
                 </CardDescription>
               </div>
@@ -1172,20 +1123,20 @@ export default function PalletDetailPage({
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
               >
-                <CardContent className="space-y-4 border-t border-slate-700/50 pt-6">
+                <CardContent className="space-y-4 border-t border-slate-200 pt-6">
                   {/* Method Selection */}
                   <div className="flex gap-2">
                     <Button
                       variant={addMethod === "select" ? "default" : "outline"}
                       onClick={() => setAddMethod("select")}
-                      className={`flex-1 ${addMethod === "select" ? "bg-cyan-600 hover:bg-cyan-700" : "border-slate-600 hover:bg-slate-700"}`}
+                      className={`flex-1 ${addMethod === "select" ? "bg-cyan-600 hover:bg-cyan-700" : "border-slate-300 hover:bg-slate-50 text-slate-700"}`}
                     >
                       Listeden Seç
                     </Button>
                     <Button
                       variant={addMethod === "code" ? "default" : "outline"}
                       onClick={() => setAddMethod("code")}
-                      className={`flex-1 ${addMethod === "code" ? "bg-cyan-600 hover:bg-cyan-700" : "border-slate-600 hover:bg-slate-700"}`}
+                      className={`flex-1 ${addMethod === "code" ? "bg-cyan-600 hover:bg-cyan-700" : "border-slate-300 hover:bg-slate-50 text-slate-700"}`}
                     >
                       Kod ile Ekle
                     </Button>
@@ -1195,13 +1146,13 @@ export default function PalletDetailPage({
                   {addMethod === "select" && (
                     <div className="space-y-3">
                       {availableBoxes.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-slate-400 bg-slate-800/30 rounded-lg border border-slate-700">
+                        <div className="p-4 text-center text-sm text-slate-600 bg-slate-50 rounded-lg border border-slate-200">
                           Palete eklenebilecek koli yok. Tüm kapalı koliler zaten bir palete eklenmiş.
                         </div>
                       ) : (
                         <>
                           <div className="flex items-center justify-between">
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-slate-600">
                               {selectedBoxIds.length > 0 ? `${selectedBoxIds.length} koli seçildi` : 'Koli seçin'}
                             </p>
                             {selectedBoxIds.length > 0 && (
@@ -1209,7 +1160,7 @@ export default function PalletDetailPage({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setSelectedBoxIds([])}
-                                className="text-xs text-slate-400 hover:text-slate-200"
+                                className="text-xs text-slate-500 hover:text-slate-800"
                               >
                                 Seçimi Temizle
                               </Button>
@@ -1221,8 +1172,8 @@ export default function PalletDetailPage({
                                 key={box.id}
                                 className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
                                   selectedBoxIds.includes(box.id)
-                                    ? 'bg-cyan-500/20 border border-cyan-500/50'
-                                    : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700 hover:border-slate-500'
+                                    ? 'bg-cyan-50 border border-cyan-300'
+                                    : 'bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                                 }`}
                                 onClick={() => {
                                   if (selectedBoxIds.includes(box.id)) {
@@ -1235,7 +1186,7 @@ export default function PalletDetailPage({
                                 <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                                   selectedBoxIds.includes(box.id)
                                     ? 'border-cyan-500 bg-cyan-500'
-                                    : 'border-slate-500'
+                                    : 'border-slate-400'
                                 }`}>
                                   {selectedBoxIds.includes(box.id) && (
                                     <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
@@ -1245,10 +1196,10 @@ export default function PalletDetailPage({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs text-cyan-400">{box.code}</span>
-                                    <span className="text-slate-300 truncate">{box.name}</span>
+                                    <span className="font-mono text-xs text-cyan-600">{box.code}</span>
+                                    <span className="text-slate-800 truncate">{box.name}</span>
                                   </div>
-                                  <span className="text-xs text-slate-400">{box.department.name}</span>
+                                  <span className="text-xs text-slate-500">{box.department.name}</span>
                                 </div>
                               </div>
                             ))}
@@ -1269,10 +1220,10 @@ export default function PalletDetailPage({
                           onChange={(e) =>
                             setBoxCodeInput(e.target.value.toUpperCase())
                           }
-                          className="pl-10 h-12 font-mono bg-slate-800/50 border-slate-600"
+                          className="pl-10 h-12 font-mono bg-white border-slate-300 text-slate-800"
                         />
                       </div>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500">
                         Kolinin BOX kodunu girin
                       </p>
                     </div>
@@ -1303,7 +1254,7 @@ export default function PalletDetailPage({
                         setSelectedBoxIds([]);
                         setBoxCodeInput("");
                       }}
-                      className="border-slate-600 hover:bg-slate-700"
+                      className="border-slate-300 hover:bg-slate-50 text-slate-700"
                     >
                       İptal
                     </Button>
@@ -1321,12 +1272,12 @@ export default function PalletDetailPage({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        <Card className="border-cyan-500/20 bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-xl overflow-hidden">
+        <Card className="border-slate-200 bg-white/80 backdrop-blur-sm overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-cyan-300 flex items-center gap-2">
-              <Package className="h-5 w-5" />
+            <CardTitle className="text-slate-800 flex items-center gap-2">
+              <Package className="h-5 w-5 text-cyan-600" />
               Paletteki Koliler 
-              <Badge variant="outline" className="ml-2 border-cyan-500/50 text-cyan-400">
+              <Badge variant="outline" className="ml-2 border-cyan-300 text-cyan-700 bg-cyan-50">
                 {pallet.boxes.length}
               </Badge>
             </CardTitle>
@@ -1344,11 +1295,11 @@ export default function PalletDetailPage({
                     rotate: [0, 5, -5, 0]
                   }}
                   transition={{ duration: 3, repeat: Infinity }}
-                  className="inline-block p-6 rounded-2xl bg-slate-800/50 border border-slate-700 mb-6"
+                  className="inline-block p-6 rounded-2xl bg-slate-50 border border-slate-200 mb-6"
                 >
-                  <Package className="h-16 w-16 text-slate-500" />
+                  <Package className="h-16 w-16 text-slate-400" />
                 </motion.div>
-                <p className="text-lg text-slate-400">Bu palette henüz koli yok</p>
+                <p className="text-lg text-slate-600">Bu palette henüz koli yok</p>
                 <p className="text-sm text-slate-500 mt-2">
                   Yukarıdaki panelden koli ekleyebilirsiniz
                 </p>
@@ -1358,19 +1309,18 @@ export default function PalletDetailPage({
                 {pallet.boxes.map((box, index) => (
                   <motion.div
                     key={box.id}
-                    initial={{ opacity: 0, x: -30, rotateY: -10 }}
-                    animate={{ opacity: 1, x: 0, rotateY: 0 }}
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.05 * index, type: "spring", stiffness: 150 }}
                     whileHover={{ 
                       scale: 1.01, 
-                      x: 5,
-                      boxShadow: "0 0 30px rgba(6,182,212,0.2)"
+                      x: 5
                     }}
-                    className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-slate-800/80 to-slate-700/50 border border-slate-600/50 hover:border-cyan-500/50 transition-all cursor-pointer group"
+                    className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-200 hover:border-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10 transition-all cursor-pointer group"
                   >
                     {box.photo_url ? (
                       <motion.div 
-                        className="h-12 w-12 rounded-xl overflow-hidden shrink-0 shadow-lg shadow-cyan-500/20 border border-slate-600"
+                        className="h-12 w-12 rounded-xl overflow-hidden shrink-0 shadow-md border border-slate-200"
                         whileHover={{ scale: 1.1 }}
                         transition={{ duration: 0.3 }}
                       >
@@ -1382,7 +1332,7 @@ export default function PalletDetailPage({
                       </motion.div>
                     ) : (
                       <motion.div 
-                        className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 text-lg font-bold text-white shrink-0 shadow-lg shadow-cyan-500/20"
+                        className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 text-lg font-bold text-white shrink-0 shadow-md"
                         whileHover={{ rotate: [0, -5, 5, 0] }}
                         transition={{ duration: 0.3 }}
                       >
@@ -1394,23 +1344,23 @@ export default function PalletDetailPage({
                       onClick={() => router.push(`/app/boxes/${box.code}`)}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate text-slate-200 group-hover:text-cyan-400 transition-colors">
+                        <h3 className="font-semibold truncate text-slate-800 group-hover:text-cyan-600 transition-colors">
                           {box.name}
                         </h3>
                         <Badge className={getStatusColor(box.status)}>
                           {getStatusText(box.status)}
                         </Badge>
-                        <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-cyan-500 group-hover:translate-x-1 transition-all" />
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-mono text-cyan-400/80">{box.code}</span>
-                        <span className="text-slate-600">•</span>
-                        <span className="flex items-center gap-1 text-slate-400">
+                        <span className="font-mono text-cyan-600">{box.code}</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1 text-slate-500">
                           <Building2 className="h-3 w-3" />
                           {box.department_name}
                         </span>
-                        <span className="text-slate-600">•</span>
-                        <span className="flex items-center gap-1 text-slate-400">
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1 text-slate-500">
                           <User className="h-3 w-3" />
                           {box.created_by}
                         </span>
@@ -1424,7 +1374,7 @@ export default function PalletDetailPage({
                           e.stopPropagation();
                           handleRemoveBox(box.code);
                         }}
-                        className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
+                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 shrink-0"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1439,29 +1389,32 @@ export default function PalletDetailPage({
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700">
+        <DialogContent className="sm:max-w-md border-cyan-200">
           <DialogHeader>
-            <DialogTitle className="text-cyan-300">Paleti Düzenle</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-cyan-700 flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Paleti Düzenle
+            </DialogTitle>
+            <DialogDescription className="text-slate-500">
               Palet bilgilerini güncelleyin
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Palet Adı</label>
+              <label className="text-sm font-medium text-slate-700">Palet Adı</label>
               <Input
                 value={editPalletName}
                 onChange={(e) => setEditPalletName(e.target.value)}
                 placeholder="Örn: Palet-1"
-                className="bg-slate-800/50 border-slate-600"
+                className="bg-white border-slate-300 text-slate-800 focus:border-cyan-400"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="border-slate-600">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="border-slate-300 text-slate-700">
               İptal
             </Button>
-            <Button onClick={handleEditPallet} disabled={isEditing} className="bg-cyan-600 hover:bg-cyan-700">
+            <Button onClick={handleEditPallet} disabled={isEditing} className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600">
               {isEditing ? "Kaydediliyor..." : "Kaydet"}
             </Button>
           </DialogFooter>
@@ -1470,19 +1423,22 @@ export default function PalletDetailPage({
 
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700">
+        <DialogContent className="sm:max-w-md border-red-200">
           <DialogHeader>
-            <DialogTitle className="text-red-400">Paleti Sil</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Paleti Sil
+            </DialogTitle>
+            <DialogDescription className="text-slate-600">
               Bu paleti silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
               Paletteki koliler paletten çıkarılacak ama silinmeyecek.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} className="border-slate-600">
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} className="border-slate-300 text-slate-700">
               İptal
             </Button>
-            <Button variant="destructive" onClick={handleDeletePallet} disabled={isDeleting}>
+            <Button variant="destructive" onClick={handleDeletePallet} disabled={isDeleting} className="bg-gradient-to-r from-red-500 to-rose-500">
               {isDeleting ? "Siliniyor..." : "Sil"}
             </Button>
           </DialogFooter>
@@ -1525,13 +1481,13 @@ export default function PalletDetailPage({
           setIsDraggingPhoto(false);
         }
       }}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-md">
+        <DialogContent className="max-w-md border-cyan-200">
           <DialogHeader>
-            <DialogTitle className="text-cyan-300 flex items-center gap-2">
+            <DialogTitle className="text-cyan-700 flex items-center gap-2">
               <Camera className="h-5 w-5" />
               Palet Fotoğrafı {photoIndex}
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-slate-500">
               Palet için fotoğraf çekin, seçin veya sürükleyip bırakın
             </DialogDescription>
           </DialogHeader>
@@ -1542,13 +1498,13 @@ export default function PalletDetailPage({
                 <img
                   src={photoPreview}
                   alt="Önizleme"
-                  className="w-full max-h-64 object-contain rounded-lg border border-cyan-500/30"
+                  className="w-full max-h-64 object-contain rounded-lg border border-cyan-200"
                 />
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setPhotoPreview(null)}
-                  className="absolute top-2 right-2 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-white"
+                  className="absolute top-2 right-2 p-2 rounded-full bg-white/90 hover:bg-white text-slate-600 shadow-md"
                 >
                   <X className="h-4 w-4" />
                 </motion.button>
@@ -1562,26 +1518,26 @@ export default function PalletDetailPage({
               >
                 <div className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
                   isDraggingPhoto 
-                    ? "border-cyan-400 bg-cyan-500/20 scale-[1.02]" 
-                    : "border-cyan-500/50 bg-cyan-500/5 hover:bg-cyan-500/10"
+                    ? "border-cyan-400 bg-cyan-100 scale-[1.02]" 
+                    : "border-cyan-300 bg-cyan-50 hover:bg-cyan-100"
                 }`}>
                   {isDraggingPhoto ? (
                     <>
                       <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
-                        <Upload className="h-12 w-12 text-cyan-400 mb-3" />
+                        <Upload className="h-12 w-12 text-cyan-600 mb-3" />
                       </motion.div>
-                      <span className="text-cyan-300 font-semibold">Bırakın!</span>
+                      <span className="text-cyan-700 font-semibold">Bırakın!</span>
                     </>
                   ) : (
                     <>
                       <div className="flex items-center gap-3 mb-3">
-                        <Camera className="h-10 w-10 text-cyan-400" />
-                        <span className="text-cyan-500/50 text-2xl">/</span>
-                        <Upload className="h-10 w-10 text-cyan-400" />
+                        <Camera className="h-10 w-10 text-cyan-600" />
+                        <span className="text-cyan-300 text-2xl">/</span>
+                        <Upload className="h-10 w-10 text-cyan-600" />
                       </div>
-                      <span className="text-cyan-400 font-medium">Fotoğraf Çek / Seç</span>
+                      <span className="text-cyan-700 font-medium">Fotoğraf Çek / Seç</span>
                       <span className="text-slate-500 text-sm mt-1">veya sürükleyip bırakın</span>
-                      <span className="text-slate-600 text-xs mt-1">Max 5MB</span>
+                      <span className="text-slate-400 text-xs mt-1">Max 5MB</span>
                     </>
                   )}
                 </div>
@@ -1603,7 +1559,7 @@ export default function PalletDetailPage({
                 setPhotoDialogOpen(false);
                 setPhotoPreview(null);
               }}
-              className="border-slate-600"
+              className="border-slate-300 text-slate-700"
             >
               İptal
             </Button>
