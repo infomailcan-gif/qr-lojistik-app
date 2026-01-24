@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Pencil, CheckCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Pencil, CheckCircle, Truck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
   const [lines, setLines] = useState<LineItemForm[]>([]);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [photoDataUrl2, setPhotoDataUrl2] = useState<string | null>(null);
+  const [isDirectShipment, setIsDirectShipment] = useState(false);
   const fileInput2Ref = useRef<HTMLInputElement>(null);
   
   // Current line being added
@@ -106,6 +107,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       setBoxName(boxData.name);
       setPhotoDataUrl(boxData.photo_url);
       setPhotoDataUrl2((boxData as any).photo_url_2 || null);
+      setIsDirectShipment((boxData as any).is_direct_shipment || false);
       
       // Convert existing lines to form format
       const formLines: LineItemForm[] = boxData.lines.map((line) => ({
@@ -363,6 +365,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       const updateData: any = {
         name: boxName.trim(),
         department_id: departmentId,
+        is_direct_shipment: isDirectShipment,
       };
       
       if (finalPhotoUrl !== undefined) {
@@ -498,6 +501,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
         department_id: departmentId,
         photo_url: finalPhotoUrl,
         photo_url_2: finalPhotoUrl2,
+        is_direct_shipment: isDirectShipment,
       });
       
       // Log photo addition
@@ -660,6 +664,66 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
             />
             {errors.boxName && (
               <p className="text-sm text-red-500 mt-2">{errors.boxName}</p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Direct Shipment Option */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        <Card className={`border-orange-200 ${isDirectShipment ? 'bg-orange-50/80' : 'bg-white/70'} backdrop-blur-sm overflow-hidden transition-colors`}>
+          <div className="h-1 bg-gradient-to-r from-orange-400 to-red-500" />
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3 text-slate-800">
+              <Truck className="h-6 w-6 text-orange-600" />
+              Büyük Ürün - Direk Sevkiyat
+            </CardTitle>
+            <CardDescription>
+              Bu ürün koliye sığmayacak kadar büyükse ve direk tıra yüklenecekse işaretleyin
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div 
+              className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                isDirectShipment 
+                  ? 'border-orange-400 bg-orange-100' 
+                  : 'border-slate-200 hover:border-orange-300 hover:bg-orange-50'
+              }`}
+              onClick={() => setIsDirectShipment(!isDirectShipment)}
+            >
+              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                isDirectShipment 
+                  ? 'border-orange-500 bg-orange-500' 
+                  : 'border-slate-300'
+              }`}>
+                {isDirectShipment && <CheckCircle className="h-4 w-4 text-white" />}
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">
+                  Bu ürün direk sevkiyat tırına yüklenecek
+                </p>
+                <p className="text-sm text-slate-600 mt-1">
+                  Bu seçenek işaretlenirse, ürün palete eklenmeden doğrudan sevkiyata eklenebilir. 
+                  Büyük makineler, uzun borular vb. için kullanın.
+                </p>
+              </div>
+            </div>
+            
+            {isDirectShipment && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-4 flex items-center gap-2 p-3 rounded-lg bg-amber-100 border border-amber-300"
+              >
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800">
+                  <strong>Dikkat:</strong> Bu ürün palete eklenemeyecek. Sadece doğrudan sevkiyata eklenebilecek.
+                </p>
+              </motion.div>
             )}
           </CardContent>
         </Card>

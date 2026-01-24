@@ -117,11 +117,13 @@ export default function PalletDetailPage({
       ]);
 
       // Filter boxes: only show sealed boxes from user's department that are not in a pallet
+      // Include direct shipment boxes so they're visible with a different style
       const boxes = allBoxes.filter(
         (b) =>
           b.department.id === session.user.department_id &&
           b.status === "sealed" &&
-          !b.pallet_code
+          !b.pallet_code &&
+          !(b as any).shipment_code // exclude boxes already in a shipment
       );
 
       if (!palletData) {
@@ -1246,42 +1248,66 @@ export default function PalletDetailPage({
                             )}
                           </div>
                           <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin">
-                            {availableBoxes.filter(box => !(box as any).is_direct_shipment).map((box) => (
-                              <div
-                                key={box.id}
-                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                                  selectedBoxIds.includes(box.id)
-                                    ? 'bg-cyan-50 border border-cyan-300'
-                                    : 'bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                                }`}
-                                onClick={() => {
-                                  if (selectedBoxIds.includes(box.id)) {
-                                    setSelectedBoxIds(selectedBoxIds.filter(id => id !== box.id));
-                                  } else {
-                                    setSelectedBoxIds([...selectedBoxIds, box.id]);
-                                  }
-                                }}
-                              >
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                  selectedBoxIds.includes(box.id)
-                                    ? 'border-cyan-500 bg-cyan-500'
-                                    : 'border-slate-400'
-                                }`}>
-                                  {selectedBoxIds.includes(box.id) && (
-                                    <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
+                            {availableBoxes.map((box) => {
+                              const isDirectShipment = (box as any).is_direct_shipment;
+                              return (
+                                <div
+                                  key={box.id}
+                                  className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
+                                    isDirectShipment
+                                      ? 'bg-orange-50 border border-orange-200 cursor-not-allowed opacity-75'
+                                      : selectedBoxIds.includes(box.id)
+                                      ? 'bg-cyan-50 border border-cyan-300 cursor-pointer'
+                                      : 'bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 cursor-pointer'
+                                  }`}
+                                  onClick={() => {
+                                    if (isDirectShipment) {
+                                      toast({
+                                        title: "Direk Sevkiyat Ürünü",
+                                        description: "Bu ürün direk sevkiyata yüklenmek üzere işaretlenmiş. Palete eklenemez. Doğrudan sevkiyata ekleyin.",
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    if (selectedBoxIds.includes(box.id)) {
+                                      setSelectedBoxIds(selectedBoxIds.filter(id => id !== box.id));
+                                    } else {
+                                      setSelectedBoxIds([...selectedBoxIds, box.id]);
+                                    }
+                                  }}
+                                >
+                                  {isDirectShipment ? (
+                                    <div className="w-5 h-5 rounded border-2 border-orange-400 bg-orange-400 flex items-center justify-center shrink-0">
+                                      <Truck className="w-3 h-3 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                      selectedBoxIds.includes(box.id)
+                                        ? 'border-cyan-500 bg-cyan-500'
+                                        : 'border-slate-400'
+                                    }`}>
+                                      {selectedBoxIds.includes(box.id) && (
+                                        <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </div>
                                   )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs text-cyan-600">{box.code}</span>
-                                    <span className="text-slate-800 truncate">{box.name}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-mono text-xs ${isDirectShipment ? 'text-orange-600' : 'text-cyan-600'}`}>{box.code}</span>
+                                      <span className={`truncate ${isDirectShipment ? 'text-orange-800' : 'text-slate-800'}`}>{box.name}</span>
+                                      {isDirectShipment && (
+                                        <span className="px-2 py-0.5 text-xs bg-orange-500 text-white rounded-full">
+                                          Direk Sevkiyat
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-slate-500">{box.department.name}</span>
                                   </div>
-                                  <span className="text-xs text-slate-500">{box.department.name}</span>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </>
                       )}

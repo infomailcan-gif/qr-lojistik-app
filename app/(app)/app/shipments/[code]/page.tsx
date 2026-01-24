@@ -40,10 +40,12 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import { shipmentRepository } from "@/lib/repositories/shipment";
 import { palletRepository } from "@/lib/repositories/pallet";
+import { boxRepository } from "@/lib/repositories/box";
 import { auth } from "@/lib/auth";
 import { uploadShipmentPhoto } from "@/lib/supabase/storage";
 import type { ShipmentWithPallets } from "@/lib/types/shipment";
 import type { PalletWithBoxCount } from "@/lib/types/pallet";
+import type { BoxWithDepartment } from "@/lib/types/box";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 import Image from "next/image";
@@ -62,6 +64,14 @@ export default function ShipmentDetailPage({
   const [palletCode, setPalletCode] = useState("");
   const [adding, setAdding] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  
+  // Direct shipment boxes
+  const [addDirectBoxOpen, setAddDirectBoxOpen] = useState(false);
+  const [availableDirectBoxes, setAvailableDirectBoxes] = useState<BoxWithDepartment[]>([]);
+  const [directBoxesInShipment, setDirectBoxesInShipment] = useState<BoxWithDepartment[]>([]);
+  const [directBoxCode, setDirectBoxCode] = useState("");
+  const [addingDirectBox, setAddingDirectBox] = useState(false);
+  const [directBoxMethod, setDirectBoxMethod] = useState<"list" | "code">("list");
   
   // Edit/Delete states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -83,6 +93,7 @@ export default function ShipmentDetailPage({
   useEffect(() => {
     loadShipment();
     loadAvailablePallets();
+    loadAvailableDirectBoxes();
   }, [params.code]);
 
   useEffect(() => {
@@ -98,6 +109,13 @@ export default function ShipmentDetailPage({
       if (data) {
         setEditNameOrPlate(data.name_or_plate);
       }
+      
+      // Load direct shipment boxes in this shipment
+      const allBoxes = await boxRepository.getAll();
+      const directBoxes = allBoxes.filter(
+        (b) => (b as any).shipment_code === params.code && (b as any).is_direct_shipment
+      );
+      setDirectBoxesInShipment(directBoxes);
     } catch (error) {
       console.error("Error loading shipment:", error);
     } finally {
@@ -119,6 +137,27 @@ export default function ShipmentDetailPage({
       setAvailablePallets(pallets);
     } catch (error) {
       console.error("Error loading available pallets:", error);
+    }
+  };
+
+  const loadAvailableDirectBoxes = async () => {
+    try {
+      // Get user session to filter boxes
+      const session = await auth.getSession();
+      if (!session) return;
+      
+      // Get all boxes and filter by: is_direct_shipment=true, sealed, not in a shipment yet
+      const allBoxes = await boxRepository.getAll();
+      const directBoxes = allBoxes.filter(
+        (b) => 
+          (b as any).is_direct_shipment === true && 
+          b.status === "sealed" && 
+          !(b as any).shipment_code &&
+          b.created_by === session.user.name
+      );
+      setAvailableDirectBoxes(directBoxes);
+    } catch (error) {
+      console.error("Error loading available direct boxes:", error);
     }
   };
 
@@ -466,6 +505,98 @@ export default function ShipmentDetailPage({
       toast({
         title: "Hata",
         description: "Palet çıkarılırken bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddDirectBox = async (code: string) => {
+    setAddingDirectBox(true);
+    try {
+      // Get user session to check ownership
+      const session = await auth.getSession();
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+
+      const box = await boxRepository.getByCode(code);
+      if (!box) {
+        toast({
+          title: "Hata",
+          description: `${code} kodlu ürün bulunamadı`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if box is a direct shipment item
+      if (!(box as any).is_direct_shipment) {
+        toast({
+          title: "Hata",
+          description: "Bu ürün direk sevkiyat ürünü değil. Önce palete ekleyin.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if box belongs to user
+      if (box.created_by !== session.user.name) {
+        toast({
+          title: "Yetki Hatası",
+          description: "Sadece kendi oluşturduğunuz ürünleri ekleyebilirsiniz",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if ((box as any).shipment_code && (box as any).shipment_code !== params.code) {
+        toast({
+          title: "Ürün Zaten Başka Sevkiyatta",
+          description: `Bu ürün ${(box as any).shipment_code} sevkiyatına bağlı`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Add to shipment
+      await boxRepository.update(code, { shipment_code: params.code });
+
+      toast({
+        title: "Direk Sevkiyat Ürünü Eklendi",
+        description: `${code} kodlu ürün sevkiyata eklendi`,
+      });
+
+      setAddDirectBoxOpen(false);
+      setDirectBoxCode("");
+      await loadShipment();
+      await loadAvailableDirectBoxes();
+    } catch (error) {
+      console.error("Error adding direct box:", error);
+      toast({
+        title: "Hata",
+        description: "Ürün eklenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingDirectBox(false);
+    }
+  };
+
+  const handleRemoveDirectBox = async (code: string) => {
+    try {
+      await boxRepository.update(code, { shipment_code: null });
+      toast({
+        title: "Ürün Çıkarıldı",
+        description: `${code} kodlu ürün sevkiyattan çıkarıldı`,
+      });
+      await loadShipment();
+      await loadAvailableDirectBoxes();
+    } catch (error) {
+      console.error("Error removing direct box:", error);
+      toast({
+        title: "Hata",
+        description: "Ürün çıkarılırken bir hata oluştu",
         variant: "destructive",
       });
     }
@@ -1000,6 +1131,35 @@ export default function ShipmentDetailPage({
           </Card>
         </motion.div>
 
+        {/* Add Direct Shipment Box Panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+        >
+          <Card className="border-orange-200">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-orange-500" />
+                  Direk Sevkiyat Ürünü Ekle
+                </h2>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Palete sığmayan büyük ürünleri doğrudan sevkiyata ekleyin
+              </p>
+              <Button
+                onClick={() => setAddDirectBoxOpen(true)}
+                className="w-full h-12 bg-orange-500/10 hover:bg-orange-500/20 border-2 border-dashed border-orange-500/50 text-orange-600"
+                variant="ghost"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Direk Sevkiyat Ürünü Ekle
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* Pallets List */}
         {shipment.pallets.length > 0 && (
           <motion.div
@@ -1083,7 +1243,7 @@ export default function ShipmentDetailPage({
           </motion.div>
         )}
 
-        {shipment.pallets.length === 0 && (
+        {shipment.pallets.length === 0 && directBoxesInShipment.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1093,8 +1253,75 @@ export default function ShipmentDetailPage({
               <CardContent className="p-8 text-center">
                 <Layers className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">
-                  Bu sevkiyatta henüz palet yok. Yukarıdaki butonu kullanarak palet ekleyin.
+                  Bu sevkiyatta henüz palet veya direk sevkiyat ürünü yok. Yukarıdaki butonları kullanarak ekleyin.
                 </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Direct Shipment Boxes List */}
+        {directBoxesInShipment.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
+            <Card className="border-orange-200">
+              <CardContent className="p-5">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-orange-500" />
+                  Direk Sevkiyat Ürünleri ({directBoxesInShipment.length})
+                </h2>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                  {directBoxesInShipment.map((box) => (
+                    <motion.div
+                      key={box.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="bg-orange-50 rounded-lg p-4 border border-orange-200 hover:border-orange-400 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                          onClick={() => router.push(`/app/boxes/${box.code}`)}
+                        >
+                          {box.photo_url ? (
+                            <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 border border-orange-200">
+                              <img 
+                                src={box.photo_url} 
+                                alt={box.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                              <Truck className="w-6 h-6 text-orange-500" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-orange-800 hover:text-orange-600 transition-colors">
+                              {box.name}
+                            </h3>
+                            <p className="text-sm text-orange-600 font-mono">{box.code}</p>
+                            <Badge className="mt-2 bg-orange-500 text-white text-xs">
+                              <Truck className="w-3 h-3 mr-1" />
+                              Direk Sevkiyat
+                            </Badge>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveDirectBox(box.code)}
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -1199,6 +1426,129 @@ export default function ShipmentDetailPage({
                     className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                   >
                     {adding ? "Ekleniyor..." : "Palet Ekle"}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Direct Box Dialog */}
+      <Dialog open={addDirectBoxOpen} onOpenChange={setAddDirectBoxOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="w-5 h-5 text-orange-500" />
+              Direk Sevkiyat Ürünü Ekle
+            </DialogTitle>
+            <DialogDescription>
+              Palete sığmayan büyük ürünleri doğrudan sevkiyata ekleyin
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Method Tabs */}
+          <div className="flex gap-2 border-b pb-3">
+            <Button
+              variant={directBoxMethod === "list" ? "default" : "outline"}
+              onClick={() => setDirectBoxMethod("list")}
+              size="sm"
+              className={directBoxMethod === "list" ? "bg-orange-500 hover:bg-orange-600" : ""}
+            >
+              Listeden Seç
+            </Button>
+            <Button
+              variant={directBoxMethod === "code" ? "default" : "outline"}
+              onClick={() => setDirectBoxMethod("code")}
+              size="sm"
+              className={directBoxMethod === "code" ? "bg-orange-500 hover:bg-orange-600" : ""}
+            >
+              Kod ile Ekle
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            <AnimatePresence mode="wait">
+              {directBoxMethod === "list" ? (
+                <motion.div
+                  key="list"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="space-y-2"
+                >
+                  {availableDirectBoxes.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Truck className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">Eklenebilecek direk sevkiyat ürünü bulunamadı</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Koli oluştururken &quot;Direk Sevkiyat&quot; seçeneğini işaretleyin
+                      </p>
+                    </div>
+                  ) : (
+                    availableDirectBoxes.map((box) => (
+                      <motion.div
+                        key={box.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-orange-50 rounded-lg p-4 border border-orange-200 hover:border-orange-400 transition-all cursor-pointer"
+                        onClick={() => handleAddDirectBox(box.code)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            {box.photo_url ? (
+                              <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-orange-200">
+                                <img 
+                                  src={box.photo_url} 
+                                  alt={box.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                <Truck className="w-5 h-5 text-orange-500" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-orange-800">{box.name}</h3>
+                              <p className="text-sm text-orange-600 font-mono">{box.code}</p>
+                            </div>
+                          </div>
+                          <Badge className="bg-orange-500 text-white">
+                            <Truck className="w-3 h-3 mr-1" />
+                            Direk
+                          </Badge>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="code"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4 py-4"
+                >
+                  <div>
+                    <Input
+                      placeholder="BOX-XXXX"
+                      value={directBoxCode}
+                      onChange={(e) => setDirectBoxCode(e.target.value.toUpperCase())}
+                      className="h-12 text-lg font-mono"
+                      disabled={addingDirectBox}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Eklemek istediğiniz direk sevkiyat ürününün kodunu girin
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => handleAddDirectBox(directBoxCode)}
+                    disabled={!directBoxCode.trim() || addingDirectBox}
+                    className="w-full h-12 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                  >
+                    {addingDirectBox ? "Ekleniyor..." : "Ürün Ekle"}
                   </Button>
                 </motion.div>
               )}

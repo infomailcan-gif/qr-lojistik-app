@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -533,9 +533,17 @@ export default function BoxesPage() {
                               {box.code}
                             </p>
                           </div>
-                          <Badge className={`${getStatusColor(box.status)} text-xs`}>
-                            {getStatusText(box.status)}
-                          </Badge>
+                          <div className="flex flex-col gap-1 items-end">
+                            <Badge className={`${getStatusColor(box.status)} text-xs`}>
+                              {getStatusText(box.status)}
+                            </Badge>
+                            {(box as any).is_direct_shipment && (
+                              <Badge className="bg-orange-500 text-white border-orange-600 text-xs animate-pulse">
+                                <Truck className="h-3 w-3 mr-1" />
+                                Direk Sevkiyat
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
