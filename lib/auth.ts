@@ -30,7 +30,7 @@ export interface Session {
 const SESSION_STORAGE_KEY = "qr_lojistik_session";
 
 class MockAuth {
-  async login(username: string, password: string): Promise<Session> {
+  async login(username: string, password: string): Promise<Session & { is_banned?: boolean }> {
     const user = await userRepository.getByUsername(username);
 
     if (!user || user.password !== password) {
@@ -43,6 +43,31 @@ class MockAuth {
         action: "failed_login",
       });
       throw new Error("Kullanıcı adı veya şifre hatalı");
+    }
+
+    // Check if user is banned
+    if (user.is_banned) {
+      // Log banned login attempt
+      await loginLogRepository.logAction({
+        user_id: user.id,
+        username: user.username,
+        user_name: user.name,
+        department_name: user.department_name,
+        action: "failed_login",
+      });
+      
+      // Return a special response indicating user is banned
+      return {
+        user: {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+          department_id: user.department_id,
+          department_name: user.department_name,
+        },
+        is_banned: true,
+      };
     }
 
     const session: Session = {
@@ -78,6 +103,13 @@ class MockAuth {
     });
 
     return session;
+  }
+
+  // Check if current session user is banned
+  async checkBanStatus(): Promise<boolean> {
+    const session = await this.getSession();
+    if (!session) return false;
+    return await userRepository.isUserBanned(session.user.id);
   }
 
   async logout(): Promise<void> {

@@ -261,6 +261,41 @@ ALTER TABLE boxes ADD COLUMN IF NOT EXISTS shipment_code TEXT;
 CREATE INDEX IF NOT EXISTS idx_boxes_shipment ON boxes(shipment_code);
 
 -- ============================================
+-- 13. YASAKLI KULLANICILAR - Ban Sistemi
+-- ============================================
+-- users tablosuna is_banned sütunu ekle
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_by TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_users_is_banned ON users(is_banned);
+
+-- Ban Ayarları Tablosu (Global ayarlar için)
+CREATE TABLE IF NOT EXISTS ban_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  is_active BOOLEAN DEFAULT true,
+  ban_message TEXT DEFAULT 'Hesabınıza erişim yasaklanmıştır.',
+  ban_subtitle TEXT DEFAULT 'Sistem yöneticisi ile iletişime geçiniz.',
+  redirect_url TEXT,
+  show_redirect_button BOOLEAN DEFAULT false,
+  redirect_button_text TEXT DEFAULT 'Ana Sayfaya Git',
+  video_url TEXT DEFAULT 'https://cdn.pixabay.com/video/2020/05/25/40130-424930923_large.mp4',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by TEXT
+);
+
+-- Default ayarları ekle
+INSERT INTO ban_settings (id, is_active, ban_message, ban_subtitle) 
+VALUES ('default', true, 'Hesabınıza erişim yasaklanmıştır.', 'Sistem yöneticisi ile iletişime geçiniz.')
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE ban_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON ban_settings FOR SELECT USING (true);
+CREATE POLICY "Public update access" ON ban_settings FOR UPDATE USING (true);
+CREATE POLICY "Public insert access" ON ban_settings FOR INSERT WITH CHECK (true);
+
+-- ============================================
 -- BAŞARILI! 🎉
 -- ============================================
 -- Veritabanı hazır. Şimdi Storage bucket'ı oluşturun.

@@ -18,6 +18,15 @@ import {
   Sparkles,
   RefreshCw,
   Loader2,
+  Ban,
+  ShieldOff,
+  Settings,
+  Link,
+  Video,
+  ToggleLeft,
+  ToggleRight,
+  ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +52,8 @@ import {
 import { auth, type UserRole, type MockUser } from "@/lib/auth";
 import { departmentRepository } from "@/lib/repositories/department";
 import { activityTracker, type PageVisit } from "@/lib/activity-tracker";
+import { userRepository, type UserWithBan } from "@/lib/repositories/user";
+import { banSettingsRepository, type BanSettings } from "@/lib/repositories/ban-settings";
 import type { Department } from "@/lib/types/box";
 import { useToast } from "@/components/ui/use-toast";
 import { Eye, Clock, FileText, ChevronLeft, ChevronRight } from "lucide-react";
@@ -63,14 +74,14 @@ export default function SuperAdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("users");
 
-  const [users, setUsers] = useState<Omit<MockUser, "password">[]>([]);
+  const [users, setUsers] = useState<Omit<UserWithBan, "password">[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [pageVisits, setPageVisits] = useState<PageVisit[]>([]);
   const [activityPage, setActivityPage] = useState(1);
   const activityPerPage = 20;
 
   const [showUserModal, setShowUserModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<Omit<MockUser, "password"> | null>(null);
+  const [editingUser, setEditingUser] = useState<Omit<UserWithBan, "password"> | null>(null);
   const [userForm, setUserForm] = useState<UserFormData>({
     username: "",
     password: "",
@@ -89,6 +100,22 @@ export default function SuperAdminPage() {
     name: string;
   } | null>(null);
 
+  // Ban related state
+  const [banSettings, setBanSettings] = useState<BanSettings | null>(null);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [banningUser, setBanningUser] = useState<Omit<UserWithBan, "password"> | null>(null);
+  const [banReason, setBanReason] = useState("");
+  const [showBanSettingsModal, setShowBanSettingsModal] = useState(false);
+  const [banSettingsForm, setBanSettingsForm] = useState({
+    is_active: true,
+    ban_message: "",
+    ban_subtitle: "",
+    redirect_url: "",
+    show_redirect_button: false,
+    redirect_button_text: "",
+    video_url: "",
+  });
+
   useEffect(() => {
     checkSuperAdminAccess();
   }, []);
@@ -104,15 +131,17 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData, visitsData] = await Promise.all([
-        auth.getAvailableUsers(),
+      const [usersData, deptsData, visitsData, banSettingsData] = await Promise.all([
+        userRepository.getAll(),
         departmentRepository.getAll(),
-        activityTracker.getAllRecentPageVisits(200)
+        activityTracker.getAllRecentPageVisits(200),
+        banSettingsRepository.get()
       ]);
       
       setUsers(usersData);
       setDepartments(deptsData);
       setPageVisits(visitsData);
+      setBanSettings(banSettingsData);
     } catch (error) {
       console.error("Error loading data:", error);
       toast({
@@ -358,6 +387,111 @@ export default function SuperAdminPage() {
     }
   };
 
+  // Ban handlers
+  const handleOpenBanModal = (user: Omit<UserWithBan, "password">) => {
+    setBanningUser(user);
+    setBanReason("");
+    setShowBanModal(true);
+  };
+
+  const handleBanUser = async () => {
+    if (!banningUser) return;
+
+    setSaving(true);
+    
+    try {
+      const session = await auth.getSession();
+      await userRepository.banUser(banningUser.id, banReason, session?.user.name || "Sistem");
+      toast({
+        title: "Başarılı",
+        description: `${banningUser.name} yasaklandı`,
+      });
+      setShowBanModal(false);
+      setBanningUser(null);
+      await loadData();
+    } catch (error: any) {
+      console.error("Ban user error:", error);
+      toast({
+        title: "Hata",
+        description: error.message || "Kullanıcı yasaklanamadı",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnbanUser = async (user: Omit<UserWithBan, "password">) => {
+    setSaving(true);
+    
+    try {
+      await userRepository.unbanUser(user.id);
+      toast({
+        title: "Başarılı",
+        description: `${user.name} yasağı kaldırıldı`,
+      });
+      await loadData();
+    } catch (error: any) {
+      console.error("Unban user error:", error);
+      toast({
+        title: "Hata",
+        description: error.message || "Yasak kaldırılamadı",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Ban settings handlers
+  const handleOpenBanSettings = () => {
+    if (banSettings) {
+      setBanSettingsForm({
+        is_active: banSettings.is_active,
+        ban_message: banSettings.ban_message,
+        ban_subtitle: banSettings.ban_subtitle,
+        redirect_url: banSettings.redirect_url || "",
+        show_redirect_button: banSettings.show_redirect_button,
+        redirect_button_text: banSettings.redirect_button_text,
+        video_url: banSettings.video_url,
+      });
+    }
+    setShowBanSettingsModal(true);
+  };
+
+  const handleSaveBanSettings = async () => {
+    setSaving(true);
+    
+    try {
+      const session = await auth.getSession();
+      await banSettingsRepository.update({
+        is_active: banSettingsForm.is_active,
+        ban_message: banSettingsForm.ban_message,
+        ban_subtitle: banSettingsForm.ban_subtitle,
+        redirect_url: banSettingsForm.redirect_url || null,
+        show_redirect_button: banSettingsForm.show_redirect_button,
+        redirect_button_text: banSettingsForm.redirect_button_text,
+        video_url: banSettingsForm.video_url,
+      }, session?.user.name);
+      
+      toast({
+        title: "Başarılı",
+        description: "Yasak sayfası ayarları güncellendi",
+      });
+      setShowBanSettingsModal(false);
+      await loadData();
+    } catch (error: any) {
+      console.error("Save ban settings error:", error);
+      toast({
+        title: "Hata",
+        description: error.message || "Ayarlar kaydedilemedi",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
       case "super_admin":
@@ -461,6 +595,13 @@ export default function SuperAdminPage() {
                 {departments.length}
               </Badge>
             </TabsTrigger>
+            <TabsTrigger value="banned" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-rose-500 data-[state=active]:text-white">
+              <Ban className="h-4 w-4" />
+              Yasaklı Kullanıcılar
+              <Badge variant="secondary" className="ml-1 bg-white/20">
+                {users.filter(u => u.is_banned).length}
+              </Badge>
+            </TabsTrigger>
             <TabsTrigger value="activity" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white">
               <Eye className="h-4 w-4" />
               Kullanıcı Aktiviteleri
@@ -539,15 +680,46 @@ export default function SuperAdminPage() {
                           </motion.div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold text-slate-800">{user.name}</h3>
+                              <h3 className={`font-semibold ${user.is_banned ? 'text-red-600 line-through' : 'text-slate-800'}`}>{user.name}</h3>
                               {getRoleBadge(user.role)}
+                              {user.is_banned && (
+                                <Badge className="bg-gradient-to-r from-red-500 to-rose-500 text-white border-0 shadow-lg shadow-red-500/20">
+                                  <Ban className="w-3 h-3 mr-1" />
+                                  Yasaklı
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-slate-500">
                               @{user.username} • {user.department_name}
+                              {user.is_banned && user.ban_reason && (
+                                <span className="text-red-400 ml-2">• Sebep: {user.ban_reason}</span>
+                              )}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {user.is_banned ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUnbanUser(user)}
+                              disabled={saving}
+                              className="hover:bg-green-50 text-red-400 hover:text-green-600"
+                              title="Yasağı Kaldır"
+                            >
+                              <ShieldOff className="h-4 w-4" />
+                            </Button>
+                          ) : user.role !== "super_admin" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenBanModal(user)}
+                              className="hover:bg-red-50 text-slate-400 hover:text-red-500"
+                              title="Yasakla"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -641,6 +813,151 @@ export default function SuperAdminPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+          </div>
+        </TabsContent>
+
+        {/* Banned Users Tab */}
+        <TabsContent value="banned" className="space-y-6">
+          {/* Ban Settings Button */}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-lg">
+                <Ban className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800">Yasaklı Kullanıcılar Yönetimi</h3>
+                <p className="text-xs text-slate-500">
+                  Yasak sayfası {banSettings?.is_active ? (
+                    <span className="text-green-600 font-medium">aktif</span>
+                  ) : (
+                    <span className="text-red-600 font-medium">devre dışı</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                onClick={handleOpenBanSettings}
+                className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 shadow-lg shadow-red-500/25"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Sayfa Ayarları
+              </Button>
+            </motion.div>
+          </div>
+
+          {/* Preview Link */}
+          {banSettings?.is_active && (
+            <Card className="bg-gradient-to-r from-red-50 to-rose-50 border-red-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ExternalLink className="h-5 w-5 text-red-500" />
+                    <div>
+                      <p className="font-medium text-slate-800">Yasak Sayfası Önizleme</p>
+                      <p className="text-sm text-slate-500">Yasaklı kullanıcıların göreceği sayfayı önizleyin</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open("/banned", "_blank")}
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Önizle
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Current Settings Display */}
+          <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+            <CardContent className="p-5">
+              <h4 className="font-medium text-slate-800 mb-4 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-red-500" />
+                Mevcut Yasak Mesajı
+              </h4>
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <p className="text-lg font-semibold text-slate-800 mb-1">{banSettings?.ban_message || "Hesabınıza erişim yasaklanmıştır."}</p>
+                <p className="text-sm text-slate-500">{banSettings?.ban_subtitle || "Sistem yöneticisi ile iletişime geçiniz."}</p>
+              </div>
+              {banSettings?.redirect_url && banSettings?.show_redirect_button && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                  <Link className="h-4 w-4" />
+                  Yönlendirme: <span className="text-blue-600">{banSettings.redirect_url}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Banned Users List */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-slate-800">Yasaklı Kullanıcılar ({users.filter(u => u.is_banned).length})</h4>
+            
+            {users.filter(u => u.is_banned).length === 0 ? (
+              <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+                <CardContent className="p-8 text-center">
+                  <ShieldOff className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+                  <p className="text-slate-500">Henüz yasaklı kullanıcı yok</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                <AnimatePresence>
+                  {users.filter(u => u.is_banned).map((user, index) => (
+                    <motion.div
+                      key={user.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ delay: index * 0.03 }}
+                    >
+                      <Card className="bg-gradient-to-r from-red-50 to-rose-50 border-red-200 hover:border-red-300 hover:shadow-lg transition-all">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-400 to-rose-400 flex items-center justify-center text-lg font-bold text-white">
+                                {user.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="font-semibold text-red-700">{user.name}</h3>
+                                  {getRoleBadge(user.role)}
+                                </div>
+                                <p className="text-sm text-slate-500">
+                                  @{user.username} • {user.department_name}
+                                </p>
+                                {user.ban_reason && (
+                                  <p className="text-sm text-red-500 mt-1">
+                                    <span className="font-medium">Sebep:</span> {user.ban_reason}
+                                  </p>
+                                )}
+                                {user.banned_at && (
+                                  <p className="text-xs text-slate-400 mt-1">
+                                    Yasaklanma: {new Date(user.banned_at).toLocaleString("tr-TR")}
+                                    {user.banned_by && ` • ${user.banned_by} tarafından`}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => handleUnbanUser(user)}
+                              disabled={saving}
+                              className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                            >
+                              <ShieldOff className="h-4 w-4 mr-2" />
+                              Yasağı Kaldır
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -987,6 +1304,201 @@ export default function SuperAdminPage() {
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Sil
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban User Modal */}
+      <Dialog open={showBanModal} onOpenChange={setShowBanModal}>
+        <DialogContent className="border-red-200 mx-4 sm:mx-auto max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <Ban className="h-5 w-5" />
+              Kullanıcı Yasakla
+            </DialogTitle>
+            <DialogDescription>
+              <span className="font-semibold text-slate-700">{banningUser?.name}</span> kullanıcısını yasaklamak üzeresiniz.
+              Bu kullanıcı sisteme giriş yapamayacak ve yasak sayfasına yönlendirilecektir.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Yasaklama Sebebi (Opsiyonel)</Label>
+              <Input
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="Yasaklama sebebini girin..."
+                className="border-slate-200 focus:border-red-300"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setShowBanModal(false)} disabled={saving}>
+              İptal
+            </Button>
+            <Button
+              onClick={handleBanUser}
+              disabled={saving}
+              className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 min-w-[100px]"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Ban className="h-4 w-4 mr-2" />
+                  Yasakla
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban Settings Modal */}
+      <Dialog open={showBanSettingsModal} onOpenChange={setShowBanSettingsModal}>
+        <DialogContent className="border-red-200 mx-4 sm:mx-auto max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Yasak Sayfası Ayarları
+            </DialogTitle>
+            <DialogDescription>
+              Yasaklı kullanıcıların göreceği sayfanın ayarlarını yapılandırın
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* Active Toggle */}
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-3">
+                {banSettingsForm.is_active ? (
+                  <ToggleRight className="h-6 w-6 text-green-500" />
+                ) : (
+                  <ToggleLeft className="h-6 w-6 text-slate-400" />
+                )}
+                <div>
+                  <p className="font-medium text-slate-800">Yasak Sayfası</p>
+                  <p className="text-xs text-slate-500">
+                    {banSettingsForm.is_active ? "Aktif - Yasaklı kullanıcılar bu sayfaya yönlendirilir" : "Devre dışı - Yasaklı kullanıcılar normal login sayfasına döner"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBanSettingsForm(f => ({ ...f, is_active: !f.is_active }))}
+                className={banSettingsForm.is_active ? "border-green-300 text-green-600" : "border-slate-300 text-slate-500"}
+              >
+                {banSettingsForm.is_active ? "Aktif" : "Devre Dışı"}
+              </Button>
+            </div>
+
+            {/* Ban Message */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-red-500" />
+                Ana Mesaj
+              </Label>
+              <Input
+                value={banSettingsForm.ban_message}
+                onChange={(e) => setBanSettingsForm(f => ({ ...f, ban_message: e.target.value }))}
+                placeholder="Hesabınıza erişim yasaklanmıştır."
+                className="border-slate-200 focus:border-red-300"
+              />
+            </div>
+
+            {/* Ban Subtitle */}
+            <div className="space-y-2">
+              <Label>Alt Mesaj</Label>
+              <Input
+                value={banSettingsForm.ban_subtitle}
+                onChange={(e) => setBanSettingsForm(f => ({ ...f, ban_subtitle: e.target.value }))}
+                placeholder="Sistem yöneticisi ile iletişime geçiniz."
+                className="border-slate-200 focus:border-red-300"
+              />
+            </div>
+
+            {/* Video URL */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Video className="h-4 w-4 text-purple-500" />
+                Arka Plan Video URL
+              </Label>
+              <Input
+                value={banSettingsForm.video_url}
+                onChange={(e) => setBanSettingsForm(f => ({ ...f, video_url: e.target.value }))}
+                placeholder="https://..."
+                className="border-slate-200 focus:border-purple-300"
+              />
+              <p className="text-xs text-slate-500">Cyberpunk/teknoloji temalı video URL'si (MP4 formatı önerilir)</p>
+            </div>
+
+            {/* Redirect Button Toggle */}
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-3">
+                <Link className="h-5 w-5 text-blue-500" />
+                <div>
+                  <p className="font-medium text-slate-800">Yönlendirme Butonu</p>
+                  <p className="text-xs text-slate-500">Sayfada yönlendirme butonu göster</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBanSettingsForm(f => ({ ...f, show_redirect_button: !f.show_redirect_button }))}
+                className={banSettingsForm.show_redirect_button ? "border-blue-300 text-blue-600" : "border-slate-300 text-slate-500"}
+              >
+                {banSettingsForm.show_redirect_button ? "Göster" : "Gizle"}
+              </Button>
+            </div>
+
+            {banSettingsForm.show_redirect_button && (
+              <>
+                {/* Redirect URL */}
+                <div className="space-y-2">
+                  <Label>Yönlendirme URL'si</Label>
+                  <Input
+                    value={banSettingsForm.redirect_url}
+                    onChange={(e) => setBanSettingsForm(f => ({ ...f, redirect_url: e.target.value }))}
+                    placeholder="https://example.com veya /login"
+                    className="border-slate-200 focus:border-blue-300"
+                  />
+                </div>
+
+                {/* Redirect Button Text */}
+                <div className="space-y-2">
+                  <Label>Buton Metni</Label>
+                  <Input
+                    value={banSettingsForm.redirect_button_text}
+                    onChange={(e) => setBanSettingsForm(f => ({ ...f, redirect_button_text: e.target.value }))}
+                    placeholder="Ana Sayfaya Git"
+                    className="border-slate-200 focus:border-blue-300"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setShowBanSettingsModal(false)} disabled={saving}>
+              İptal
+            </Button>
+            <Button
+              onClick={handleSaveBanSettings}
+              disabled={saving}
+              className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 min-w-[100px]"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Kaydet
                 </>
               )}
             </Button>
