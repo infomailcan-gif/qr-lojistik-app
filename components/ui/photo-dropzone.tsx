@@ -18,6 +18,60 @@ interface PhotoDropzoneProps {
   height?: string;
 }
 
+// Resim sıkıştırma fonksiyonu - kaliteyi koruyarak boyutu küçültür
+const compressImage = (file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.85): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Orijinal boyutları al
+        let { width, height } = img;
+        
+        // Eğer resim zaten küçükse sıkıştırma yapma
+        if (width <= maxWidth && height <= maxHeight && file.size < 500 * 1024) {
+          resolve(event.target?.result as string);
+          return;
+        }
+        
+        // En-boy oranını koru
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+        
+        // Canvas oluştur ve resmi çiz
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas context oluşturulamadı"));
+          return;
+        }
+        
+        // Yüksek kaliteli resim rendering
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // JPEG formatında sıkıştır (daha iyi sıkıştırma)
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => reject(new Error("Resim yüklenemedi"));
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Dosya okunamadı"));
+    reader.readAsDataURL(file);
+  });
+};
+
 export function PhotoDropzone({
   onPhotoSelect,
   photoPreview,
@@ -27,10 +81,12 @@ export function PhotoDropzone({
   error = false,
   maxSize = 5,
   colorScheme = "blue",
-  height = "h-48",
+  height = "h-56",
 }: PhotoDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const colorClasses = {
     blue: {
@@ -77,7 +133,7 @@ export function PhotoDropzone({
 
   const colors = colorClasses[colorScheme];
 
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Hata",
@@ -96,11 +152,30 @@ export function PhotoDropzone({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      onPhotoSelect(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    setIsCompressing(true);
+    try {
+      // Resmi sıkıştır
+      const compressedDataUrl = await compressImage(file);
+      onPhotoSelect(compressedDataUrl);
+      
+      // Sıkıştırma bilgisi göster
+      const originalSize = (file.size / 1024).toFixed(0);
+      const compressedSize = (compressedDataUrl.length * 0.75 / 1024).toFixed(0); // Base64 to bytes approx
+      if (parseInt(originalSize) > parseInt(compressedSize) + 50) {
+        toast({
+          title: "Resim optimize edildi",
+          description: `${originalSize}KB → ${compressedSize}KB`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Resim işlenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompressing(false);
+    }
   }, [maxSize, onPhotoSelect]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,22 +185,38 @@ export function PhotoDropzone({
     }
   };
 
+  // Drag counter for proper drag leave handling
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    dragCounter.current = 0;
 
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
@@ -160,15 +251,19 @@ export function PhotoDropzone({
 
   return (
     <motion.div
-      onClick={() => fileInputRef.current?.click()}
+      ref={dropZoneRef}
+      onClick={() => !isCompressing && fileInputRef.current?.click()}
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
-      className={`relative border-2 border-dashed rounded-xl ${height} text-center cursor-pointer transition-all duration-200 ${
-        isDragging
-          ? `${colors.bgDragging} ${colors.border} scale-[1.02]`
+      whileHover={{ scale: isCompressing ? 1 : 1.01 }}
+      whileTap={{ scale: isCompressing ? 1 : 0.99 }}
+      className={`relative border-2 border-dashed rounded-xl ${height} min-h-[180px] text-center cursor-pointer transition-all duration-200 select-none ${
+        isCompressing
+          ? "border-amber-400 bg-amber-50/50 cursor-wait"
+          : isDragging
+          ? `${colors.bgDragging} ${colors.border} scale-[1.02] ring-4 ring-${colorScheme}-200`
           : error
           ? "border-red-400 bg-red-50/50"
           : `${colors.borderDashed} ${colors.bg} ${colors.bgHover}`
@@ -180,34 +275,46 @@ export function PhotoDropzone({
         onChange={handleFileSelect}
         accept="image/*"
         className="hidden"
+        disabled={isCompressing}
       />
       
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-        {isDragging ? (
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+        {isCompressing ? (
           <>
             <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="mb-3"
+            >
+              <div className="h-12 w-12 rounded-full border-4 border-amber-200 border-t-amber-500" />
+            </motion.div>
+            <p className="text-amber-600 font-semibold">Resim optimize ediliyor...</p>
+          </>
+        ) : isDragging ? (
+          <>
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], y: [0, -10, 0] }}
               transition={{ duration: 0.5, repeat: Infinity }}
             >
-              <Upload className={`h-12 w-12 ${colors.icon} mb-3`} />
+              <Upload className={`h-14 w-14 ${colors.icon} mb-3`} />
             </motion.div>
-            <p className={`${colors.text} font-semibold`}>Bırakın!</p>
+            <p className={`${colors.text} font-semibold text-lg`}>Bırakın!</p>
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 mb-3">
-              <Camera className={`h-8 w-8 ${colors.icon}`} />
-              <span className={`${colors.textMuted} text-lg`}>/</span>
-              <Upload className={`h-8 w-8 ${colors.icon}`} />
+            <div className="flex items-center gap-3 mb-4">
+              <Camera className={`h-10 w-10 ${colors.icon}`} />
+              <span className={`${colors.textMuted} text-2xl`}>/</span>
+              <Upload className={`h-10 w-10 ${colors.icon}`} />
             </div>
-            <p className={`${colors.text} font-medium text-sm`}>
-              {label} {required && "*"}
+            <p className={`${colors.text} font-semibold text-base`}>
+              {label} {required && <span className="text-red-500">*</span>}
+            </p>
+            <p className="text-sm text-slate-500 mt-2">
+              Tıklayın veya sürükleyip bırakın
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Tıklayın, sürükleyin veya yapıştırın
-            </p>
-            <p className="text-xs text-slate-400">
-              Max {maxSize}MB
+              Max {maxSize}MB • Otomatik sıkıştırma
             </p>
           </>
         )}

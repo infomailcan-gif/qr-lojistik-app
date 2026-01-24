@@ -52,6 +52,10 @@ export default function NewBoxPage() {
   // Drag & drop state'leri
   const [isDragging1, setIsDragging1] = useState(false);
   const [isDragging2, setIsDragging2] = useState(false);
+  const [isCompressing1, setIsCompressing1] = useState(false);
+  const [isCompressing2, setIsCompressing2] = useState(false);
+  const dragCounter1 = useRef(0);
+  const dragCounter2 = useRef(0);
 
   useEffect(() => {
     loadUser();
@@ -156,8 +160,58 @@ export default function NewBoxPage() {
     cancelEditLine();
   };
 
+  // Resim sıkıştırma fonksiyonu
+  const compressImage = useCallback((file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.85): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          
+          // Eğer resim zaten küçükse sıkıştırma yapma
+          if (width <= maxWidth && height <= maxHeight && file.size < 500 * 1024) {
+            resolve(event.target?.result as string);
+            return;
+          }
+          
+          // En-boy oranını koru
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+          
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas context oluşturulamadı"));
+            return;
+          }
+          
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+          resolve(compressedDataUrl);
+        };
+        img.onerror = () => reject(new Error("Resim yüklenemedi"));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Dosya okunamadı"));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
   // Dosya işleme fonksiyonu
-  const processFile = useCallback((file: File, target: 1 | 2) => {
+  const processFile = useCallback(async (file: File, target: 1 | 2) => {
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Hata",
@@ -176,17 +230,40 @@ export default function NewBoxPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    // Sıkıştırma başladı göster
+    if (target === 1) setIsCompressing1(true);
+    else setIsCompressing2(true);
+
+    try {
+      const compressedDataUrl = await compressImage(file);
+      
       if (target === 1) {
-        setPhotoDataUrl(event.target?.result as string);
+        setPhotoDataUrl(compressedDataUrl);
         setErrors((prev) => ({ ...prev, photo: undefined }));
       } else {
-        setPhotoDataUrl2(event.target?.result as string);
+        setPhotoDataUrl2(compressedDataUrl);
       }
-    };
-    reader.readAsDataURL(file);
-  }, []);
+      
+      // Sıkıştırma bilgisi göster
+      const originalSize = (file.size / 1024).toFixed(0);
+      const compressedSize = (compressedDataUrl.length * 0.75 / 1024).toFixed(0);
+      if (parseInt(originalSize) > parseInt(compressedSize) + 50) {
+        toast({
+          title: "Resim optimize edildi",
+          description: `${originalSize}KB → ${compressedSize}KB`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Resim işlenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      if (target === 1) setIsCompressing1(false);
+      else setIsCompressing2(false);
+    }
+  }, [compressImage]);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -212,26 +289,55 @@ export default function NewBoxPage() {
     }
   };
 
-  // Drag & Drop handlers
+  // Drag & Drop handlers - geliştirilmiş versiyon
+  const handleDragEnter = useCallback((e: React.DragEvent, target: 1 | 2) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (target === 1) {
+      dragCounter1.current++;
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        setIsDragging1(true);
+      }
+    } else {
+      dragCounter2.current++;
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        setIsDragging2(true);
+      }
+    }
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent, target: 1 | 2) => {
     e.preventDefault();
     e.stopPropagation();
-    if (target === 1) setIsDragging1(true);
-    else setIsDragging2(true);
+    e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent, target: 1 | 2) => {
     e.preventDefault();
     e.stopPropagation();
-    if (target === 1) setIsDragging1(false);
-    else setIsDragging2(false);
+    if (target === 1) {
+      dragCounter1.current--;
+      if (dragCounter1.current === 0) {
+        setIsDragging1(false);
+      }
+    } else {
+      dragCounter2.current--;
+      if (dragCounter2.current === 0) {
+        setIsDragging2(false);
+      }
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent, target: 1 | 2) => {
     e.preventDefault();
     e.stopPropagation();
-    if (target === 1) setIsDragging1(false);
-    else setIsDragging2(false);
+    if (target === 1) {
+      setIsDragging1(false);
+      dragCounter1.current = 0;
+    } else {
+      setIsDragging2(false);
+      dragCounter2.current = 0;
+    }
 
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
@@ -850,7 +956,7 @@ export default function NewBoxPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Fotoğraf 1 */}
               <div>
-                <p className="text-sm font-medium text-slate-700 mb-2">Fotoğraf 1 *</p>
+                <p className="text-sm font-medium text-slate-700 mb-2">Fotoğraf 1 <span className="text-red-500">*</span></p>
                 {photoDataUrl ? (
                   <motion.div 
                     className="relative"
@@ -860,7 +966,7 @@ export default function NewBoxPage() {
                     <img
                       src={photoDataUrl}
                       alt="Koli fotoğrafı 1"
-                      className="w-full h-48 object-contain rounded-xl border border-slate-200 shadow-lg bg-slate-50"
+                      className="w-full h-56 object-contain rounded-xl border border-slate-200 shadow-lg bg-slate-50"
                     />
                     <Button
                       variant="destructive"
@@ -873,37 +979,52 @@ export default function NewBoxPage() {
                   </motion.div>
                 ) : (
                   <motion.div
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => !isCompressing1 && fileInputRef.current?.click()}
+                    onDragEnter={(e) => handleDragEnter(e, 1)}
                     onDragOver={(e) => handleDragOver(e, 1)}
                     onDragLeave={(e) => handleDragLeave(e, 1)}
                     onDrop={(e) => handleDrop(e, 1)}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-                      isDragging1 
-                        ? "border-blue-500 bg-blue-100 scale-[1.02]" 
+                    whileHover={{ scale: isCompressing1 ? 1 : 1.01 }}
+                    whileTap={{ scale: isCompressing1 ? 1 : 0.99 }}
+                    className={`border-2 border-dashed rounded-xl p-8 min-h-[180px] text-center cursor-pointer transition-all duration-200 select-none ${
+                      isCompressing1
+                        ? "border-amber-400 bg-amber-50/50 cursor-wait"
+                        : isDragging1 
+                        ? "border-blue-500 bg-blue-100 scale-[1.02] ring-4 ring-blue-200" 
                         : errors.photo 
                         ? "border-red-400 bg-red-50/50" 
                         : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/50"
                     }`}
                   >
-                    {isDragging1 ? (
-                      <>
-                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
-                          <Upload className="h-10 w-10 mx-auto text-blue-500 mb-2" />
+                    {isCompressing1 ? (
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="mb-3"
+                        >
+                          <div className="h-12 w-12 rounded-full border-4 border-amber-200 border-t-amber-500" />
                         </motion.div>
-                        <p className="text-blue-600 font-semibold text-sm">Bırakın!</p>
-                      </>
+                        <p className="text-amber-600 font-semibold">Resim optimize ediliyor...</p>
+                      </div>
+                    ) : isDragging1 ? (
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <motion.div animate={{ scale: [1, 1.2, 1], y: [0, -10, 0] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                          <Upload className="h-14 w-14 mx-auto text-blue-500 mb-3" />
+                        </motion.div>
+                        <p className="text-blue-600 font-semibold text-lg">Bırakın!</p>
+                      </div>
                     ) : (
-                      <>
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <Camera className="h-8 w-8 text-slate-400" />
-                          <span className="text-slate-300 text-lg">/</span>
-                          <Upload className="h-8 w-8 text-slate-400" />
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                          <Camera className="h-10 w-10 text-slate-400" />
+                          <span className="text-slate-300 text-2xl">/</span>
+                          <Upload className="h-10 w-10 text-slate-400" />
                         </div>
-                        <p className="text-slate-600 font-medium text-sm">Fotoğraf 1 ekle</p>
-                        <p className="text-xs text-slate-400 mt-1">Tıklayın veya sürükleyin • Max 5MB</p>
-                      </>
+                        <p className="text-slate-700 font-semibold">Fotoğraf 1 ekle</p>
+                        <p className="text-sm text-slate-500 mt-2">Tıklayın veya sürükleyip bırakın</p>
+                        <p className="text-xs text-slate-400 mt-1">Max 5MB • Otomatik sıkıştırma</p>
+                      </div>
                     )}
                   </motion.div>
                 )}
@@ -921,7 +1042,7 @@ export default function NewBoxPage() {
                     <img
                       src={photoDataUrl2}
                       alt="Koli fotoğrafı 2"
-                      className="w-full h-48 object-contain rounded-xl border border-slate-200 shadow-lg bg-slate-50"
+                      className="w-full h-56 object-contain rounded-xl border border-slate-200 shadow-lg bg-slate-50"
                     />
                     <Button
                       variant="destructive"
@@ -934,35 +1055,50 @@ export default function NewBoxPage() {
                   </motion.div>
                 ) : (
                   <motion.div
-                    onClick={() => fileInput2Ref.current?.click()}
+                    onClick={() => !isCompressing2 && fileInput2Ref.current?.click()}
+                    onDragEnter={(e) => handleDragEnter(e, 2)}
                     onDragOver={(e) => handleDragOver(e, 2)}
                     onDragLeave={(e) => handleDragLeave(e, 2)}
                     onDrop={(e) => handleDrop(e, 2)}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-                      isDragging2 
-                        ? "border-blue-500 bg-blue-100 scale-[1.02]" 
+                    whileHover={{ scale: isCompressing2 ? 1 : 1.01 }}
+                    whileTap={{ scale: isCompressing2 ? 1 : 0.99 }}
+                    className={`border-2 border-dashed rounded-xl p-8 min-h-[180px] text-center cursor-pointer transition-all duration-200 select-none ${
+                      isCompressing2
+                        ? "border-amber-400 bg-amber-50/50 cursor-wait"
+                        : isDragging2 
+                        ? "border-blue-500 bg-blue-100 scale-[1.02] ring-4 ring-blue-200" 
                         : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/50"
                     }`}
                   >
-                    {isDragging2 ? (
-                      <>
-                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
-                          <Upload className="h-10 w-10 mx-auto text-blue-500 mb-2" />
+                    {isCompressing2 ? (
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="mb-3"
+                        >
+                          <div className="h-12 w-12 rounded-full border-4 border-amber-200 border-t-amber-500" />
                         </motion.div>
-                        <p className="text-blue-600 font-semibold text-sm">Bırakın!</p>
-                      </>
+                        <p className="text-amber-600 font-semibold">Resim optimize ediliyor...</p>
+                      </div>
+                    ) : isDragging2 ? (
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <motion.div animate={{ scale: [1, 1.2, 1], y: [0, -10, 0] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                          <Upload className="h-14 w-14 mx-auto text-blue-500 mb-3" />
+                        </motion.div>
+                        <p className="text-blue-600 font-semibold text-lg">Bırakın!</p>
+                      </div>
                     ) : (
-                      <>
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <Camera className="h-8 w-8 text-slate-400" />
-                          <span className="text-slate-300 text-lg">/</span>
-                          <Upload className="h-8 w-8 text-slate-400" />
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                          <Camera className="h-10 w-10 text-slate-400" />
+                          <span className="text-slate-300 text-2xl">/</span>
+                          <Upload className="h-10 w-10 text-slate-400" />
                         </div>
-                        <p className="text-slate-600 font-medium text-sm">Fotoğraf 2 ekle</p>
-                        <p className="text-xs text-slate-400 mt-1">Tıklayın veya sürükleyin • Max 5MB</p>
-                      </>
+                        <p className="text-slate-700 font-semibold">Fotoğraf 2 ekle</p>
+                        <p className="text-sm text-slate-500 mt-2">Tıklayın veya sürükleyip bırakın</p>
+                        <p className="text-xs text-slate-400 mt-1">Max 5MB • Otomatik sıkıştırma</p>
+                      </div>
                     )}
                   </motion.div>
                 )}

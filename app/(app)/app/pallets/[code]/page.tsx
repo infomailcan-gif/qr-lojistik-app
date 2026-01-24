@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -88,7 +88,9 @@ export default function PalletDetailPage({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoIndex, setPhotoIndex] = useState<1 | 2>(1);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  const dragCounterPhoto = useRef(0);
 
   useEffect(() => {
     loadData();
@@ -206,7 +208,55 @@ export default function PalletDetailPage({
     }
   };
 
-  const processPhotoFile = useCallback((file: File) => {
+  // Resim sıkıştırma fonksiyonu
+  const compressImage = useCallback((file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.85): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          
+          if (width <= maxWidth && height <= maxHeight && file.size < 500 * 1024) {
+            resolve(event.target?.result as string);
+            return;
+          }
+          
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+          
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas context oluşturulamadı"));
+            return;
+          }
+          
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+          resolve(compressedDataUrl);
+        };
+        img.onerror = () => reject(new Error("Resim yüklenemedi"));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Dosya okunamadı"));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const processPhotoFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Hata",
@@ -225,35 +275,64 @@ export default function PalletDetailPage({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setPhotoPreview(result);
-    };
-    reader.readAsDataURL(file);
-  }, []);
+    setIsCompressingPhoto(true);
+    try {
+      const compressedDataUrl = await compressImage(file);
+      setPhotoPreview(compressedDataUrl);
+      
+      const originalSize = (file.size / 1024).toFixed(0);
+      const compressedSize = (compressedDataUrl.length * 0.75 / 1024).toFixed(0);
+      if (parseInt(originalSize) > parseInt(compressedSize) + 50) {
+        toast({
+          title: "Resim optimize edildi",
+          description: `${originalSize}KB → ${compressedSize}KB`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Resim işlenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompressingPhoto(false);
+    }
+  }, [compressImage]);
 
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processPhotoFile(file);
   };
 
+  const handlePhotoDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterPhoto.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingPhoto(true);
+    }
+  }, []);
+
   const handlePhotoDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingPhoto(true);
+    e.dataTransfer.dropEffect = "copy";
   }, []);
 
   const handlePhotoDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingPhoto(false);
+    dragCounterPhoto.current--;
+    if (dragCounterPhoto.current === 0) {
+      setIsDraggingPhoto(false);
+    }
   }, []);
 
   const handlePhotoDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingPhoto(false);
+    dragCounterPhoto.current = 0;
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       processPhotoFile(files[0]);
@@ -1512,32 +1591,46 @@ export default function PalletDetailPage({
             ) : (
               <label 
                 className="block"
+                onDragEnter={handlePhotoDragEnter}
                 onDragOver={handlePhotoDragOver}
                 onDragLeave={handlePhotoDragLeave}
                 onDrop={handlePhotoDrop}
               >
-                <div className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
-                  isDraggingPhoto 
-                    ? "border-cyan-400 bg-cyan-100 scale-[1.02]" 
+                <div className={`flex flex-col items-center justify-center h-56 min-h-[200px] border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 select-none ${
+                  isCompressingPhoto
+                    ? "border-amber-400 bg-amber-50 cursor-wait"
+                    : isDraggingPhoto 
+                    ? "border-cyan-400 bg-cyan-100 scale-[1.02] ring-4 ring-cyan-200" 
                     : "border-cyan-300 bg-cyan-50 hover:bg-cyan-100"
                 }`}>
-                  {isDraggingPhoto ? (
+                  {isCompressingPhoto ? (
                     <>
-                      <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
-                        <Upload className="h-12 w-12 text-cyan-600 mb-3" />
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="mb-3"
+                      >
+                        <div className="h-12 w-12 rounded-full border-4 border-amber-200 border-t-amber-500" />
                       </motion.div>
-                      <span className="text-cyan-700 font-semibold">Bırakın!</span>
+                      <span className="text-amber-600 font-semibold">Resim optimize ediliyor...</span>
+                    </>
+                  ) : isDraggingPhoto ? (
+                    <>
+                      <motion.div animate={{ scale: [1, 1.2, 1], y: [0, -10, 0] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                        <Upload className="h-14 w-14 text-cyan-600 mb-3" />
+                      </motion.div>
+                      <span className="text-cyan-700 font-semibold text-lg">Bırakın!</span>
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-3 mb-4">
                         <Camera className="h-10 w-10 text-cyan-600" />
                         <span className="text-cyan-300 text-2xl">/</span>
                         <Upload className="h-10 w-10 text-cyan-600" />
                       </div>
-                      <span className="text-cyan-700 font-medium">Fotoğraf Çek / Seç</span>
-                      <span className="text-slate-500 text-sm mt-1">veya sürükleyip bırakın</span>
-                      <span className="text-slate-400 text-xs mt-1">Max 5MB</span>
+                      <span className="text-cyan-700 font-semibold">Fotoğraf Çek / Seç</span>
+                      <span className="text-slate-500 text-sm mt-2">veya sürükleyip bırakın</span>
+                      <span className="text-slate-400 text-xs mt-1">Max 5MB • Otomatik sıkıştırma</span>
                     </>
                   )}
                 </div>
@@ -1547,6 +1640,7 @@ export default function PalletDetailPage({
                   capture="environment"
                   className="hidden"
                   onChange={handlePhotoCapture}
+                  disabled={isCompressingPhoto}
                 />
               </label>
             )}
