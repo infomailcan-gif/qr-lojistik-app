@@ -354,6 +354,7 @@ class BoxRepository {
           created_by: userName,
           status: "draft",
           revision: 1,
+          is_direct_shipment: data.is_direct_shipment || false,
         })
         .select()
         .single();
