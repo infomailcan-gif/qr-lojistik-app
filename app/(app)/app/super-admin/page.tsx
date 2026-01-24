@@ -1435,7 +1435,7 @@ export default function SuperAdminPage() {
                 placeholder="https://..."
                 className="border-slate-200 focus:border-purple-300"
               />
-              <p className="text-xs text-slate-500">Cyberpunk/teknoloji temalı video URL'si (MP4 formatı önerilir)</p>
+              <p className="text-xs text-slate-500">Cyberpunk/teknoloji temali video adresi (MP4 formati onerilir)</p>
             </div>
 
             {/* Redirect Button Toggle */}
@@ -1461,7 +1461,7 @@ export default function SuperAdminPage() {
               <>
                 {/* Redirect URL */}
                 <div className="space-y-2">
-                  <Label>Yönlendirme URL'si</Label>
+                  <Label>Yonlendirme Adresi</Label>
                   <Input
                     value={banSettingsForm.redirect_url}
                     onChange={(e) => setBanSettingsForm(f => ({ ...f, redirect_url: e.target.value }))}
