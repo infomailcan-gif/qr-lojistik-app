@@ -19,8 +19,24 @@ export interface Box {
   photo_url: string | null;
   photo_url_2: string | null;
   needs_reprint: boolean;
+  is_direct_shipment: boolean;
+  shipment_code: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Extended box detail with pallet and shipment info
+export interface BoxWithPalletAndShipment extends Box {
+  department: Department;
+  lines: BoxLine[];
+  pallet_info?: {
+    code: string;
+    name: string;
+  } | null;
+  shipment_info?: {
+    code: string;
+    name_or_plate: string;
+  } | null;
 }
 
 export interface BoxLine {
@@ -55,6 +71,7 @@ export type BoxWithDetails = BoxDetail;
 export interface CreateBoxData {
   name: string;
   department_id: string;
+  is_direct_shipment?: boolean;
 }
 
 export interface UpdateBoxData {
@@ -65,6 +82,8 @@ export interface UpdateBoxData {
   photo_url?: string | null;
   photo_url_2?: string | null;
   needs_reprint?: boolean;
+  is_direct_shipment?: boolean;
+  shipment_code?: string | null;
 }
 
 export interface CreateBoxLineData {

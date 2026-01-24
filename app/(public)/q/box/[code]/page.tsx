@@ -1,18 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Package, Building2, Calendar, User } from "lucide-react";
+import { Package, Building2, Calendar, User, Layers, Truck, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedBackground } from "@/components/app/AnimatedBackground";
 import { PageTransition } from "@/components/app/PageTransition";
 import { boxRepository } from "@/lib/repositories/box";
-import type { BoxWithDetails } from "@/lib/types/box";
+import type { BoxWithPalletAndShipment } from "@/lib/types/box";
 
 export default function PublicBoxPage({ params }: { params: { code: string } }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [box, setBox] = useState<BoxWithDetails | null>(null);
+  const [box, setBox] = useState<BoxWithPalletAndShipment | null>(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export default function PublicBoxPage({ params }: { params: { code: string } }) 
 
   const loadBox = async () => {
     try {
-      const data = await boxRepository.getByCode(params.code);
+      const data = await boxRepository.getByCodeWithPalletAndShipment(params.code);
       setBox(data);
     } catch (error) {
       console.error("Error loading box:", error);
@@ -170,6 +172,101 @@ export default function PublicBoxPage({ params }: { params: { code: string } }) 
                     <p className="text-lg font-semibold text-slate-800">{formatDate(box.created_at)}</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Pallet & Shipment Status */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mb-8"
+          >
+            <Card className={`${box.pallet_info || box.shipment_info || box.is_direct_shipment ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/70'} backdrop-blur-xl shadow-lg`}>
+              <CardHeader className="pb-3">
+                <CardTitle className={`text-xl ${box.pallet_info || box.shipment_info || box.is_direct_shipment ? 'text-emerald-800' : 'text-amber-800'} flex items-center gap-2`}>
+                  {box.pallet_info || box.shipment_info || box.is_direct_shipment ? (
+                    <Layers className="h-6 w-6" />
+                  ) : (
+                    <AlertTriangle className="h-6 w-6" />
+                  )}
+                  Palet & Sevkiyat Durumu
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {box.is_direct_shipment ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-100 border border-orange-300">
+                      <Truck className="h-5 w-5 text-orange-600" />
+                      <span className="text-orange-800 font-medium">Bu ürün direk sevkiyat için işaretlenmiş</span>
+                    </div>
+                    {box.shipment_info ? (
+                      <div 
+                        className="flex items-center gap-3 p-4 rounded-lg bg-purple-100 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
+                        onClick={() => router.push(`/q/shipment/${box.shipment_info!.code}`)}
+                      >
+                        <div className="p-2 rounded-lg bg-purple-200">
+                          <Truck className="h-5 w-5 text-purple-700" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-purple-600">Sevkiyat</p>
+                          <p className="font-semibold text-purple-800">{box.shipment_info.name_or_plate}</p>
+                          <p className="text-xs text-purple-600 font-mono">{box.shipment_info.code}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-100 border border-amber-300">
+                        <AlertTriangle className="h-5 w-5 text-amber-600" />
+                        <span className="text-amber-800">Bu ürün henüz bir sevkiyata eklenmemiş</span>
+                      </div>
+                    )}
+                  </div>
+                ) : box.pallet_info ? (
+                  <div className="space-y-3">
+                    <div 
+                      className="flex items-center gap-3 p-4 rounded-lg bg-cyan-100 border border-cyan-300 cursor-pointer hover:bg-cyan-200 transition-colors"
+                      onClick={() => router.push(`/q/pallet/${box.pallet_info!.code}`)}
+                    >
+                      <div className="p-2 rounded-lg bg-cyan-200">
+                        <Layers className="h-5 w-5 text-cyan-700" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-cyan-600">Palet</p>
+                        <p className="font-semibold text-cyan-800">{box.pallet_info.name}</p>
+                        <p className="text-xs text-cyan-600 font-mono">{box.pallet_info.code}</p>
+                      </div>
+                    </div>
+                    {box.shipment_info ? (
+                      <div 
+                        className="flex items-center gap-3 p-4 rounded-lg bg-purple-100 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
+                        onClick={() => router.push(`/q/shipment/${box.shipment_info!.code}`)}
+                      >
+                        <div className="p-2 rounded-lg bg-purple-200">
+                          <Truck className="h-5 w-5 text-purple-700" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-purple-600">Sevkiyat</p>
+                          <p className="font-semibold text-purple-800">{box.shipment_info.name_or_plate}</p>
+                          <p className="text-xs text-purple-600 font-mono">{box.shipment_info.code}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-100 border border-slate-300">
+                        <Truck className="h-5 w-5 text-slate-500" />
+                        <span className="text-slate-600">Palet henüz bir sevkiyata eklenmemiş</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-100 border border-amber-300">
+                    <AlertTriangle className="h-6 w-6 text-amber-600" />
+                    <div>
+                      <p className="font-semibold text-amber-800">Bu koli henüz herhangi bir palete veya sevkiyata eklenmemiş</p>
+                      <p className="text-sm text-amber-700 mt-1">Lütfen bu koliyi bir palete ekleyin.</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

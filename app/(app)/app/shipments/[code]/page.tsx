@@ -268,115 +268,125 @@ export default function ShipmentDetailPage({
     img.src = qrCodeUrl;
   };
 
-  const downloadPalletListPDF = () => {
+  const downloadPalletListPDF = useCallback(() => {
     if (!shipment) return;
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Header
-    doc.setFillColor(147, 51, 234);
-    doc.rect(0, 0, pageWidth, 35, "F");
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("SEVKIYAT RAPORU", 15, 20);
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${shipment.name_or_plate} - ${shipment.code}`, 15, 30);
-    
-    // Shipment Info
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Sevkiyat Bilgileri", 15, 50);
-    
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
-    doc.text(`Plaka/Ad: ${shipment.name_or_plate}`, 15, 60);
-    doc.text(`Kod: ${shipment.code}`, 15, 67);
-    doc.text(`Oluşturan: ${shipment.created_by}`, 15, 74);
-    doc.text(`Tarih: ${new Date(shipment.created_at).toLocaleDateString("tr-TR")}`, 15, 81);
-    
-    const totalBoxes = shipment.pallets.reduce((sum, p) => sum + p.box_count, 0);
-    doc.text(`Toplam Palet: ${shipment.pallets.length}`, 15, 88);
-    doc.text(`Toplam Koli: ${totalBoxes}`, 15, 95);
-    
-    // Divider
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, 102, pageWidth - 15, 102);
-    
-    // Pallets Header
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("Palet Listesi", 15, 115);
-    
-    let yPos = 125;
-    
-    if (shipment.pallets.length === 0) {
-      doc.setFontSize(11);
+    // Show loading toast
+    toast({
+      title: "PDF Oluşturuluyor",
+      description: "Lütfen bekleyin...",
+    });
+
+    // Use setTimeout to allow UI to update
+    setTimeout(() => {
+      const doc = new jsPDF({
+        compress: true, // Enable compression
+      });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      
+      // Turkish character helper
+      const turkishToAscii = (text: string) => {
+        const map: { [key: string]: string } = {
+          'ç': 'c', 'Ç': 'C', 'ğ': 'g', 'Ğ': 'G',
+          'ı': 'i', 'İ': 'I', 'ö': 'o', 'Ö': 'O',
+          'ş': 's', 'Ş': 'S', 'ü': 'u', 'Ü': 'U'
+        };
+        return text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (char) => map[char] || char);
+      };
+      
+      // Simple header
+      doc.setFillColor(147, 51, 234);
+      doc.rect(0, 0, pageWidth, 30, "F");
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("SEVKIYAT RAPORU", margin, 18);
+      
+      doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(100, 100, 100);
-      doc.text("Bu sevkiyatta henüz palet yok.", 15, yPos);
-    } else {
-      shipment.pallets.forEach((pallet, index) => {
-        if (yPos > 260) {
-          doc.addPage();
-          yPos = 20;
-        }
-        
-        // Pallet box
-        doc.setFillColor(241, 245, 249);
-        doc.roundedRect(15, yPos - 5, pageWidth - 30, 25, 3, 3, "F");
-        
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(0, 0, 0);
-        doc.text(`${index + 1}. ${pallet.name}`, 20, yPos + 5);
-        
+      doc.text(`${turkishToAscii(shipment.name_or_plate)} - ${shipment.code}`, margin, 26);
+      
+      // Shipment Info - compact
+      let yPos = 40;
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      
+      const totalBoxes = shipment.pallets.reduce((sum, p) => sum + p.box_count, 0);
+      doc.text(`Olusturan: ${turkishToAscii(shipment.created_by)} | Tarih: ${new Date(shipment.created_at).toLocaleDateString("tr-TR")}`, margin, yPos);
+      yPos += 6;
+      doc.setFont("helvetica", "bold");
+      doc.text(`Palet: ${shipment.pallets.length} | Koli: ${totalBoxes}`, margin, yPos);
+      yPos += 10;
+      
+      // Simple divider
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 8;
+      
+      // Pallets
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Palet Listesi", margin, yPos);
+      yPos += 8;
+      
+      if (shipment.pallets.length === 0) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(100, 100, 100);
-        doc.text(`Kod: ${pallet.code}`, 20, yPos + 13);
-        doc.text(`${pallet.box_count} koli`, pageWidth - 50, yPos + 9);
+        doc.text("Bu sevkiyatta henuz palet yok.", margin, yPos);
+      } else {
+        doc.setFontSize(10);
         
-        yPos += 32;
-        
-        // Boxes in pallet
-        if (pallet.boxes && pallet.boxes.length > 0) {
-          pallet.boxes.forEach((box) => {
-            if (yPos > 270) {
-              doc.addPage();
-              yPos = 20;
-            }
-            
-            doc.setFontSize(9);
+        shipment.pallets.forEach((pallet, index) => {
+          if (yPos > pageHeight - 30) {
+            doc.addPage();
+            yPos = 20;
+          }
+          
+          // Pallet header
+          doc.setFillColor(241, 245, 249);
+          doc.rect(margin, yPos - 3, pageWidth - (margin * 2), 12, "F");
+          
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(0, 0, 0);
+          doc.text(`${index + 1}. ${turkishToAscii(pallet.name)} (${pallet.code})`, margin + 3, yPos + 5);
+          doc.text(`${pallet.box_count} koli`, pageWidth - margin - 20, yPos + 5);
+          
+          yPos += 14;
+          
+          // Boxes - compact list
+          if (pallet.boxes && pallet.boxes.length > 0) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
             doc.setTextColor(80, 80, 80);
-            doc.text(`   • ${box.name} (${box.code}) - ${box.department_name}`, 25, yPos);
-            yPos += 7;
-          });
-          yPos += 5;
-        }
+            
+            pallet.boxes.forEach((box) => {
+              if (yPos > pageHeight - 15) {
+                doc.addPage();
+                yPos = 20;
+              }
+              
+              const boxText = `  - ${turkishToAscii(box.name)} (${box.code})`;
+              doc.text(boxText.length > 70 ? boxText.substring(0, 67) + "..." : boxText, margin + 5, yPos);
+              yPos += 5;
+            });
+            yPos += 3;
+          }
+        });
+      }
+      
+      // Save
+      doc.save(`${shipment.code}-rapor.pdf`);
+      
+      toast({
+        title: "PDF Indirildi",
+        description: "Sevkiyat raporu indirildi",
       });
-    }
-    
-    // Footer
-    const footerY = doc.internal.pageSize.getHeight() - 15;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(150, 150, 150);
-    doc.text("Powered by Canberk Şıklı", pageWidth / 2, footerY, { align: "center" });
-    
-    doc.save(`${shipment.code}-palet-listesi.pdf`);
-    toast({
-      title: "PDF İndirildi",
-      description: `Palet listesi indirildi`,
-    });
-  };
+    }, 100);
+  }, [shipment]);
 
   const handleAddPallet = async (code: string) => {
     setAdding(true);

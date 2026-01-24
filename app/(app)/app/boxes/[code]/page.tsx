@@ -3,21 +3,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Package, Calendar, User, Building2, Edit, Download, QrCode, FileText, Image as ImageIcon, Printer, Plus, X, Eye } from "lucide-react";
+import { ArrowLeft, Package, Calendar, User, Building2, Edit, Download, QrCode, FileText, Image as ImageIcon, Printer, Plus, X, Eye, Layers, Truck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { boxRepository } from "@/lib/repositories/box";
-import type { BoxWithDetails } from "@/lib/types/box";
+import type { BoxWithPalletAndShipment } from "@/lib/types/box";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 
 export default function BoxDetailPage({ params }: { params: { code: string } }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [box, setBox] = useState<BoxWithDetails | null>(null);
+  const [box, setBox] = useState<BoxWithPalletAndShipment | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
 
   const loadBox = async () => {
     try {
-      const data = await boxRepository.getByCode(params.code);
+      const data = await boxRepository.getByCodeWithPalletAndShipment(params.code);
       if (!data) {
         toast({
           title: "Koli bulunamadı",
@@ -205,143 +205,132 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
     img.src = qrCodeUrl;
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = useCallback(() => {
     if (!box) return;
 
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - (margin * 2);
-    
-    // Calculate font size based on content amount
-    const itemCount = box.lines.length;
-    let baseFontSize = 11;
-    let lineHeight = 8;
-    
-    // Adjust font size if too many items
-    if (itemCount > 40) {
-      baseFontSize = 9;
-      lineHeight = 6;
-    } else if (itemCount > 25) {
-      baseFontSize = 10;
-      lineHeight = 7;
-    }
-    
-    // Helper function to replace Turkish characters for PDF compatibility
-    const turkishToAscii = (text: string) => {
-      const map: { [key: string]: string } = {
-        'ç': 'c', 'Ç': 'C',
-        'ğ': 'g', 'Ğ': 'G',
-        'ı': 'i', 'İ': 'I',
-        'ö': 'o', 'Ö': 'O',
-        'ş': 's', 'Ş': 'S',
-        'ü': 'u', 'Ü': 'U'
+    // Show loading toast
+    toast({
+      title: "PDF Oluşturuluyor",
+      description: "Lütfen bekleyin...",
+    });
+
+    // Use setTimeout to allow UI to update
+    setTimeout(() => {
+      const doc = new jsPDF({
+        compress: true, // Enable compression for smaller file size
+      });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      
+      // Calculate font size based on content amount
+      const itemCount = box.lines.length;
+      let baseFontSize = 11;
+      let lineHeight = 7;
+      
+      // Adjust font size if too many items
+      if (itemCount > 40) {
+        baseFontSize = 9;
+        lineHeight = 5.5;
+      } else if (itemCount > 25) {
+        baseFontSize = 10;
+        lineHeight = 6;
+      }
+      
+      // Helper function to replace Turkish characters for PDF compatibility
+      const turkishToAscii = (text: string) => {
+        const map: { [key: string]: string } = {
+          'ç': 'c', 'Ç': 'C',
+          'ğ': 'g', 'Ğ': 'G',
+          'ı': 'i', 'İ': 'I',
+          'ö': 'o', 'Ö': 'O',
+          'ş': 's', 'Ş': 'S',
+          'ü': 'u', 'Ü': 'U'
+        };
+        return text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (char) => map[char] || char);
       };
-      return text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (char) => map[char] || char);
-    };
-    
-    let currentPage = 1;
-    let yPos = margin;
-    
-    const addHeader = () => {
-      // Title - Koli İçeriği
-      doc.setFontSize(18);
+      
+      let currentPage = 1;
+      let yPos = margin;
+      
+      // Header - simplified for faster generation
+      doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 64, 175);
       doc.text("KOLI ICERIGI", margin, yPos);
-      yPos += 10;
+      yPos += 8;
       
-      // Box name
-      doc.setFontSize(14);
+      doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
       doc.text(turkishToAscii(box.name), margin, yPos);
-      yPos += 7;
+      yPos += 6;
       
-      // Box code
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100, 100, 100);
       doc.text(`Kod: ${box.code}`, margin, yPos);
-      yPos += 12;
+      yPos += 10;
       
-      // Divider
+      // Simple divider
       doc.setDrawColor(200, 200, 200);
       doc.line(margin, yPos, pageWidth - margin, yPos);
-      yPos += 8;
-    };
-    
-    // Add header to first page
-    addHeader();
-    
-    // Content list
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(baseFontSize);
-    
-    box.lines.forEach((line, index) => {
-      // Check if we need a new page
-      if (yPos > pageHeight - 25) {
-        doc.addPage();
-        currentPage++;
-        yPos = margin;
-        
-        // Add simple header on continuation pages
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "italic");
-        doc.setTextColor(150, 150, 150);
-        doc.text(`${turkishToAscii(box.name)} - Sayfa ${currentPage}`, margin, yPos);
-        yPos += 10;
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(baseFontSize);
-      }
+      yPos += 6;
       
+      // Content list - optimized
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(baseFontSize);
       doc.setTextColor(30, 30, 30);
       
-      // Number
-      const numText = `${index + 1}.`;
+      const lines = box.lines;
+      const linesPerPage = Math.floor((pageHeight - 50) / lineHeight);
+      
+      for (let i = 0; i < lines.length; i++) {
+        // Check if we need a new page
+        if (yPos > pageHeight - 20) {
+          doc.addPage();
+          currentPage++;
+          yPos = margin;
+          
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "italic");
+          doc.setTextColor(150, 150, 150);
+          doc.text(`Sayfa ${currentPage}`, margin, yPos);
+          yPos += 8;
+          
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(baseFontSize);
+          doc.setTextColor(30, 30, 30);
+        }
+        
+        const line = lines[i];
+        let itemText = `${i + 1}. ${turkishToAscii(line.product_name)}`;
+        if (line.qty > 1) itemText += ` (${line.qty})`;
+        if (line.kind) itemText += ` - ${turkishToAscii(line.kind)}`;
+        
+        // Truncate long text
+        if (itemText.length > 80) {
+          itemText = itemText.substring(0, 77) + "...";
+        }
+        
+        doc.text(itemText, margin, yPos);
+        yPos += lineHeight;
+      }
+      
+      // Summary
+      yPos += 4;
+      doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text(numText, margin, yPos);
+      doc.text(`Toplam: ${box.lines.length} urun`, margin, yPos);
       
-      // Product name and details
-      doc.setFont("helvetica", "normal");
-      let itemText = turkishToAscii(line.product_name);
-      if (line.qty > 1) {
-        itemText += ` (${line.qty} adet)`;
-      }
-      if (line.kind) {
-        itemText += ` - ${turkishToAscii(line.kind)}`;
-      }
+      // Save with optimized settings
+      doc.save(`${box.code}-icerik.pdf`);
       
-      // Truncate if too long
-      const maxChars = baseFontSize >= 11 ? 70 : 85;
-      if (itemText.length > maxChars) {
-        itemText = itemText.substring(0, maxChars - 3) + "...";
-      }
-      
-      doc.text(itemText, margin + 12, yPos);
-      yPos += lineHeight;
-    });
-    
-    // Summary at the end
-    yPos += 5;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 8;
-    
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Toplam: ${box.lines.length} urun`, margin, yPos);
-    
-    // Save
-    doc.save(`${box.code}-icerik-listesi.pdf`);
-    
-    toast({
-      title: "PDF Indirildi",
-      description: `${box.code} icerik listesi indirildi`,
-    });
-  };
+      toast({
+        title: "PDF Indirildi",
+        description: `${box.code} icerik listesi indirildi`,
+      });
+    }, 100);
+  }, [box]);
 
   const getStatusColor = (status: "draft" | "sealed") => {
     return status === "sealed"
@@ -569,6 +558,103 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
                 <p className="font-medium text-slate-800">v{box.revision}</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Pallet & Shipment Info */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.22 }}
+      >
+        <Card className={`${box.pallet_info || box.shipment_info || box.is_direct_shipment ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/50'} backdrop-blur-sm`}>
+          <CardHeader>
+            <CardTitle className={`${box.pallet_info || box.shipment_info || box.is_direct_shipment ? 'text-emerald-800' : 'text-amber-800'} flex items-center gap-2`}>
+              {box.pallet_info || box.shipment_info || box.is_direct_shipment ? (
+                <Layers className="h-5 w-5" />
+              ) : (
+                <AlertTriangle className="h-5 w-5" />
+              )}
+              Palet & Sevkiyat Durumu
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {box.is_direct_shipment ? (
+              // Direk sevkiyat ürünü
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-100 border border-orange-300">
+                  <Truck className="h-5 w-5 text-orange-600" />
+                  <span className="text-orange-800 font-medium">Bu ürün direk sevkiyat için işaretlenmiş (palete eklenmeden)</span>
+                </div>
+                {box.shipment_info ? (
+                  <div 
+                    className="flex items-center gap-3 p-4 rounded-lg bg-purple-100 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
+                    onClick={() => router.push(`/app/shipments/${box.shipment_info!.code}`)}
+                  >
+                    <div className="p-2 rounded-lg bg-purple-200">
+                      <Truck className="h-5 w-5 text-purple-700" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-purple-600">Sevkiyat</p>
+                      <p className="font-semibold text-purple-800">{box.shipment_info.name_or_plate}</p>
+                      <p className="text-xs text-purple-600 font-mono">{box.shipment_info.code}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-100 border border-amber-300">
+                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                    <span className="text-amber-800">Bu ürün henüz bir sevkiyata eklenmemiş</span>
+                  </div>
+                )}
+              </div>
+            ) : box.pallet_info ? (
+              // Palette ekli koli
+              <div className="space-y-3">
+                <div 
+                  className="flex items-center gap-3 p-4 rounded-lg bg-cyan-100 border border-cyan-300 cursor-pointer hover:bg-cyan-200 transition-colors"
+                  onClick={() => router.push(`/app/pallets/${box.pallet_info!.code}`)}
+                >
+                  <div className="p-2 rounded-lg bg-cyan-200">
+                    <Layers className="h-5 w-5 text-cyan-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-cyan-600">Palet</p>
+                    <p className="font-semibold text-cyan-800">{box.pallet_info.name}</p>
+                    <p className="text-xs text-cyan-600 font-mono">{box.pallet_info.code}</p>
+                  </div>
+                </div>
+                {box.shipment_info ? (
+                  <div 
+                    className="flex items-center gap-3 p-4 rounded-lg bg-purple-100 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
+                    onClick={() => router.push(`/app/shipments/${box.shipment_info!.code}`)}
+                  >
+                    <div className="p-2 rounded-lg bg-purple-200">
+                      <Truck className="h-5 w-5 text-purple-700" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-purple-600">Sevkiyat</p>
+                      <p className="font-semibold text-purple-800">{box.shipment_info.name_or_plate}</p>
+                      <p className="text-xs text-purple-600 font-mono">{box.shipment_info.code}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-100 border border-slate-300">
+                    <Truck className="h-5 w-5 text-slate-500" />
+                    <span className="text-slate-600">Palet henüz bir sevkiyata eklenmemiş</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Hiçbir yere eklenmemiş koli
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-100 border border-amber-300">
+                <AlertTriangle className="h-6 w-6 text-amber-600" />
+                <div>
+                  <p className="font-semibold text-amber-800">Bu koli henüz herhangi bir palete veya sevkiyata eklenmemiş</p>
+                  <p className="text-sm text-amber-700 mt-1">Lütfen bu koliyi bir palete ekleyin veya direk sevkiyat olarak işaretleyin.</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

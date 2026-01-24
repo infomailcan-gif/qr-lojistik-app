@@ -10,7 +10,9 @@ import {
   User, 
   Building2, 
   ExternalLink,
-  Box
+  Box,
+  Truck,
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -189,6 +191,53 @@ export default function PublicPalletPage({
                     <p className="text-2xl font-bold text-emerald-600">{pallet.boxes.length}</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Shipment Status */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mb-8"
+          >
+            <Card className={`${pallet.shipment_code ? 'border-purple-200 bg-purple-50/70' : 'border-amber-200 bg-amber-50/70'} backdrop-blur-xl shadow-lg`}>
+              <CardHeader className="pb-3">
+                <CardTitle className={`text-xl ${pallet.shipment_code ? 'text-purple-800' : 'text-amber-800'} flex items-center gap-2`}>
+                  {pallet.shipment_code ? (
+                    <Truck className="h-6 w-6" />
+                  ) : (
+                    <AlertTriangle className="h-6 w-6" />
+                  )}
+                  Sevkiyat Durumu
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pallet.shipment_code ? (
+                  <div 
+                    className="flex items-center gap-4 p-4 rounded-xl bg-purple-100 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
+                    onClick={() => router.push(`/q/shipment/${pallet.shipment_code}`)}
+                  >
+                    <div className="p-3 rounded-lg bg-purple-200">
+                      <Truck className="h-6 w-6 text-purple-700" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-purple-600">Sevkiyat Kodu</p>
+                      <p className="font-semibold text-purple-800 font-mono">{pallet.shipment_code}</p>
+                      <p className="text-xs text-purple-600 mt-1">Detay için tıklayın</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-100 border border-amber-300">
+                    <div className="p-3 rounded-lg bg-amber-200">
+                      <AlertTriangle className="h-6 w-6 text-amber-700" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-amber-800">Bu palet henüz bir sevkiyata eklenmemiş</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

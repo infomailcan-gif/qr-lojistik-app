@@ -6,6 +6,7 @@ import type {
   BoxWithDepartment,
   BoxWithLines,
   BoxDetail,
+  BoxWithPalletAndShipment,
   CreateBoxData,
   UpdateBoxData,
   CreateBoxLineData,
@@ -178,6 +179,136 @@ class BoxRepository {
     }
   }
 
+  // Get box with full pallet and shipment info
+  async getByCodeWithPalletAndShipment(code: string): Promise<BoxWithPalletAndShipment | null> {
+    if (!isSupabaseConfigured || !supabase) {
+      const boxDetail = await this.getByCode(code);
+      if (!boxDetail) return null;
+
+      // Get pallet info if box is in a pallet
+      let palletInfo = null;
+      let shipmentInfo = null;
+
+      if (boxDetail.pallet_code) {
+        const PALLET_STORAGE_KEY = "qr_lojistik_pallets";
+        const stored = localStorage.getItem(PALLET_STORAGE_KEY);
+        if (stored) {
+          const pallets = JSON.parse(stored);
+          const pallet = pallets.find((p: any) => p.code === boxDetail.pallet_code);
+          if (pallet) {
+            palletInfo = { code: pallet.code, name: pallet.name };
+            
+            // Check if pallet is in a shipment
+            if (pallet.shipment_code) {
+              const SHIPMENT_STORAGE_KEY = "qr_logistics_shipments";
+              const shipmentStored = localStorage.getItem(SHIPMENT_STORAGE_KEY);
+              if (shipmentStored) {
+                const shipments = JSON.parse(shipmentStored);
+                const shipment = shipments.find((s: any) => s.code === pallet.shipment_code);
+                if (shipment) {
+                  shipmentInfo = { code: shipment.code, name_or_plate: shipment.name_or_plate };
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Check if box is directly in a shipment (for direct shipment items)
+      if ((boxDetail as any).shipment_code) {
+        const SHIPMENT_STORAGE_KEY = "qr_logistics_shipments";
+        const shipmentStored = localStorage.getItem(SHIPMENT_STORAGE_KEY);
+        if (shipmentStored) {
+          const shipments = JSON.parse(shipmentStored);
+          const shipment = shipments.find((s: any) => s.code === (boxDetail as any).shipment_code);
+          if (shipment) {
+            shipmentInfo = { code: shipment.code, name_or_plate: shipment.name_or_plate };
+          }
+        }
+      }
+
+      return {
+        ...boxDetail,
+        is_direct_shipment: (boxDetail as any).is_direct_shipment || false,
+        shipment_code: (boxDetail as any).shipment_code || null,
+        pallet_info: palletInfo,
+        shipment_info: shipmentInfo,
+      };
+    }
+
+    try {
+      // Get box with department and lines
+      const { data: boxData, error: boxError } = await supabase
+        .from("boxes")
+        .select(
+          `
+          *,
+          department:departments(*),
+          lines:box_lines(*)
+        `
+        )
+        .eq("code", code)
+        .single();
+
+      if (boxError) throw boxError;
+
+      let palletInfo = null;
+      let shipmentInfo = null;
+
+      // Get pallet info if box is in a pallet
+      if (boxData.pallet_code) {
+        const { data: palletData } = await supabase
+          .from("pallets")
+          .select("code, name, shipment_code")
+          .eq("code", boxData.pallet_code)
+          .single();
+
+        if (palletData) {
+          palletInfo = { code: palletData.code, name: palletData.name };
+
+          // Get shipment info if pallet is in a shipment
+          if (palletData.shipment_code) {
+            const { data: shipmentData } = await supabase
+              .from("shipments")
+              .select("code, name_or_plate")
+              .eq("code", palletData.shipment_code)
+              .single();
+
+            if (shipmentData) {
+              shipmentInfo = { code: shipmentData.code, name_or_plate: shipmentData.name_or_plate };
+            }
+          }
+        }
+      }
+
+      // Check if box is directly in a shipment
+      if (boxData.shipment_code) {
+        const { data: shipmentData } = await supabase
+          .from("shipments")
+          .select("code, name_or_plate")
+          .eq("code", boxData.shipment_code)
+          .single();
+
+        if (shipmentData) {
+          shipmentInfo = { code: shipmentData.code, name_or_plate: shipmentData.name_or_plate };
+        }
+      }
+
+      return {
+        ...boxData,
+        department: Array.isArray(boxData.department)
+          ? boxData.department[0]
+          : boxData.department,
+        lines: boxData.lines || [],
+        pallet_info: palletInfo,
+        shipment_info: shipmentInfo,
+      };
+    } catch (error) {
+      console.error("Error fetching box with pallet/shipment info:", error);
+      return null;
+    }
+  }
+
   // Create box
   async create(
     data: CreateBoxData,
@@ -202,6 +333,8 @@ class BoxRepository {
         photo_url: null,
         photo_url_2: null,
         needs_reprint: false,
+        is_direct_shipment: (data as any).is_direct_shipment || false,
+        shipment_code: null,
         created_at: now,
         updated_at: now,
       };

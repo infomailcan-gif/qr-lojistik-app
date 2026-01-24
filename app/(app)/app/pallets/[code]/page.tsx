@@ -25,6 +25,8 @@ import {
   Printer,
   Upload,
   Eye,
+  Truck,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +107,7 @@ export default function PalletDetailPage({
   const [showAddBox, setShowAddBox] = useState(false);
   const [addMethod, setAddMethod] = useState<"select" | "code">("select");
   const [selectedBoxId, setSelectedBoxId] = useState("");
+  const [selectedBoxIds, setSelectedBoxIds] = useState<string[]>([]);
   const [boxCodeInput, setBoxCodeInput] = useState("");
   const [addingBox, setAddingBox] = useState(false);
   
@@ -506,20 +509,72 @@ export default function PalletDetailPage({
   };
 
   const handleAddBox = async () => {
-    let boxCode = "";
-
     if (addMethod === "select") {
-      const box = availableBoxes.find((b) => b.id === selectedBoxId);
-      if (!box) {
+      // Multi-select mode
+      if (selectedBoxIds.length === 0) {
         toast({
           title: "Hata",
-          description: "Lütfen bir koli seçin",
+          description: "Lütfen en az bir koli seçin",
           variant: "destructive",
         });
         return;
       }
-      boxCode = box.code;
+
+      setAddingBox(true);
+      try {
+        const session = await auth.getSession();
+        if (!session) {
+          router.push("/login");
+          return;
+        }
+
+        let addedCount = 0;
+        let errorMessages: string[] = [];
+
+        for (const boxId of selectedBoxIds) {
+          const box = availableBoxes.find((b) => b.id === boxId);
+          if (!box) continue;
+
+          try {
+            await boxRepository.setPallet(box.code, params.code);
+            addedCount++;
+          } catch (error) {
+            errorMessages.push(box.code);
+          }
+        }
+
+        if (addedCount > 0) {
+          toast({
+            title: "Koliler eklendi",
+            description: `${addedCount} koli palete eklendi`,
+          });
+        }
+
+        if (errorMessages.length > 0) {
+          toast({
+            title: "Bazı koliler eklenemedi",
+            description: `Eklenemeyen koliler: ${errorMessages.join(', ')}`,
+            variant: "destructive",
+          });
+        }
+
+        // Reload data
+        await loadData();
+        
+        // Reset form
+        setShowAddBox(false);
+        setSelectedBoxIds([]);
+      } catch (error) {
+        toast({
+          title: "Hata",
+          description: "Koliler eklenemedi",
+          variant: "destructive",
+        });
+      } finally {
+        setAddingBox(false);
+      }
     } else {
+      // Code input mode (single box)
       if (!boxCodeInput.trim()) {
         toast({
           title: "Hata",
@@ -528,91 +583,101 @@ export default function PalletDetailPage({
         });
         return;
       }
-      boxCode = boxCodeInput.trim().toUpperCase();
-    }
 
-    setAddingBox(true);
-    try {
-      // Get user session to check department
-      const session = await auth.getSession();
-      if (!session) {
-        router.push("/login");
-        return;
-      }
+      const boxCode = boxCodeInput.trim().toUpperCase();
 
-      // Check if box exists and get its current pallet
-      const boxDetail = await boxRepository.getByCode(boxCode);
-      
-      if (!boxDetail) {
+      setAddingBox(true);
+      try {
+        // Get user session to check department
+        const session = await auth.getSession();
+        if (!session) {
+          router.push("/login");
+          return;
+        }
+
+        // Check if box exists and get its current pallet
+        const boxDetail = await boxRepository.getByCode(boxCode);
+        
+        if (!boxDetail) {
+          toast({
+            title: "Koli bulunamadı",
+            description: `${boxCode} kodlu koli bulunamadı`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if box belongs to user's department
+        if (boxDetail.department.id !== session.user.department_id) {
+          toast({
+            title: "Departman uyuşmazlığı",
+            description: `Bu koli ${boxDetail.department.name} departmanına ait. Sadece kendi departmanınızdaki kolileri ekleyebilirsiniz.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if box was created by the user
+        if (boxDetail.created_by !== session.user.name) {
+          toast({
+            title: "Yetki hatası",
+            description: "Sadece kendi oluşturduğunuz kolileri ekleyebilirsiniz",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (boxDetail.status !== "sealed") {
+          toast({
+            title: "Koli kapalı değil",
+            description: "Sadece kapalı koliler palete eklenebilir",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (boxDetail.pallet_code) {
+          toast({
+            title: "Koli zaten başka palette",
+            description: `Bu koli ${boxDetail.pallet_code} paletine bağlı`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if box is marked as direct shipment
+        if ((boxDetail as any).is_direct_shipment) {
+          toast({
+            title: "Direk Sevkiyat Ürünü",
+            description: "Bu ürün direk sevkiyata yüklenmek üzere işaretlenmiş. Palete eklenemez. Lütfen ürün ayarlarını düzeltin veya doğrudan sevkiyata ekleyin.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Add to pallet
+        await boxRepository.setPallet(boxCode, params.code);
+
         toast({
-          title: "Koli bulunamadı",
-          description: `${boxCode} kodlu koli bulunamadı`,
+          title: "Koli eklendi",
+          description: `${boxCode} palete eklendi`,
+        });
+
+        // Reload data
+        await loadData();
+        
+        // Reset form
+        setShowAddBox(false);
+        setBoxCodeInput("");
+      } catch (error) {
+        toast({
+          title: "Hata",
+          description: "Koli eklenemedi",
           variant: "destructive",
         });
-        return;
+      } finally {
+        setAddingBox(false);
       }
-
-      // Check if box belongs to user's department
-      if (boxDetail.department.id !== session.user.department_id) {
-        toast({
-          title: "Departman uyuşmazlığı",
-          description: `Bu koli ${boxDetail.department.name} departmanına ait. Sadece kendi departmanınızdaki kolileri ekleyebilirsiniz.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check if box was created by the user
-      if (boxDetail.created_by !== session.user.name) {
-        toast({
-          title: "Yetki hatası",
-          description: "Sadece kendi oluşturduğunuz kolileri ekleyebilirsiniz",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (boxDetail.status !== "sealed") {
-        toast({
-          title: "Koli kapalı değil",
-          description: "Sadece kapalı koliler palete eklenebilir",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (boxDetail.pallet_code) {
-        toast({
-          title: "Koli zaten başka palette",
-          description: `Bu koli ${boxDetail.pallet_code} paletine bağlı`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Add to pallet
-      await boxRepository.setPallet(boxCode, params.code);
-
-      toast({
-        title: "Koli eklendi",
-        description: `${boxCode} palete eklendi`,
-      });
-
-      // Reload data
-      await loadData();
-      
-      // Reset form
-      setShowAddBox(false);
-      setSelectedBoxId("");
-      setBoxCodeInput("");
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Koli eklenemedi",
-        variant: "destructive",
-      });
-    } finally {
-      setAddingBox(false);
     }
   };
 
@@ -1023,6 +1088,54 @@ export default function PalletDetailPage({
         </Card>
       </motion.div>
 
+      {/* Shipment Status */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.22 }}
+      >
+        <Card className={`${pallet.shipment_code ? 'border-purple-500/30 bg-gradient-to-br from-purple-900/20 to-purple-800/20' : 'border-amber-500/30 bg-gradient-to-br from-amber-900/20 to-amber-800/20'} backdrop-blur-xl overflow-hidden`}>
+          <CardHeader>
+            <CardTitle className={`${pallet.shipment_code ? 'text-purple-300' : 'text-amber-300'} flex items-center gap-2`}>
+              {pallet.shipment_code ? (
+                <Truck className="h-5 w-5" />
+              ) : (
+                <AlertCircle className="h-5 w-5" />
+              )}
+              Sevkiyat Durumu
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pallet.shipment_code ? (
+              <motion.div 
+                whileHover={{ scale: 1.01 }}
+                className="flex items-center gap-4 p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 cursor-pointer"
+                onClick={() => router.push(`/app/shipments/${pallet.shipment_code}`)}
+              >
+                <div className="p-3 rounded-xl bg-purple-500/20 border border-purple-500/30">
+                  <Truck className="h-6 w-6 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-xs text-purple-400">Sevkiyat Kodu</p>
+                  <p className="font-semibold text-purple-300 font-mono">{pallet.shipment_code}</p>
+                  <p className="text-xs text-purple-400 mt-1">Sevkiyat detayını görüntülemek için tıklayın</p>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500/30">
+                  <AlertCircle className="h-6 w-6 text-amber-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-amber-300">Bu palet henüz bir sevkiyata eklenmemiş</p>
+                  <p className="text-sm text-amber-400 mt-1">Sevkiyat oluşturup bu paleti ekleyebilirsiniz.</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Add Box Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -1081,37 +1194,66 @@ export default function PalletDetailPage({
                   {/* Method: Select from list */}
                   {addMethod === "select" && (
                     <div className="space-y-3">
-                      <Select value={selectedBoxId} onValueChange={setSelectedBoxId}>
-                        <SelectTrigger className="h-12 bg-slate-800/50 border-slate-600">
-                          <SelectValue placeholder="Koli seçin..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-600">
-                          {availableBoxes.length === 0 ? (
-                            <div className="p-4 text-center text-sm text-slate-400">
-                              Palete eklenebilecek koli yok
-                            </div>
-                          ) : (
-                            availableBoxes.map((box) => (
-                              <SelectItem key={box.id} value={box.id}>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs text-cyan-400">
-                                    {box.code}
-                                  </span>
-                                  <span>-</span>
-                                  <span>{box.name}</span>
-                                  <span className="text-xs text-slate-400">
-                                    ({box.department.name})
-                                  </span>
+                      {availableBoxes.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-slate-400 bg-slate-800/30 rounded-lg border border-slate-700">
+                          Palete eklenebilecek koli yok. Tüm kapalı koliler zaten bir palete eklenmiş.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-slate-400">
+                              {selectedBoxIds.length > 0 ? `${selectedBoxIds.length} koli seçildi` : 'Koli seçin'}
+                            </p>
+                            {selectedBoxIds.length > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedBoxIds([])}
+                                className="text-xs text-slate-400 hover:text-slate-200"
+                              >
+                                Seçimi Temizle
+                              </Button>
+                            )}
+                          </div>
+                          <div className="max-h-60 overflow-y-auto space-y-2 pr-2 scrollbar-thin">
+                            {availableBoxes.filter(box => !(box as any).is_direct_shipment).map((box) => (
+                              <div
+                                key={box.id}
+                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                                  selectedBoxIds.includes(box.id)
+                                    ? 'bg-cyan-500/20 border border-cyan-500/50'
+                                    : 'bg-slate-700/50 border border-slate-600 hover:bg-slate-700 hover:border-slate-500'
+                                }`}
+                                onClick={() => {
+                                  if (selectedBoxIds.includes(box.id)) {
+                                    setSelectedBoxIds(selectedBoxIds.filter(id => id !== box.id));
+                                  } else {
+                                    setSelectedBoxIds([...selectedBoxIds, box.id]);
+                                  }
+                                }}
+                              >
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                  selectedBoxIds.includes(box.id)
+                                    ? 'border-cyan-500 bg-cyan-500'
+                                    : 'border-slate-500'
+                                }`}>
+                                  {selectedBoxIds.includes(box.id) && (
+                                    <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
                                 </div>
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      {availableBoxes.length === 0 && (
-                        <p className="text-xs text-slate-400">
-                          Tüm kapalı koliler zaten bir palete eklenmiş.
-                        </p>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-xs text-cyan-400">{box.code}</span>
+                                    <span className="text-slate-300 truncate">{box.name}</span>
+                                  </div>
+                                  <span className="text-xs text-slate-400">{box.department.name}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
@@ -1143,20 +1285,22 @@ export default function PalletDetailPage({
                         onClick={handleAddBox}
                         disabled={
                           addingBox ||
-                          (addMethod === "select" && !selectedBoxId) ||
+                          (addMethod === "select" && selectedBoxIds.length === 0) ||
                           (addMethod === "code" && !boxCodeInput.trim())
                         }
                         className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600"
                       >
                         <Plus className="h-4 w-4 mr-2" />
-                        Ekle
+                        {addMethod === "select" && selectedBoxIds.length > 1 
+                          ? `${selectedBoxIds.length} Koli Ekle` 
+                          : 'Ekle'}
                       </Button>
                     </motion.div>
                     <Button
                       variant="outline"
                       onClick={() => {
                         setShowAddBox(false);
-                        setSelectedBoxId("");
+                        setSelectedBoxIds([]);
                         setBoxCodeInput("");
                       }}
                       className="border-slate-600 hover:bg-slate-700"
