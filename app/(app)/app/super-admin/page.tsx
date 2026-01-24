@@ -131,17 +131,15 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData, visitsData, banSettingsData] = await Promise.all([
-        userRepository.getAll(),
+      const [usersData, deptsData, visitsData] = await Promise.all([
+        auth.getAvailableUsers(),
         departmentRepository.getAll(),
-        activityTracker.getAllRecentPageVisits(200),
-        banSettingsRepository.get()
+        activityTracker.getAllRecentPageVisits(200)
       ]);
       
-      setUsers(usersData);
+      setUsers(usersData as any);
       setDepartments(deptsData);
       setPageVisits(visitsData);
-      setBanSettings(banSettingsData);
     } catch (error) {
       console.error("Error loading data:", error);
       toast({

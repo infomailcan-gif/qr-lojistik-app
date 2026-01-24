@@ -107,10 +107,6 @@ class UserRepository {
           name,
           role,
           department_id,
-          is_banned,
-          ban_reason,
-          banned_at,
-          banned_by,
           departments!users_department_id_fkey(name)
         `
         )
@@ -125,10 +121,7 @@ class UserRepository {
         role: user.role as UserRole,
         department_id: user.department_id,
         department_name: user.departments?.name || "Unknown",
-        is_banned: user.is_banned ?? false,
-        ban_reason: user.ban_reason,
-        banned_at: user.banned_at,
-        banned_by: user.banned_by,
+        is_banned: false,
       }));
     } catch (error) {
       console.error("Error fetching users from Supabase:", error);
@@ -141,7 +134,7 @@ class UserRepository {
   // Get user by username with password (for login)
   async getByUsername(
     username: string
-  ): Promise<(UserWithBan & { department_name: string }) | null> {
+  ): Promise<(MockUser & { department_name: string }) | null> {
     if (!isSupabaseConfigured || !supabase) {
       const users = this.getLocalUsers();
       const user = users.find((u) => u.username === username);
@@ -170,10 +163,6 @@ class UserRepository {
         role: data.role as UserRole,
         department_id: data.department_id,
         department_name: data.departments?.name || "Unknown",
-        is_banned: data.is_banned ?? false,
-        ban_reason: data.ban_reason,
-        banned_at: data.banned_at,
-        banned_by: data.banned_by,
       };
     } catch (error) {
       console.error("Error fetching user from Supabase:", error);

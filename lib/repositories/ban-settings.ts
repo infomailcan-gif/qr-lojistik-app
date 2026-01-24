@@ -19,11 +19,11 @@ export interface BanSettings {
 const DEFAULT_SETTINGS: BanSettings = {
   id: "default",
   is_active: true,
-  ban_message: "Hesabınıza erişim yasaklanmıştır.",
-  ban_subtitle: "Sistem yöneticisi ile iletişime geçiniz.",
+  ban_message: "ERİŞİMİNİZ ENGELLENMİŞTİR",
+  ban_subtitle: "Bu hesap sistem yöneticisi tarafından askıya alınmıştır.",
   redirect_url: null,
   show_redirect_button: false,
-  redirect_button_text: "Ana Sayfaya Git",
+  redirect_button_text: "Geri Don",
   video_url: "https://cdn.pixabay.com/video/2020/05/25/40130-424930923_large.mp4",
 };
 
