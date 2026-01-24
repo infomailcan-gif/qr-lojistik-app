@@ -251,6 +251,16 @@ ALTER TABLE shipments ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE shipments ADD COLUMN IF NOT EXISTS photo_url_2 TEXT;
 
 -- ============================================
+-- 12. EK SÜTUNLAR - Direk Sevkiyat desteği
+-- ============================================
+-- boxes tablosuna is_direct_shipment ve shipment_code ekle
+ALTER TABLE boxes ADD COLUMN IF NOT EXISTS is_direct_shipment BOOLEAN DEFAULT false;
+ALTER TABLE boxes ADD COLUMN IF NOT EXISTS shipment_code TEXT;
+
+-- Index for shipment_code
+CREATE INDEX IF NOT EXISTS idx_boxes_shipment ON boxes(shipment_code);
+
+-- ============================================
 -- BAŞARILI! 🎉
 -- ============================================
 -- Veritabanı hazır. Şimdi Storage bucket'ı oluşturun.
