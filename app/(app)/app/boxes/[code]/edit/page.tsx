@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Pencil, CheckCircle, Truck, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Pencil, CheckCircle, Truck, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,8 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
   
   // Deleted lines (to track for saving)
   const [deletedLineIds, setDeletedLineIds] = useState<string[]>([]);
+  // Edited lines (to track for saving)
+  const [editedLineIds, setEditedLineIds] = useState<string[]>([]);
   
   // Errors
   const [errors, setErrors] = useState<{
@@ -64,6 +66,59 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
   const [editProductName, setEditProductName] = useState("");
   const [editQty, setEditQty] = useState("");
   const [editKind, setEditKind] = useState("");
+  
+  // Resim sıkıştırma state'i
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
+
+  // Resim sıkıştırma fonksiyonu
+  const compressImage = useCallback((file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.85): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = document.createElement("img");
+        img.onload = () => {
+          let { width, height } = img;
+          
+          // Eğer boyutlar zaten küçükse ve dosya boyutu da küçükse, sıkıştırma yapma
+          if (width <= maxWidth && height <= maxHeight && file.size < 500 * 1024) {
+            resolve(event.target?.result as string);
+            return;
+          }
+          
+          // En-boy oranını koruyarak boyutlandır
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+          
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas context oluşturulamadı"));
+            return;
+          }
+          
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+          resolve(compressedDataUrl);
+        };
+        img.onerror = () => reject(new Error("Resim yüklenemedi"));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Dosya okunamadı"));
+      reader.readAsDataURL(file);
+    });
+  }, []);
 
   useEffect(() => {
     // params.code değiştiğinde ref'i güncelle
@@ -206,17 +261,24 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       return;
     }
 
+    const editingLine = lines.find(l => l.tempId === editingLineId);
+    
     setLines(lines.map((line) => 
       line.tempId === editingLineId 
         ? { ...line, product_name: editProductName.trim(), qty: qtyNum, kind: editKind.trim() }
         : line
     ));
     
+    // Eğer bu satır veritabanındaki bir satır ise, editedLineIds'e ekle
+    if (editingLine?.existingId && !editedLineIds.includes(editingLine.existingId)) {
+      setEditedLineIds([...editedLineIds, editingLine.existingId]);
+    }
+    
     toast({ title: "Ürün güncellendi" });
     cancelEditLine();
   };
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -238,12 +300,29 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPhotoDataUrl(event.target?.result as string);
+    setIsCompressingPhoto(true);
+    try {
+      const compressedDataUrl = await compressImage(file);
+      setPhotoDataUrl(compressedDataUrl);
       setErrors((prev) => ({ ...prev, photo: undefined }));
-    };
-    reader.readAsDataURL(file);
+      
+      const originalSize = (file.size / 1024).toFixed(0);
+      const compressedSize = (compressedDataUrl.length * 0.75 / 1024).toFixed(0);
+      if (parseInt(originalSize) > parseInt(compressedSize) + 50) {
+        toast({
+          title: "Resim optimize edildi",
+          description: `${originalSize}KB → ${compressedSize}KB`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Resim işlenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompressingPhoto(false);
+    }
   };
 
   const removePhoto = () => {
@@ -253,7 +332,7 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
     }
   };
 
-  const handlePhoto2Select = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoto2Select = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -275,11 +354,28 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPhotoDataUrl2(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    setIsCompressingPhoto(true);
+    try {
+      const compressedDataUrl = await compressImage(file);
+      setPhotoDataUrl2(compressedDataUrl);
+      
+      const originalSize = (file.size / 1024).toFixed(0);
+      const compressedSize = (compressedDataUrl.length * 0.75 / 1024).toFixed(0);
+      if (parseInt(originalSize) > parseInt(compressedSize) + 50) {
+        toast({
+          title: "Resim optimize edildi",
+          description: `${originalSize}KB → ${compressedSize}KB`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Resim işlenirken bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompressingPhoto(false);
+    }
   };
 
   const removePhoto2 = () => {
@@ -390,6 +486,18 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
             currentBoxCode,
             box.name
           );
+        }
+      }
+      
+      // Update edited existing lines
+      for (const lineId of editedLineIds) {
+        const line = lines.find(l => l.existingId === lineId);
+        if (line) {
+          await boxRepository.updateLine(lineId, {
+            product_name: line.product_name,
+            qty: line.qty,
+            kind: line.kind,
+          });
         }
       }
       
@@ -518,6 +626,18 @@ export default function EditBoxPage({ params }: { params: { code: string } }) {
       // Delete removed lines
       for (const lineId of deletedLineIds) {
         await boxRepository.deleteLine(lineId);
+      }
+      
+      // Update edited existing lines
+      for (const lineId of editedLineIds) {
+        const line = lines.find(l => l.existingId === lineId);
+        if (line) {
+          await boxRepository.updateLine(lineId, {
+            product_name: line.product_name,
+            qty: line.qty,
+            kind: line.kind,
+          });
+        }
       }
       
       // Add new lines (those without existingId)

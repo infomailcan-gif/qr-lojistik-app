@@ -351,7 +351,7 @@ export default function PalletDetailPage({
       if (photoIndex === 1) {
         await palletRepository.update(pallet.code, { photo_url: photoUrl });
       } else {
-        await palletRepository.update(pallet.code, { photo_url_2: photoUrl } as any);
+        await palletRepository.update(pallet.code, { photo_url_2: photoUrl });
       }
       
       toast({
@@ -362,10 +362,11 @@ export default function PalletDetailPage({
       setPhotoDialogOpen(false);
       setPhotoPreview(null);
       await loadData();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Photo upload error:", error);
       toast({
         title: "Hata",
-        description: "Fotoğraf yüklenirken bir hata oluştu",
+        description: error?.message || "Fotoğraf yüklenirken bir hata oluştu",
         variant: "destructive",
       });
     } finally {
@@ -382,7 +383,7 @@ export default function PalletDetailPage({
       if (index === 1) {
         await palletRepository.update(pallet.code, { photo_url: null });
       } else {
-        await palletRepository.update(pallet.code, { photo_url_2: null } as any);
+        await palletRepository.update(pallet.code, { photo_url_2: null });
       }
       
       toast({
@@ -436,6 +437,7 @@ export default function PalletDetailPage({
     img.onload = () => {
       const qrSize = 600;
       const textHeight = 80;
+      const maxWidth = qrSize - 40; // 20px padding on each side
       
       canvas.width = qrSize;
       canvas.height = qrSize + textHeight;
@@ -447,13 +449,29 @@ export default function PalletDetailPage({
       // Draw QR code
       ctx.drawImage(img, 0, 0, qrSize, qrSize);
       
-      // Draw name below QR
+      // Draw name below QR - with auto font sizing
       ctx.fillStyle = "#0891b2";
-      ctx.font = "bold 32px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       
-      const palletName = pallet.name;
+      let palletName = pallet.name;
+      let fontSize = 32;
+      
+      // Find the right font size
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      while (ctx.measureText(palletName).width > maxWidth && fontSize > 14) {
+        fontSize -= 2;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      }
+      
+      // If still too long, truncate
+      if (ctx.measureText(palletName).width > maxWidth) {
+        while (ctx.measureText(palletName + "...").width > maxWidth && palletName.length > 0) {
+          palletName = palletName.slice(0, -1);
+        }
+        palletName += "...";
+      }
+      
       ctx.fillText(palletName, qrSize / 2, qrSize + textHeight / 2);
       
       // Download
@@ -484,6 +502,7 @@ export default function PalletDetailPage({
     img.onload = () => {
       const qrSize = 600;
       const textHeight = 80;
+      const maxWidth = qrSize - 40;
       
       canvas.width = qrSize;
       canvas.height = qrSize + textHeight;
@@ -495,13 +514,29 @@ export default function PalletDetailPage({
       // Draw QR code
       ctx.drawImage(img, 0, 0, qrSize, qrSize);
       
-      // Draw name below QR
+      // Draw name below QR - with auto font sizing
       ctx.fillStyle = "#0891b2";
-      ctx.font = "bold 32px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       
-      const palletName = pallet.name;
+      let palletName = pallet.name;
+      let fontSize = 32;
+      
+      // Find the right font size
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      while (ctx.measureText(palletName).width > maxWidth && fontSize > 14) {
+        fontSize -= 2;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      }
+      
+      // If still too long, truncate
+      if (ctx.measureText(palletName).width > maxWidth) {
+        while (ctx.measureText(palletName + "...").width > maxWidth && palletName.length > 0) {
+          palletName = palletName.slice(0, -1);
+        }
+        palletName += "...";
+      }
+      
       ctx.fillText(palletName, qrSize / 2, qrSize + textHeight / 2);
       
       // Open print window

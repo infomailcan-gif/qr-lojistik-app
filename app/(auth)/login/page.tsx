@@ -163,13 +163,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await auth.login(username, password);
-      
-      // Check if user is banned
-      if (result.is_banned) {
-        router.push("/banned");
-        return;
-      }
+      await auth.login(username, password);
       
       toast({
         title: "Başarılı",

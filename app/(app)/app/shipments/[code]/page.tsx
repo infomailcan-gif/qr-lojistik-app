@@ -192,6 +192,7 @@ export default function ShipmentDetailPage({
     img.onload = () => {
       const qrSize = 600;
       const textHeight = 80;
+      const maxWidth = qrSize - 40;
       
       canvas.width = qrSize;
       canvas.height = qrSize + textHeight;
@@ -203,13 +204,29 @@ export default function ShipmentDetailPage({
       // Draw QR code
       ctx.drawImage(img, 0, 0, qrSize, qrSize);
       
-      // Draw name below QR
+      // Draw name below QR - with auto font sizing
       ctx.fillStyle = "#9333ea";
-      ctx.font = "bold 32px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       
-      const shipmentName = shipment.name_or_plate;
+      let shipmentName = shipment.name_or_plate;
+      let fontSize = 32;
+      
+      // Find the right font size
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      while (ctx.measureText(shipmentName).width > maxWidth && fontSize > 14) {
+        fontSize -= 2;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      }
+      
+      // If still too long, truncate
+      if (ctx.measureText(shipmentName).width > maxWidth) {
+        while (ctx.measureText(shipmentName + "...").width > maxWidth && shipmentName.length > 0) {
+          shipmentName = shipmentName.slice(0, -1);
+        }
+        shipmentName += "...";
+      }
+      
       ctx.fillText(shipmentName, qrSize / 2, qrSize + textHeight / 2);
       
       // Download
@@ -240,6 +257,7 @@ export default function ShipmentDetailPage({
     img.onload = () => {
       const qrSize = 600;
       const textHeight = 80;
+      const maxWidth = qrSize - 40;
       
       canvas.width = qrSize;
       canvas.height = qrSize + textHeight;
@@ -251,13 +269,29 @@ export default function ShipmentDetailPage({
       // Draw QR code
       ctx.drawImage(img, 0, 0, qrSize, qrSize);
       
-      // Draw name below QR
+      // Draw name below QR - with auto font sizing
       ctx.fillStyle = "#9333ea";
-      ctx.font = "bold 32px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       
-      const shipmentName = shipment.name_or_plate;
+      let shipmentName = shipment.name_or_plate;
+      let fontSize = 32;
+      
+      // Find the right font size
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      while (ctx.measureText(shipmentName).width > maxWidth && fontSize > 14) {
+        fontSize -= 2;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      }
+      
+      // If still too long, truncate
+      if (ctx.measureText(shipmentName).width > maxWidth) {
+        while (ctx.measureText(shipmentName + "...").width > maxWidth && shipmentName.length > 0) {
+          shipmentName = shipmentName.slice(0, -1);
+        }
+        shipmentName += "...";
+      }
+      
       ctx.fillText(shipmentName, qrSize / 2, qrSize + textHeight / 2);
       
       // Open print window

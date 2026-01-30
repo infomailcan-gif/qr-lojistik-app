@@ -518,6 +518,45 @@ class BoxRepository {
     }
   }
 
+  // Update line in box
+  async updateLine(lineId: string, lineData: Partial<CreateBoxLineData>): Promise<BoxLine> {
+    if (!isSupabaseConfigured || !supabase) {
+      const lines = this.getLocalBoxLines();
+      const index = lines.findIndex((l) => l.id === lineId);
+
+      if (index === -1) {
+        throw new Error("Ürün bulunamadı");
+      }
+
+      lines[index] = {
+        ...lines[index],
+        ...lineData,
+      };
+
+      this.saveLocalBoxLines(lines);
+      return lines[index];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("box_lines")
+        .update({
+          product_name: lineData.product_name,
+          qty: lineData.qty,
+          kind: lineData.kind,
+        })
+        .eq("id", lineId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("Error updating line in Supabase:", error);
+      throw new Error("Ürün güncellenemedi: " + error.message);
+    }
+  }
+
   // Seal box (change status to sealed)
   async seal(code: string): Promise<Box> {
     return this.update(code, { status: "sealed" });

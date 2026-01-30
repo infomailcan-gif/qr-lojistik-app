@@ -84,6 +84,8 @@ export default function ManagerDashboard() {
   
   // PDF loading states
   const [pdfLoading, setPdfLoading] = useState<"boxes" | "pallets" | "shipments" | null>(null);
+  const [pdfProgress, setPdfProgress] = useState<number>(0);
+  const [pdfProgressTotal, setPdfProgressTotal] = useState<number>(0);
   
   // PDF Department Selection Modal
   const [pdfDeptModalOpen, setPdfDeptModalOpen] = useState(false);
@@ -435,21 +437,24 @@ export default function ManagerDashboard() {
   const generateBoxesPDF = async (deptId: string | null = null) => {
     setPdfLoading("boxes");
     setPdfDeptModalOpen(false);
+    setPdfProgress(0);
     try {
       const filteredBoxes = getFilteredBoxesForPdf(deptId);
       const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
+      setPdfProgressTotal(filteredBoxes.length);
       
       // Her koli için detaylı bilgi çek (cins ve adet için)
-      const boxesWithDetails = await Promise.all(
-        filteredBoxes.map(async (box) => {
-          try {
-            const detail = await boxRepository.getByCode(box.code);
-            return { ...box, lines: detail?.lines || [] };
-          } catch {
-            return { ...box, lines: [] };
-          }
-        })
-      );
+      const boxesWithDetails: any[] = [];
+      for (let i = 0; i < filteredBoxes.length; i++) {
+        const box = filteredBoxes[i];
+        try {
+          const detail = await boxRepository.getByCode(box.code);
+          boxesWithDetails.push({ ...box, lines: detail?.lines || [] });
+        } catch {
+          boxesWithDetails.push({ ...box, lines: [] });
+        }
+        setPdfProgress(i + 1);
+      }
       
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -612,9 +617,11 @@ export default function ManagerDashboard() {
   const generatePalletsPDF = async (deptId: string | null = null) => {
     setPdfLoading("pallets");
     setPdfDeptModalOpen(false);
+    setPdfProgress(0);
     try {
       const filteredPallets = getFilteredPalletsForPdf(deptId);
       const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
+      setPdfProgressTotal(filteredPallets.length);
       
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -657,6 +664,7 @@ export default function ManagerDashboard() {
       // Table rows with images
       for (let i = 0; i < filteredPallets.length; i++) {
         const pallet = filteredPallets[i];
+        setPdfProgress(i + 1);
         
         if (yPosition > pageHeight - 15) {
           doc.setFontSize(6);
@@ -737,9 +745,11 @@ export default function ManagerDashboard() {
   const generateShipmentsPDF = async (deptId: string | null = null) => {
     setPdfLoading("shipments");
     setPdfDeptModalOpen(false);
+    setPdfProgress(0);
     try {
       const filteredShipments = getFilteredShipmentsForPdf(deptId);
       const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
+      setPdfProgressTotal(filteredShipments.length);
       
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -784,6 +794,7 @@ export default function ManagerDashboard() {
       // Table rows with images
       for (let i = 0; i < filteredShipments.length; i++) {
         const shipment = filteredShipments[i];
+        setPdfProgress(i + 1);
         
         if (yPosition > pageHeight - 15) {
           doc.setFontSize(6);
@@ -2046,6 +2057,51 @@ export default function ManagerDashboard() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF Progress Modal */}
+      <Dialog open={pdfLoading !== null} onOpenChange={() => {}}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg bg-gradient-to-br ${
+                pdfLoading === "boxes" 
+                  ? "from-blue-500 to-indigo-600" 
+                  : pdfLoading === "pallets" 
+                    ? "from-cyan-500 to-teal-600" 
+                    : "from-violet-500 to-purple-600"
+              }`}>
+                <FileText className="h-5 w-5 text-white" />
+              </div>
+              PDF Oluşturuluyor
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6">
+            <div className="mb-3 flex items-center justify-between text-sm">
+              <span className="text-slate-600">İşleniyor...</span>
+              <span className="font-semibold text-slate-800">
+                {pdfProgress} / {pdfProgressTotal}
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
+              <motion.div
+                className={`h-full rounded-full ${
+                  pdfLoading === "boxes" 
+                    ? "bg-gradient-to-r from-blue-500 to-indigo-600" 
+                    : pdfLoading === "pallets" 
+                      ? "bg-gradient-to-r from-cyan-500 to-teal-600" 
+                      : "bg-gradient-to-r from-violet-500 to-purple-600"
+                }`}
+                initial={{ width: 0 }}
+                animate={{ width: pdfProgressTotal > 0 ? `${(pdfProgress / pdfProgressTotal) * 100}%` : "0%" }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+            <p className="mt-3 text-xs text-slate-500 text-center">
+              {pdfProgressTotal > 0 && Math.round((pdfProgress / pdfProgressTotal) * 100)}% tamamlandı
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
 

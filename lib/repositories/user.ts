@@ -4,12 +4,7 @@ import type { MockUser, UserRole } from "@/lib/auth";
 
 const USERS_STORAGE_KEY = "qr_lojistik_users";
 
-export interface UserWithBan extends MockUser {
-  is_banned?: boolean;
-  ban_reason?: string;
-  banned_at?: string;
-  banned_by?: string;
-}
+export type UserWithBan = MockUser;
 
 // Default users - aynı supabase-setup.sql'deki gibi
 const DEFAULT_USERS: UserWithBan[] = [
@@ -21,7 +16,6 @@ const DEFAULT_USERS: UserWithBan[] = [
     role: "super_admin",
     department_id: "d3333333-3333-3333-3333-333333333333",
     department_name: "IT",
-    is_banned: false,
   },
   {
     id: "u2222222-2222-2222-2222-222222222222",
@@ -31,7 +25,6 @@ const DEFAULT_USERS: UserWithBan[] = [
     role: "manager",
     department_id: "d4444444-4444-4444-4444-444444444444",
     department_name: "Depo",
-    is_banned: false,
   },
   {
     id: "u3333333-3333-3333-3333-333333333333",
@@ -41,7 +34,6 @@ const DEFAULT_USERS: UserWithBan[] = [
     role: "user",
     department_id: "d4444444-4444-4444-4444-444444444444",
     department_name: "Depo",
-    is_banned: false,
   },
   {
     id: "u4444444-4444-4444-4444-444444444444",
@@ -51,7 +43,6 @@ const DEFAULT_USERS: UserWithBan[] = [
     role: "user",
     department_id: "d1111111-1111-1111-1111-111111111111",
     department_name: "Restoran",
-    is_banned: false,
   },
 ];
 
@@ -121,7 +112,6 @@ class UserRepository {
         role: user.role as UserRole,
         department_id: user.department_id,
         department_name: user.departments?.name || "Unknown",
-        is_banned: false,
       }));
     } catch (error) {
       console.error("Error fetching users from Supabase:", error);
@@ -344,141 +334,6 @@ class UserRepository {
   resetToDefault(): void {
     this.saveLocalUsers(DEFAULT_USERS);
     console.log("Users reset to default");
-  }
-
-  // Ban a user
-  async banUser(userId: string, reason: string, bannedBy: string): Promise<void> {
-    if (!userId) {
-      throw new Error("Kullanıcı ID gerekli");
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      const users = this.getLocalUsers();
-      const index = users.findIndex((u) => u.id === userId);
-
-      if (index === -1) {
-        throw new Error("Kullanıcı bulunamadı");
-      }
-
-      // Don't allow banning super_admin
-      if (users[index].role === "super_admin") {
-        throw new Error("Süper admin kullanıcıları yasaklanamaz");
-      }
-
-      users[index] = {
-        ...users[index],
-        is_banned: true,
-        ban_reason: reason,
-        banned_at: new Date().toISOString(),
-        banned_by: bannedBy,
-      };
-      this.saveLocalUsers(users);
-      console.log("User banned locally:", users[index].username);
-      return;
-    }
-
-    try {
-      // First check if user is super_admin
-      const { data: user } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", userId)
-        .single();
-
-      if (user?.role === "super_admin") {
-        throw new Error("Süper admin kullanıcıları yasaklanamaz");
-      }
-
-      const { error } = await supabase
-        .from("users")
-        .update({
-          is_banned: true,
-          ban_reason: reason,
-          banned_at: new Date().toISOString(),
-          banned_by: bannedBy,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
-
-      if (error) throw error;
-    } catch (error: any) {
-      console.error("Error banning user in Supabase:", error);
-      throw new Error(error.message || "Kullanıcı yasaklanamadı");
-    }
-  }
-
-  // Unban a user
-  async unbanUser(userId: string): Promise<void> {
-    if (!userId) {
-      throw new Error("Kullanıcı ID gerekli");
-    }
-
-    if (!isSupabaseConfigured || !supabase) {
-      const users = this.getLocalUsers();
-      const index = users.findIndex((u) => u.id === userId);
-
-      if (index === -1) {
-        throw new Error("Kullanıcı bulunamadı");
-      }
-
-      users[index] = {
-        ...users[index],
-        is_banned: false,
-        ban_reason: undefined,
-        banned_at: undefined,
-        banned_by: undefined,
-      };
-      this.saveLocalUsers(users);
-      console.log("User unbanned locally:", users[index].username);
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("users")
-        .update({
-          is_banned: false,
-          ban_reason: null,
-          banned_at: null,
-          banned_by: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
-
-      if (error) throw error;
-    } catch (error: any) {
-      console.error("Error unbanning user in Supabase:", error);
-      throw new Error("Kullanıcı yasağı kaldırılamadı: " + error.message);
-    }
-  }
-
-  // Get banned users only
-  async getBannedUsers(): Promise<Omit<UserWithBan, "password">[]> {
-    const allUsers = await this.getAll();
-    return allUsers.filter((u) => u.is_banned);
-  }
-
-  // Check if user is banned by ID
-  async isUserBanned(userId: string): Promise<boolean> {
-    if (!isSupabaseConfigured || !supabase) {
-      const users = this.getLocalUsers();
-      const user = users.find((u) => u.id === userId);
-      return user?.is_banned ?? false;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("is_banned")
-        .eq("id", userId)
-        .single();
-
-      if (error) throw error;
-      return data?.is_banned ?? false;
-    } catch (error) {
-      console.error("Error checking ban status:", error);
-      return false;
-    }
   }
 }
 
