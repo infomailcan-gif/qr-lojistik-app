@@ -2060,50 +2060,59 @@ export default function ManagerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* PDF Progress Modal */}
-      <Dialog open={pdfLoading !== null} onOpenChange={() => {}}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                pdfLoading === "boxes" 
-                  ? "from-blue-500 to-indigo-600" 
-                  : pdfLoading === "pallets" 
-                    ? "from-cyan-500 to-teal-600" 
-                    : "from-violet-500 to-purple-600"
-              }`}>
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-              PDF Oluşturuluyor
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-6">
-            <div className="mb-3 flex items-center justify-between text-sm">
-              <span className="text-slate-600">İşleniyor...</span>
-              <span className="font-semibold text-slate-800">
-                {pdfProgress} / {pdfProgressTotal}
-              </span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
-              <motion.div
-                className={`h-full rounded-full ${
+      {/* PDF Progress Bar - Fixed at bottom, non-blocking */}
+      <AnimatePresence>
+        {pdfLoading !== null && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-4 right-4 z-50 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden"
+          >
+            <div className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg bg-gradient-to-br ${
                   pdfLoading === "boxes" 
-                    ? "bg-gradient-to-r from-blue-500 to-indigo-600" 
+                    ? "from-blue-500 to-indigo-600" 
                     : pdfLoading === "pallets" 
-                      ? "bg-gradient-to-r from-cyan-500 to-teal-600" 
-                      : "bg-gradient-to-r from-violet-500 to-purple-600"
-                }`}
-                initial={{ width: 0 }}
-                animate={{ width: pdfProgressTotal > 0 ? `${(pdfProgress / pdfProgressTotal) * 100}%` : "0%" }}
-                transition={{ duration: 0.3 }}
-              />
+                      ? "from-cyan-500 to-teal-600" 
+                      : "from-violet-500 to-purple-600"
+                }`}>
+                  <FileText className="h-4 w-4 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm text-slate-800">
+                    {pdfLoading === "boxes" ? "Koliler" : pdfLoading === "pallets" ? "Paletler" : "Sevkiyatlar"} PDF
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {pdfProgress} / {pdfProgressTotal} işleniyor
+                  </p>
+                </div>
+                <span className="text-sm font-bold text-slate-700">
+                  {pdfProgressTotal > 0 ? Math.round((pdfProgress / pdfProgressTotal) * 100) : 0}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <motion.div
+                  className={`h-full rounded-full ${
+                    pdfLoading === "boxes" 
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-600" 
+                      : pdfLoading === "pallets" 
+                        ? "bg-gradient-to-r from-cyan-500 to-teal-600" 
+                        : "bg-gradient-to-r from-violet-500 to-purple-600"
+                  }`}
+                  initial={{ width: 0 }}
+                  animate={{ width: pdfProgressTotal > 0 ? `${(pdfProgress / pdfProgressTotal) * 100}%` : "0%" }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-slate-400 text-center">
+                Sayfada gezinmeye devam edebilirsiniz
+              </p>
             </div>
-            <p className="mt-3 text-xs text-slate-500 text-center">
-              {pdfProgressTotal > 0 && Math.round((pdfProgress / pdfProgressTotal) * 100)}% tamamlandı
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* PDF Department Selection Modal */}
       <Dialog open={pdfDeptModalOpen} onOpenChange={setPdfDeptModalOpen}>

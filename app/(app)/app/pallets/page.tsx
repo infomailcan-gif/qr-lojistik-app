@@ -43,6 +43,7 @@ export default function PalletsPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -423,6 +424,34 @@ export default function PalletsPage() {
             </DialogDescription>
           </DialogHeader>
           
+          {/* Fotoğraflar */}
+          {(selectedPallet?.photo_url || selectedPallet?.photo_url_2) && (
+            <div className="flex gap-3 py-2">
+              {selectedPallet?.photo_url && (
+                <div 
+                  className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-slate-200 cursor-pointer hover:border-cyan-400 transition-colors"
+                  onClick={() => setFullscreenPhoto(selectedPallet.photo_url)}
+                >
+                  <img src={selectedPallet.photo_url} alt="Fotoğraf 1" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <Eye className="h-5 w-5 text-white opacity-0 hover:opacity-100 drop-shadow-lg" />
+                  </div>
+                </div>
+              )}
+              {selectedPallet?.photo_url_2 && (
+                <div 
+                  className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-slate-200 cursor-pointer hover:border-cyan-400 transition-colors"
+                  onClick={() => setFullscreenPhoto(selectedPallet.photo_url_2)}
+                >
+                  <img src={selectedPallet.photo_url_2} alt="Fotoğraf 2" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <Eye className="h-5 w-5 text-white opacity-0 hover:opacity-100 drop-shadow-lg" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="flex flex-col gap-3 py-4">
             <Button
               onClick={handleView}
@@ -503,6 +532,36 @@ export default function PalletsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Fullscreen Photo Modal */}
+      <AnimatePresence>
+        {fullscreenPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setFullscreenPhoto(null)}
+          >
+            <motion.img
+              src={fullscreenPhoto}
+              alt="Fullscreen"
+              className="max-w-full max-h-full object-contain rounded-lg"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+            />
+            <button
+              className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+              onClick={() => setFullscreenPhoto(null)}
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
