@@ -24,6 +24,8 @@ import {
   Printer,
   Upload,
   Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +51,7 @@ import type { BoxWithDepartment } from "@/lib/types/box";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 import Image from "next/image";
+import { PhotoCarousel } from "@/components/ui/photo-carousel";
 
 export default function ShipmentDetailPage({
   params,
@@ -89,6 +92,21 @@ export default function ShipmentDetailPage({
   const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   const dragCounterPhoto = useRef(0);
+  
+  // Expanded pallets state - hangi paletler açık
+  const [expandedPallets, setExpandedPallets] = useState<Set<string>>(new Set());
+  
+  const togglePalletExpand = (palletCode: string) => {
+    setExpandedPallets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(palletCode)) {
+        newSet.delete(palletCode);
+      } else {
+        newSet.add(palletCode);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     loadShipment();
@@ -1028,75 +1046,83 @@ export default function ShipmentDetailPage({
                 <Camera className="w-5 h-5 text-purple-500" />
                 Sevkiyat Fotoğrafları (maksimum 2)
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              {/* Mevcut fotoğraflar varsa carousel ile göster */}
+              {(shipment.photo_url || (shipment as any).photo_url_2) && (
+                <div className="mb-4">
+                  <PhotoCarousel
+                    photos={[shipment.photo_url, (shipment as any).photo_url_2]}
+                    onPhotoClick={(url) => setFullscreenPhoto(url)}
+                    size="lg"
+                  />
+                </div>
+              )}
+              
+              {/* Fotoğraf ekleme/silme butonları */}
+              <div className="grid grid-cols-2 gap-3">
                 {/* Fotoğraf 1 */}
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">Fotoğraf 1</p>
                   {shipment.photo_url ? (
-                    <div className="relative rounded-xl overflow-hidden border border-border group cursor-pointer">
-                      <img
-                        src={shipment.photo_url}
-                        alt="Sevkiyat fotoğrafı 1"
-                        className="w-full h-40 object-contain bg-accent"
-                        onClick={() => setFullscreenPhoto(shipment.photo_url)}
-                      />
-                      <div 
-                        className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none"
-                      >
-                        <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleRemovePhoto(1); }}
-                        className="absolute top-2 right-2 p-2 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors z-10"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <Button
+                      onClick={() => handleRemovePhoto(1)}
+                      variant="outline"
+                      className="w-full h-12 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Fotoğraf 1 Sil
+                    </Button>
                   ) : (
                     <Button
                       onClick={() => openPhotoDialog(1)}
-                      className="w-full h-40 bg-purple-500/10 hover:bg-purple-500/20 border-2 border-dashed border-purple-500/50 text-purple-600"
-                      variant="ghost"
+                      variant="outline"
+                      className="w-full h-12 border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300"
                     >
-                      <div className="flex flex-col items-center gap-1">
-                        <Camera className="h-6 w-6" />
-                        <span className="text-sm">Fotoğraf 1 Ekle</span>
-                      </div>
+                      <Camera className="h-4 w-4 mr-2" />
+                      Fotoğraf 1 Ekle
                     </Button>
                   )}
                 </div>
-
+                
                 {/* Fotoğraf 2 */}
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">Fotoğraf 2 (opsiyonel)</p>
                   {(shipment as any).photo_url_2 ? (
-                    <div className="relative rounded-xl overflow-hidden border border-border">
-                      <img
-                        src={(shipment as any).photo_url_2}
-                        alt="Sevkiyat fotoğrafı 2"
-                        className="w-full h-40 object-contain bg-accent"
-                      />
-                      <button
-                        onClick={() => handleRemovePhoto(2)}
-                        className="absolute top-2 right-2 p-2 rounded-full bg-destructive/80 hover:bg-destructive text-white transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <Button
+                      onClick={() => handleRemovePhoto(2)}
+                      variant="outline"
+                      className="w-full h-12 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Fotoğraf 2 Sil
+                    </Button>
                   ) : (
                     <Button
                       onClick={() => openPhotoDialog(2)}
-                      className="w-full h-40 bg-purple-500/10 hover:bg-purple-500/20 border-2 border-dashed border-purple-500/50 text-purple-600"
-                      variant="ghost"
+                      variant="outline"
+                      className="w-full h-12 border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300"
                     >
-                      <div className="flex flex-col items-center gap-1">
-                        <Camera className="h-6 w-6" />
-                        <span className="text-sm">Fotoğraf 2 Ekle</span>
-                      </div>
+                      <Camera className="h-4 w-4 mr-2" />
+                      Fotoğraf 2 Ekle
                     </Button>
                   )}
                 </div>
               </div>
+              
+              {/* Hiç fotoğraf yoksa büyük ekleme alanı göster */}
+              {!shipment.photo_url && !(shipment as any).photo_url_2 && (
+                <div className="mt-4">
+                  <Button
+                    onClick={() => openPhotoDialog(1)}
+                    className="w-full h-32 bg-purple-500/10 hover:bg-purple-500/20 border-2 border-dashed border-purple-500/50 text-purple-600"
+                    variant="ghost"
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <Camera className="h-8 w-8" />
+                      <span>Sevkiyat Fotoğrafı Ekle</span>
+                      <span className="text-xs text-muted-foreground">Maksimum 2 fotoğraf</span>
+                    </div>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -1207,70 +1233,133 @@ export default function ShipmentDetailPage({
                   Sevkiyattaki Paletler ({shipment.pallets.length})
                 </h2>
                 <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                  {shipment.pallets.map((pallet) => (
-                    <motion.div
-                      key={pallet.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="bg-accent/50 rounded-lg p-4 border border-border hover:border-purple-500/50 transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => router.push(`/app/pallets/${pallet.code}`)}
-                        >
-                          <h3 className="font-semibold hover:text-purple-500 transition-colors">
-                            {pallet.name}
-                          </h3>
-                          <p className="text-sm text-muted-foreground font-mono">{pallet.code}</p>
-                          <Badge variant="outline" className="mt-2 text-xs">
-                            <Box className="w-3 h-3 mr-1" />
-                            {pallet.box_count} koli
-                          </Badge>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemovePallet(pallet.code)}
-                          className="hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      {pallet.boxes.length > 0 && (
-                        <div className="space-y-2 mt-3 pt-3 border-t border-border">
-                          {pallet.boxes.map((box) => (
-                            <div
-                              key={box.id}
-                              className="flex items-center gap-3 p-3 rounded-lg bg-background/50 cursor-pointer hover:bg-background transition-colors"
-                              onClick={() => router.push(`/app/boxes/${box.code}`)}
-                            >
-                              {/* Box Photo */}
-                              {box.photo_url ? (
-                                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-border">
-                                  <img 
-                                    src={box.photo_url} 
-                                    alt={box.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-12 h-12 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
-                                  <Box className="w-5 h-5 text-muted-foreground" />
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{box.name}</p>
-                                <p className="text-xs text-muted-foreground font-mono">{box.code}</p>
+                  {shipment.pallets.map((pallet) => {
+                    const isExpanded = expandedPallets.has(pallet.code);
+                    return (
+                      <motion.div
+                        key={pallet.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-accent/50 rounded-lg border border-border hover:border-purple-500/50 transition-all overflow-hidden"
+                      >
+                        {/* Palet Header - Her zaman görünür */}
+                        <div className="p-4">
+                          <div className="flex items-center gap-3">
+                            {/* Palet Fotoğrafı */}
+                            {(pallet as any).photo_url ? (
+                              <div 
+                                className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 border-2 border-purple-200 cursor-pointer hover:border-purple-400 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFullscreenPhoto((pallet as any).photo_url);
+                                }}
+                              >
+                                <img 
+                                  src={(pallet as any).photo_url} 
+                                  alt={pallet.name}
+                                  className="w-full h-full object-cover"
+                                />
                               </div>
-                              <Badge variant="outline" className="text-xs">{box.department_name}</Badge>
+                            ) : (
+                              <div className="w-14 h-14 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                <Layers className="w-6 h-6 text-purple-500" />
+                              </div>
+                            )}
+                            
+                            <div className="flex-1 min-w-0">
+                              <h3 
+                                className="font-semibold hover:text-purple-500 transition-colors cursor-pointer"
+                                onClick={() => router.push(`/app/pallets/${pallet.code}`)}
+                              >
+                                {pallet.name}
+                              </h3>
+                              <p className="text-sm text-muted-foreground font-mono">{pallet.code}</p>
+                              <Badge variant="outline" className="mt-1 text-xs">
+                                <Box className="w-3 h-3 mr-1" />
+                                {pallet.box_count} koli
+                              </Badge>
                             </div>
-                          ))}
+                            
+                            <div className="flex items-center gap-2">
+                              {/* Genişlet/Daralt butonu */}
+                              {pallet.boxes.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => togglePalletExpand(pallet.code)}
+                                  className="text-purple-600 hover:bg-purple-100"
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <ChevronUp className="w-4 h-4 mr-1" />
+                                      Gizle
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-4 h-4 mr-1" />
+                                      Göster
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                              
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemovePallet(pallet.code)}
+                                className="hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </motion.div>
-                  ))}
+
+                        {/* Koliler - Sadece genişletildiğinde görünür */}
+                        <AnimatePresence>
+                          {isExpanded && pallet.boxes.length > 0 && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="space-y-2 px-4 pb-4 pt-2 border-t border-border">
+                                {pallet.boxes.map((box) => (
+                                  <div
+                                    key={box.id}
+                                    className="flex items-center gap-3 p-3 rounded-lg bg-background/50 cursor-pointer hover:bg-background transition-colors"
+                                    onClick={() => router.push(`/app/boxes/${box.code}`)}
+                                  >
+                                    {/* Box Photo */}
+                                    {box.photo_url ? (
+                                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-border">
+                                        <img 
+                                          src={box.photo_url} 
+                                          alt={box.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="w-12 h-12 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+                                        <Box className="w-5 h-5 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{box.name}</p>
+                                      <p className="text-xs text-muted-foreground font-mono">{box.code}</p>
+                                    </div>
+                                    <Badge variant="outline" className="text-xs">{box.department_name}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

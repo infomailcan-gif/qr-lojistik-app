@@ -1128,6 +1128,80 @@ export default function ManagerDashboard() {
             <p className="text-sm text-slate-500 mb-4">
               Tüm departmanların oluşturduğu kayıtları PDF olarak indirin. Raporlar yazdırmaya uygun formattadır.
             </p>
+            
+            {/* Inline Progress Bar - PDF oluşturulurken görünür */}
+            <AnimatePresence>
+              {pdfState.isGenerating && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+                  exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className={`p-4 rounded-xl border-2 ${
+                    pdfState.type === "boxes" 
+                      ? "bg-blue-50 border-blue-200" 
+                      : pdfState.type === "pallets" 
+                        ? "bg-cyan-50 border-cyan-200" 
+                        : "bg-violet-50 border-violet-200"
+                  }`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Loader2 className={`h-5 w-5 ${
+                          pdfState.type === "boxes" 
+                            ? "text-blue-600" 
+                            : pdfState.type === "pallets" 
+                              ? "text-cyan-600" 
+                              : "text-violet-600"
+                        }`} />
+                      </motion.div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-800">
+                          {pdfState.type === "boxes" ? "Koli" : pdfState.type === "pallets" ? "Palet" : "Sevkiyat"} PDF Oluşturuluyor...
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {pdfState.progress} / {pdfState.total} işleniyor
+                        </p>
+                      </div>
+                      <span className={`text-lg font-bold ${
+                        pdfState.type === "boxes" 
+                          ? "text-blue-600" 
+                          : pdfState.type === "pallets" 
+                            ? "text-cyan-600" 
+                            : "text-violet-600"
+                      }`}>
+                        {pdfState.total > 0 ? Math.round((pdfState.progress / pdfState.total) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="w-full h-3 bg-white rounded-full overflow-hidden shadow-inner">
+                      <motion.div
+                        className={`h-full rounded-full ${
+                          pdfState.type === "boxes" 
+                            ? "bg-gradient-to-r from-blue-500 to-indigo-600" 
+                            : pdfState.type === "pallets" 
+                              ? "bg-gradient-to-r from-cyan-500 to-teal-600" 
+                              : "bg-gradient-to-r from-violet-500 to-purple-600"
+                        }`}
+                        initial={{ width: 0 }}
+                        animate={{ 
+                          width: pdfState.total > 0 
+                            ? `${(pdfState.progress / pdfState.total) * 100}%` 
+                            : "0%" 
+                        }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2 text-center">
+                      Lütfen bekleyin, sayfa değiştirseniz bile işlem arka planda devam eder...
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button

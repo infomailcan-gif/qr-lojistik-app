@@ -7,6 +7,7 @@ export interface Pallet {
   shipment_code: string | null;
   photo_url: string | null;
   photo_url_2: string | null;
+  is_fragile?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -32,5 +33,6 @@ export interface PalletWithBoxes extends Pallet {
 // Form Types
 export interface CreatePalletData {
   name: string;
+  is_fragile?: boolean;
 }
 

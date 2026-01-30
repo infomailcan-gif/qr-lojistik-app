@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Package, Calendar, User, Building2, Edit, Download, QrCode, FileText, Image as ImageIcon, Printer, Plus, X, Eye, Layers, Truck, AlertTriangle } from "lucide-react";
+import { PhotoCarousel } from "@/components/ui/photo-carousel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -576,51 +577,11 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
-                {box.photo_url && (
-                  <div 
-                    className="relative cursor-pointer group flex-shrink-0 snap-center w-full sm:w-auto"
-                    onClick={() => setFullscreenPhoto(box.photo_url)}
-                  >
-                    <img
-                      src={box.photo_url}
-                      alt="Koli fotoğrafı 1"
-                      className="w-full sm:w-80 h-60 object-contain rounded-lg border border-slate-200 bg-slate-50"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg">
-                      <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    {box.photo_url_2 && (
-                      <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                        1/2
-                      </div>
-                    )}
-                  </div>
-                )}
-                {box.photo_url_2 && (
-                  <div 
-                    className="relative cursor-pointer group flex-shrink-0 snap-center w-full sm:w-auto"
-                    onClick={() => setFullscreenPhoto(box.photo_url_2)}
-                  >
-                    <img
-                      src={box.photo_url_2}
-                      alt="Koli fotoğrafı 2"
-                      className="w-full sm:w-80 h-60 object-contain rounded-lg border border-slate-200 bg-slate-50"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg">
-                      <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                      2/2
-                    </div>
-                  </div>
-                )}
-              </div>
-              {box.photo_url && box.photo_url_2 && (
-                <p className="text-xs text-center text-slate-400 mt-2">
-                  ← Fotoğraflar arasında kaydırın →
-                </p>
-              )}
+              <PhotoCarousel
+                photos={[box.photo_url, box.photo_url_2]}
+                onPhotoClick={(url) => setFullscreenPhoto(url)}
+                size="lg"
+              />
             </CardContent>
           </Card>
         </motion.div>

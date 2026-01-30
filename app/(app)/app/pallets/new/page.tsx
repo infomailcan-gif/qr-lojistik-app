@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Save, Layers, Sparkles } from "lucide-react";
+import { ArrowLeft, Save, Layers, Sparkles, AlertOctagon, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ export default function NewPalletPage() {
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [isFragile, setIsFragile] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +37,13 @@ export default function NewPalletPage() {
       }
 
       const pallet = await palletRepository.create(
-        { name: name.trim() },
+        { name: name.trim(), is_fragile: isFragile },
         session.user.name
       );
 
       toast({
         title: "Palet oluşturuldu",
-        description: `${pallet.code} başarıyla oluşturuldu`,
+        description: `${pallet.code} başarıyla oluşturuldu${isFragile ? ' (Kırılacak Eşya)' : ''}`,
       });
 
       router.push(`/app/pallets/${pallet.code}`);
@@ -130,6 +131,51 @@ export default function NewPalletPage() {
                 <p className="text-xs text-slate-400">
                   Palet oluşturduktan sonra koli ekleyebilirsiniz
                 </p>
+              </div>
+
+              {/* Kırılacak Eşya Uyarısı */}
+              <div className={`p-4 rounded-xl border-2 transition-all ${
+                isFragile 
+                  ? 'border-red-400 bg-red-50' 
+                  : 'border-slate-200 hover:border-red-300 hover:bg-red-50/50'
+              }`}>
+                <div 
+                  className="flex items-start gap-4 cursor-pointer"
+                  onClick={() => setIsFragile(!isFragile)}
+                >
+                  <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                    isFragile 
+                      ? 'border-red-500 bg-red-500' 
+                      : 'border-slate-300'
+                  }`}>
+                    {isFragile && <CheckCircle className="h-4 w-4 text-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <AlertOctagon className="h-5 w-5 text-red-600" />
+                      <p className="font-semibold text-slate-800">
+                        Kırılacak Eşya İçeriyor
+                      </p>
+                    </div>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Bu palette kırılacak, hassas eşyalar varsa işaretleyin. 
+                      Taşıma sırasında dikkat edilmesi gerektiği belirtilecek.
+                    </p>
+                  </div>
+                </div>
+                
+                {isFragile && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 flex items-center gap-2 p-3 rounded-lg bg-red-100 border border-red-300"
+                  >
+                    <AlertOctagon className="h-5 w-5 text-red-600 shrink-0 animate-pulse" />
+                    <p className="text-sm text-red-800">
+                      <strong>Dikkat:</strong> Bu palet kırılacak eşya içeriyor olarak işaretlenecek.
+                    </p>
+                  </motion.div>
+                )}
               </div>
 
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>

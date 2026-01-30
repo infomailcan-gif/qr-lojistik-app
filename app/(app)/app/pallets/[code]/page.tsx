@@ -28,6 +28,7 @@ import {
   Truck,
   AlertCircle,
 } from "lucide-react";
+import { PhotoCarousel } from "@/components/ui/photo-carousel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1003,89 +1004,82 @@ export default function PalletDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Mevcut fotoğraflar varsa carousel ile göster */}
+            {(pallet.photo_url || (pallet as any).photo_url_2) && (
+              <div className="mb-4">
+                <PhotoCarousel
+                  photos={[pallet.photo_url, (pallet as any).photo_url_2]}
+                  onPhotoClick={(url) => setFullscreenPhoto(url)}
+                  size="lg"
+                />
+              </div>
+            )}
+            
+            {/* Fotoğraf ekleme/silme butonları */}
+            <div className="grid grid-cols-2 gap-3">
               {/* Fotoğraf 1 */}
               <div>
-                <p className="text-sm text-slate-600 mb-2 font-medium">Fotoğraf 1</p>
                 {pallet.photo_url ? (
-                  <div className="relative rounded-xl overflow-hidden border border-slate-200 group cursor-pointer hover:border-cyan-300 transition-colors">
-                    <img
-                      src={pallet.photo_url}
-                      alt="Palet fotoğrafı 1"
-                      className="w-full h-40 object-contain bg-slate-50"
-                      onClick={() => setFullscreenPhoto(pallet.photo_url)}
-                    />
-                    <div 
-                      className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none"
-                    >
-                      <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={(e) => { e.stopPropagation(); handleRemovePhoto(1); }}
-                      className="absolute top-2 right-2 p-2 rounded-full bg-rose-500/80 hover:bg-rose-500 text-white transition-colors z-10"
-                    >
-                      <X className="h-4 w-4" />
-                    </motion.button>
-                  </div>
+                  <Button
+                    onClick={() => handleRemovePhoto(1)}
+                    variant="outline"
+                    className="w-full h-12 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Fotoğraf 1 Sil
+                  </Button>
                 ) : (
-                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                    <Button
-                      onClick={() => openPhotoDialog(1)}
-                      className="w-full h-40 bg-gradient-to-r from-cyan-50 to-teal-50 hover:from-cyan-100 hover:to-teal-100 border-2 border-dashed border-cyan-300 text-cyan-600"
-                      variant="ghost"
-                    >
-                      <div className="flex flex-col items-center gap-2">
-                        <Camera className="h-6 w-6" />
-                        <span className="text-sm font-medium">Fotoğraf 1 Ekle</span>
-                      </div>
-                    </Button>
-                  </motion.div>
+                  <Button
+                    onClick={() => openPhotoDialog(1)}
+                    variant="outline"
+                    className="w-full h-12 border-cyan-200 text-cyan-600 hover:bg-cyan-50 hover:border-cyan-300"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Fotoğraf 1 Ekle
+                  </Button>
                 )}
               </div>
-
+              
               {/* Fotoğraf 2 */}
               <div>
-                <p className="text-sm text-slate-600 mb-2 font-medium">Fotoğraf 2 (opsiyonel)</p>
                 {(pallet as any).photo_url_2 ? (
-                  <div className="relative rounded-xl overflow-hidden border border-slate-200 group cursor-pointer hover:border-cyan-300 transition-colors">
-                    <img
-                      src={(pallet as any).photo_url_2}
-                      alt="Palet fotoğrafı 2"
-                      className="w-full h-40 object-contain bg-slate-50"
-                      onClick={() => setFullscreenPhoto((pallet as any).photo_url_2)}
-                    />
-                    <div 
-                      className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none"
-                    >
-                      <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={(e) => { e.stopPropagation(); handleRemovePhoto(2); }}
-                      className="absolute top-2 right-2 p-2 rounded-full bg-rose-500/80 hover:bg-rose-500 text-white transition-colors z-10"
-                    >
-                      <X className="h-4 w-4" />
-                    </motion.button>
-                  </div>
+                  <Button
+                    onClick={() => handleRemovePhoto(2)}
+                    variant="outline"
+                    className="w-full h-12 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Fotoğraf 2 Sil
+                  </Button>
                 ) : (
-                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                    <Button
-                      onClick={() => openPhotoDialog(2)}
-                      className="w-full h-40 bg-gradient-to-r from-cyan-50 to-teal-50 hover:from-cyan-100 hover:to-teal-100 border-2 border-dashed border-cyan-300 text-cyan-600"
-                      variant="ghost"
-                    >
-                      <div className="flex flex-col items-center gap-2">
-                        <Camera className="h-6 w-6" />
-                        <span className="text-sm font-medium">Fotoğraf 2 Ekle</span>
-                      </div>
-                    </Button>
-                  </motion.div>
+                  <Button
+                    onClick={() => openPhotoDialog(2)}
+                    variant="outline"
+                    className="w-full h-12 border-cyan-200 text-cyan-600 hover:bg-cyan-50 hover:border-cyan-300"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Fotoğraf 2 Ekle
+                  </Button>
                 )}
               </div>
             </div>
+            
+            {/* Hiç fotoğraf yoksa büyük ekleme alanı göster */}
+            {!pallet.photo_url && !(pallet as any).photo_url_2 && (
+              <div className="mt-4">
+                <Button
+                  onClick={() => openPhotoDialog(1)}
+                  className="w-full h-32 bg-gradient-to-r from-cyan-50 to-teal-50 hover:from-cyan-100 hover:to-teal-100 border-2 border-dashed border-cyan-300 text-cyan-600"
+                  variant="ghost"
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Camera className="h-8 w-8" />
+                    <span>Palet Fotoğrafı Ekle</span>
+                    <span className="text-xs text-slate-500">Maksimum 2 fotoğraf</span>
+                  </div>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

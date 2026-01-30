@@ -23,6 +23,7 @@ import { auth } from "@/lib/auth";
 import type { BoxWithDepartment, Department } from "@/lib/types/box";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { PhotoCarousel } from "@/components/ui/photo-carousel";
 
 type FilterTab = "all" | "sealed" | "draft";
 type AssignmentFilter = "all" | "in_pallet" | "not_in_pallet" | "in_shipment" | "not_in_shipment";
@@ -720,31 +721,14 @@ export default function BoxesPage() {
             </DialogDescription>
           </DialogHeader>
           
-          {/* Fotoğraflar */}
+          {/* Fotoğraflar - Kaydırmalı Carousel */}
           {(selectedBox?.photo_url || selectedBox?.photo_url_2) && (
-            <div className="flex gap-3 py-2">
-              {selectedBox?.photo_url && (
-                <div 
-                  className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-slate-200 cursor-pointer hover:border-blue-400 transition-colors"
-                  onClick={() => setFullscreenPhoto(selectedBox.photo_url)}
-                >
-                  <img src={selectedBox.photo_url} alt="Fotoğraf 1" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <Eye className="h-5 w-5 text-white opacity-0 hover:opacity-100 drop-shadow-lg" />
-                  </div>
-                </div>
-              )}
-              {selectedBox?.photo_url_2 && (
-                <div 
-                  className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-slate-200 cursor-pointer hover:border-blue-400 transition-colors"
-                  onClick={() => setFullscreenPhoto(selectedBox.photo_url_2)}
-                >
-                  <img src={selectedBox.photo_url_2} alt="Fotoğraf 2" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <Eye className="h-5 w-5 text-white opacity-0 hover:opacity-100 drop-shadow-lg" />
-                  </div>
-                </div>
-              )}
+            <div className="py-2">
+              <PhotoCarousel
+                photos={[selectedBox?.photo_url, selectedBox?.photo_url_2]}
+                onPhotoClick={(url) => setFullscreenPhoto(url)}
+                size="md"
+              />
             </div>
           )}
           

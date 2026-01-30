@@ -184,6 +184,7 @@ class PalletRepository {
         shipment_code: null,
         photo_url: null,
         photo_url_2: null,
+        is_fragile: data.is_fragile || false,
         created_at: now,
         updated_at: now,
       };
@@ -200,6 +201,7 @@ class PalletRepository {
           code,
           name: data.name,
           created_by: userName,
+          is_fragile: data.is_fragile || false,
         })
         .select()
         .single();
@@ -316,7 +318,7 @@ class PalletRepository {
   }
 
   // Update pallet
-  async update(code: string, updates: { name?: string; shipment_code?: string | null; photo_url?: string | null; photo_url_2?: string | null }): Promise<Pallet> {
+  async update(code: string, updates: { name?: string; shipment_code?: string | null; photo_url?: string | null; photo_url_2?: string | null; is_fragile?: boolean }): Promise<Pallet> {
     if (!isSupabaseConfigured || !supabase) {
       const pallets = this.getLocalPallets();
       const index = pallets.findIndex((p) => p.code === code);
@@ -331,6 +333,7 @@ class PalletRepository {
         ...(updates.shipment_code !== undefined && { shipment_code: updates.shipment_code }),
         ...(updates.photo_url !== undefined && { photo_url: updates.photo_url }),
         ...(updates.photo_url_2 !== undefined && { photo_url_2: updates.photo_url_2 }),
+        ...(updates.is_fragile !== undefined && { is_fragile: updates.is_fragile }),
         updated_at: new Date().toISOString(),
       };
 
@@ -354,6 +357,9 @@ class PalletRepository {
       }
       if (updates.photo_url_2 !== undefined) {
         updateData.photo_url_2 = updates.photo_url_2;
+      }
+      if (updates.is_fragile !== undefined) {
+        updateData.is_fragile = updates.is_fragile;
       }
 
       const { data, error } = await supabase
