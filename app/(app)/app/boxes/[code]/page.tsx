@@ -86,18 +86,31 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
     const img = document.createElement("img");
     img.onload = () => {
       const qrSize = 600;
+      const isFragile = (box as any).is_fragile;
+      const fragileHeight = isFragile ? 50 : 0;
       const textHeight = 80;
       const maxWidth = qrSize - 40;
       
       canvas.width = qrSize;
-      canvas.height = qrSize + textHeight;
+      canvas.height = qrSize + textHeight + fragileHeight;
       
       // White background
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
+      // Kırılacak eşya uyarısı - QR'ın üstünde
+      if (isFragile) {
+        ctx.fillStyle = "#dc2626";
+        ctx.fillRect(0, 0, qrSize, fragileHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 24px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("⚠️ DİKKAT! KIRILACAK EŞYA ⚠️", qrSize / 2, fragileHeight / 2);
+      }
+      
       // Draw QR code
-      ctx.drawImage(img, 0, 0, qrSize, qrSize);
+      ctx.drawImage(img, 0, fragileHeight, qrSize, qrSize);
       
       // Draw name below QR - with auto font sizing
       ctx.fillStyle = "#1e40af";
@@ -122,7 +135,7 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
         boxName += "...";
       }
       
-      ctx.fillText(boxName, qrSize / 2, qrSize + textHeight / 2);
+      ctx.fillText(boxName, qrSize / 2, fragileHeight + qrSize + textHeight / 2);
       
       // Download
       const link = document.createElement("a");
@@ -151,18 +164,31 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
     const img = document.createElement("img");
     img.onload = () => {
       const qrSize = 600;
+      const isFragile = (box as any).is_fragile;
+      const fragileHeight = isFragile ? 50 : 0;
       const textHeight = 80;
       const maxWidth = qrSize - 40;
       
       canvas.width = qrSize;
-      canvas.height = qrSize + textHeight;
+      canvas.height = qrSize + textHeight + fragileHeight;
       
       // White background
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
+      // Kırılacak eşya uyarısı - QR'ın üstünde
+      if (isFragile) {
+        ctx.fillStyle = "#dc2626";
+        ctx.fillRect(0, 0, qrSize, fragileHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 24px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("⚠️ DİKKAT! KIRILACAK EŞYA ⚠️", qrSize / 2, fragileHeight / 2);
+      }
+      
       // Draw QR code
-      ctx.drawImage(img, 0, 0, qrSize, qrSize);
+      ctx.drawImage(img, 0, fragileHeight, qrSize, qrSize);
       
       // Draw name below QR - with auto font sizing
       ctx.fillStyle = "#1e40af";
@@ -187,7 +213,7 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
         boxName += "...";
       }
       
-      ctx.fillText(boxName, qrSize / 2, qrSize + textHeight / 2);
+      ctx.fillText(boxName, qrSize / 2, fragileHeight + qrSize + textHeight / 2);
       
       // Open print window
       const printWindow = window.open("", "_blank");
@@ -508,8 +534,32 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
         </motion.div>
       )}
 
-      {/* Photo */}
-      {box.photo_url && (
+      {/* Kırılacak Eşya Uyarısı */}
+      {(box as any).is_fragile && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+        >
+          <motion.div 
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 border-2 border-red-300"
+            animate={{ 
+              backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
+              borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
+            }}
+            transition={{ duration: 1, repeat: Infinity }}
+          >
+            <AlertTriangle className="h-6 w-6 text-red-600 animate-pulse" />
+            <div>
+              <p className="font-bold text-red-800">DİKKAT! KIRILACAK EŞYA</p>
+              <p className="text-sm text-red-600">Bu kolide kırılacak, hassas eşyalar bulunmaktadır.</p>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Photo Carousel */}
+      {(box.photo_url || box.photo_url_2) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -519,23 +569,58 @@ export default function BoxDetailPage({ params }: { params: { code: string } }) 
             <CardHeader>
               <CardTitle className="text-slate-800 flex items-center gap-2">
                 <ImageIcon className="h-5 w-5 text-blue-600" />
-                Koli Fotoğrafı
+                Koli Fotoğrafları
+                {box.photo_url && box.photo_url_2 && (
+                  <Badge variant="outline" className="ml-2">2 fotoğraf</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div 
-                className="relative cursor-pointer group"
-                onClick={() => setFullscreenPhoto(box.photo_url)}
-              >
-                <img
-                  src={box.photo_url}
-                  alt="Koli fotoğrafı"
-                  className="w-full max-h-96 object-contain rounded-lg border border-slate-200"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg">
-                  <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
+              <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+                {box.photo_url && (
+                  <div 
+                    className="relative cursor-pointer group flex-shrink-0 snap-center w-full sm:w-auto"
+                    onClick={() => setFullscreenPhoto(box.photo_url)}
+                  >
+                    <img
+                      src={box.photo_url}
+                      alt="Koli fotoğrafı 1"
+                      className="w-full sm:w-80 h-60 object-contain rounded-lg border border-slate-200 bg-slate-50"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg">
+                      <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    {box.photo_url_2 && (
+                      <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                        1/2
+                      </div>
+                    )}
+                  </div>
+                )}
+                {box.photo_url_2 && (
+                  <div 
+                    className="relative cursor-pointer group flex-shrink-0 snap-center w-full sm:w-auto"
+                    onClick={() => setFullscreenPhoto(box.photo_url_2)}
+                  >
+                    <img
+                      src={box.photo_url_2}
+                      alt="Koli fotoğrafı 2"
+                      className="w-full sm:w-80 h-60 object-contain rounded-lg border border-slate-200 bg-slate-50"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg">
+                      <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                      2/2
+                    </div>
+                  </div>
+                )}
               </div>
+              {box.photo_url && box.photo_url_2 && (
+                <p className="text-xs text-center text-slate-400 mt-2">
+                  ← Fotoğraflar arasında kaydırın →
+                </p>
+              )}
             </CardContent>
           </Card>
         </motion.div>

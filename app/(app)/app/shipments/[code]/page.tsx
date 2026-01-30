@@ -1360,6 +1360,47 @@ export default function ShipmentDetailPage({
             </Card>
           </motion.div>
         )}
+
+        {/* Quick Actions Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50">
+            <CardContent className="p-5">
+              <h3 className="font-semibold flex items-center gap-2 mb-4 text-emerald-800">
+                <Package className="w-5 h-5 text-emerald-600" />
+                Hızlı İşlemler
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Button
+                  onClick={() => router.push("/app")}
+                  variant="outline"
+                  className="h-12 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Ana Sayfaya Dön
+                </Button>
+                <Button
+                  onClick={() => router.push("/app/shipments/new")}
+                  className="h-12 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Yeni Sevkiyat Oluştur
+                </Button>
+                <Button
+                  onClick={() => router.push("/app/shipments")}
+                  variant="outline"
+                  className="h-12 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400"
+                >
+                  <Truck className="w-4 h-4 mr-2" />
+                  Tüm Sevkiyatlar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Add Pallet Dialog */}

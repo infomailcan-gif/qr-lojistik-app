@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 
 type FilterTab = "all" | "sealed" | "draft";
+type AssignmentFilter = "all" | "in_pallet" | "not_in_pallet" | "in_shipment" | "not_in_shipment";
 
 export default function BoxesPage() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function BoxesPage() {
   const [userDepartmentId, setUserDepartmentId] = useState("");
   const [userRole, setUserRole] = useState<string>("user");
   const [searchQuery, setSearchQuery] = useState("");
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
 
   const [selectedBox, setSelectedBox] = useState<BoxWithDepartment | null>(null);
   const [actionModalOpen, setActionModalOpen] = useState(false);
@@ -65,7 +67,7 @@ export default function BoxesPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole, searchQuery]);
+  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole, searchQuery, assignmentFilter]);
 
   const loadData = async () => {
     try {
@@ -142,6 +144,17 @@ export default function BoxesPage() {
     // Departman filtresi sadece manager/super_admin için geçerli
     if (selectedDepartment !== "all" && (userRole === "manager" || userRole === "super_admin")) {
       filtered = filtered.filter((b) => b.department_id === selectedDepartment);
+    }
+    
+    // Palet/Sevkiyat atama filtresi
+    if (assignmentFilter === "in_pallet") {
+      filtered = filtered.filter((b) => b.pallet_code);
+    } else if (assignmentFilter === "not_in_pallet") {
+      filtered = filtered.filter((b) => !b.pallet_code && !(b as any).is_direct_shipment);
+    } else if (assignmentFilter === "in_shipment") {
+      filtered = filtered.filter((b) => b.pallet_code || (b as any).shipment_code);
+    } else if (assignmentFilter === "not_in_shipment") {
+      filtered = filtered.filter((b) => !b.pallet_code && !(b as any).shipment_code);
     }
     
     setFilteredBoxes(filtered);
@@ -418,6 +431,20 @@ export default function BoxesPage() {
             </span>
           </motion.div>
           
+          {/* Palet/Sevkiyat Atama Filtresi */}
+          <Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as AssignmentFilter)}>
+            <SelectTrigger className="w-[180px] border-slate-200 bg-white/80 h-10">
+              <SelectValue placeholder="Atama Durumu" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tüm Koliler</SelectItem>
+              <SelectItem value="in_pallet">Palete Eklenmiş</SelectItem>
+              <SelectItem value="not_in_pallet">Palete Eklenmemiş</SelectItem>
+              <SelectItem value="in_shipment">Sevkiyata Eklenmiş</SelectItem>
+              <SelectItem value="not_in_shipment">Sevkiyata Eklenmemiş</SelectItem>
+            </SelectContent>
+          </Select>
+          
           {userRole !== "user" && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -553,6 +580,45 @@ export default function BoxesPage() {
                         {box.department.name}
                       </div>
                     </div>
+
+                    {/* Kırılacak Eşya Uyarısı */}
+                    {(box as any).is_fragile && (
+                      <motion.div 
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200"
+                        animate={{ 
+                          backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
+                          borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
+                        }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                      >
+                        <AlertOctagon className="h-4 w-4 text-red-600 animate-pulse" />
+                        <span className="text-xs font-bold text-red-700">DİKKAT! KIRILACAK EŞYA</span>
+                      </motion.div>
+                    )}
+
+                    {/* Palet/Sevkiyat Durumu */}
+                    {box.pallet_code ? (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                        <Layers className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs text-emerald-700">
+                          <span className="font-medium">{box.pallet_code}</span> paletinde
+                        </span>
+                      </div>
+                    ) : (box as any).is_direct_shipment && (box as any).shipment_code ? (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200">
+                        <Truck className="h-4 w-4 text-purple-600" />
+                        <span className="text-xs text-purple-700">
+                          <span className="font-medium">{(box as any).shipment_code}</span> sevkiyatında
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <span className="text-xs text-amber-700 font-medium">
+                          {(box as any).is_direct_shipment ? "Sevkiyata eklenmedi" : "Palete eklenmedi"}
+                        </span>
+                      </div>
+                    )}
                     
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                       <div>

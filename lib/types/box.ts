@@ -20,6 +20,7 @@ export interface Box {
   photo_url_2: string | null;
   needs_reprint: boolean;
   is_direct_shipment: boolean;
+  is_fragile: boolean;
   shipment_code: string | null;
   created_at: string;
   updated_at: string;
@@ -72,6 +73,7 @@ export interface CreateBoxData {
   name: string;
   department_id: string;
   is_direct_shipment?: boolean;
+  is_fragile?: boolean;
 }
 
 export interface UpdateBoxData {
@@ -83,6 +85,7 @@ export interface UpdateBoxData {
   photo_url_2?: string | null;
   needs_reprint?: boolean;
   is_direct_shipment?: boolean;
+  is_fragile?: boolean;
   shipment_code?: string | null;
 }
 

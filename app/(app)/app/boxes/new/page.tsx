@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Building2, Package, Sparkles, CheckCircle, Pencil, Upload, Truck, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Lock, Camera, X, Building2, Package, Sparkles, CheckCircle, Pencil, Upload, Truck, AlertTriangle, AlertOctagon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,7 @@ export default function NewBoxPage() {
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [photoDataUrl2, setPhotoDataUrl2] = useState<string | null>(null);
   const [isDirectShipment, setIsDirectShipment] = useState(false);
+  const [isFragile, setIsFragile] = useState(false);
   
   const [productName, setProductName] = useState("");
   const [qty, setQty] = useState("");
@@ -401,6 +402,7 @@ export default function NewBoxPage() {
           name: boxName.trim(),
           department_id: user.department_id,
           is_direct_shipment: isDirectShipment,
+          is_fragile: isFragile,
         },
         user.id,
         user.name
@@ -493,6 +495,7 @@ export default function NewBoxPage() {
           name: boxName.trim(),
           department_id: user.department_id,
           is_direct_shipment: isDirectShipment,
+          is_fragile: isFragile,
         },
         user.id,
         user.name
@@ -726,6 +729,66 @@ export default function NewBoxPage() {
                 <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
                 <p className="text-sm text-amber-800">
                   <strong>Dikkat:</strong> Bu ürün palete eklenemeyecek. Sadece doğrudan sevkiyata eklenebilecek.
+                </p>
+              </motion.div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Fragile Item Option */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.27 }}
+      >
+        <Card className={`border-red-200 ${isFragile ? 'bg-red-50/80' : 'bg-white/80'} backdrop-blur-sm overflow-hidden transition-colors`}>
+          <div className="h-1 bg-gradient-to-r from-red-400 to-rose-500" />
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3 text-slate-800">
+              <AlertOctagon className="h-6 w-6 text-red-600" />
+              Kırılacak Eşya
+            </CardTitle>
+            <CardDescription>
+              Bu kolide kırılacak, hassas eşya varsa işaretleyin
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div 
+              className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                isFragile 
+                  ? 'border-red-400 bg-red-100' 
+                  : 'border-slate-200 hover:border-red-300 hover:bg-red-50'
+              }`}
+              onClick={() => setIsFragile(!isFragile)}
+            >
+              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                isFragile 
+                  ? 'border-red-500 bg-red-500' 
+                  : 'border-slate-300'
+              }`}>
+                {isFragile && <CheckCircle className="h-4 w-4 text-white" />}
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">
+                  Bu kolide kırılacak eşya var
+                </p>
+                <p className="text-sm text-slate-600 mt-1">
+                  Bu seçenek işaretlenirse, QR kodun üstüne &quot;DİKKAT! KIRILACAK EŞYA&quot; yazısı eklenir ve 
+                  koli listesinde kırmızı uyarı ile gösterilir.
+                </p>
+              </div>
+            </div>
+            
+            {isFragile && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-4 flex items-center gap-2 p-3 rounded-lg bg-red-100 border border-red-300"
+              >
+                <AlertOctagon className="h-5 w-5 text-red-600 shrink-0 animate-pulse" />
+                <p className="text-sm text-red-800">
+                  <strong>Dikkat:</strong> Bu koli kırılacak eşya olarak işaretlenecek. Taşıma sırasında dikkatli olunmalıdır.
                 </p>
               </motion.div>
             )}

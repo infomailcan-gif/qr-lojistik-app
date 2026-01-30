@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Layers, Plus, Package, Sparkles, Zap, ArrowRight, Eye, Edit, Trash2, Shield, Search } from "lucide-react";
+import { Layers, Plus, Package, Sparkles, Zap, ArrowRight, Eye, Edit, Trash2, Shield, Search, Truck, AlertTriangle, X, AlertOctagon } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { boxRepository } from "@/lib/repositories/box";
 import { auth } from "@/lib/auth";
 import type { PalletWithBoxCount } from "@/lib/types/pallet";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function PalletsPage() {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function PalletsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  const [shipmentFilter, setShipmentFilter] = useState<"all" | "in_shipment" | "not_in_shipment">("all");
 
   useEffect(() => {
     loadData();
@@ -89,8 +91,15 @@ export default function PalletsPage() {
       );
     }
     
+    // Sevkiyat atama filtresi
+    if (shipmentFilter === "in_shipment") {
+      filtered = filtered.filter(p => p.shipment_code);
+    } else if (shipmentFilter === "not_in_shipment") {
+      filtered = filtered.filter(p => !p.shipment_code);
+    }
+    
     return filtered;
-  }, [pallets, userRole, currentUserName, searchQuery]);
+  }, [pallets, userRole, currentUserName, searchQuery, shipmentFilter]);
 
   const handlePalletClick = (pallet: PalletWithBoxCount) => {
     setSelectedPallet(pallet);
@@ -280,6 +289,18 @@ export default function PalletsPage() {
           </span>
         </div>
         
+        {/* Sevkiyat Atama Filtresi */}
+        <Select value={shipmentFilter} onValueChange={(v) => setShipmentFilter(v as "all" | "in_shipment" | "not_in_shipment")}>
+          <SelectTrigger className="w-[180px] border-slate-200 bg-white/80 h-10">
+            <SelectValue placeholder="Atama Durumu" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tüm Paletler</SelectItem>
+            <SelectItem value="in_shipment">Sevkiyata Eklenmiş</SelectItem>
+            <SelectItem value="not_in_shipment">Sevkiyata Eklenmemiş</SelectItem>
+          </SelectContent>
+        </Select>
+        
         {userRole !== "user" && (
           <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
             <Shield className="h-4 w-4 text-amber-600" />
@@ -357,21 +378,47 @@ export default function PalletsPage() {
                   />
                   
                   <CardContent className="p-5 space-y-4 relative">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      {/* Küçük resim kutucuğu */}
+                      {pallet.photo_url && (
+                        <motion.div 
+                          className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 flex-shrink-0 cursor-pointer hover:border-cyan-400 active:border-cyan-500 transition-colors shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFullscreenPhoto(pallet.photo_url);
+                          }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <img 
+                            src={pallet.photo_url} 
+                            alt={pallet.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/20 sm:bg-black/0 sm:hover:bg-black/30 active:bg-black/40 transition-colors flex items-center justify-center">
+                            <Eye className="h-4 w-4 text-white drop-shadow-lg" />
+                          </div>
+                        </motion.div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-xl truncate text-slate-800 group-hover:text-cyan-600 transition-colors">
-                          {pallet.name}
-                        </h3>
-                        <p className="text-sm text-slate-400 font-mono mt-1">
-                          {pallet.code}
-                        </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-xl truncate text-slate-800 group-hover:text-cyan-600 transition-colors">
+                              {pallet.name}
+                            </h3>
+                            <p className="text-sm text-slate-400 font-mono mt-1">
+                              {pallet.code}
+                            </p>
+                          </div>
+                          {!pallet.photo_url && (
+                            <motion.div 
+                              className="p-3 rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 border border-cyan-200"
+                              whileHover={{ rotate: 10, scale: 1.1 }}
+                            >
+                              <Layers className="h-6 w-6 text-cyan-600" />
+                            </motion.div>
+                          )}
+                        </div>
                       </div>
-                      <motion.div 
-                        className="p-3 rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 border border-cyan-200"
-                        whileHover={{ rotate: 10, scale: 1.1 }}
-                      >
-                        <Layers className="h-6 w-6 text-cyan-600" />
-                      </motion.div>
                     </div>
 
                     {/* Box Count */}
@@ -389,6 +436,55 @@ export default function PalletsPage() {
                         <span className="text-sm text-emerald-600">koli</span>
                       </div>
                     </div>
+
+                    {/* Kırılacak Eşya Uyarısı - paletteki kolilerden birinde kırılacak eşya varsa */}
+                    {(pallet as any).has_fragile && (
+                      <motion.div 
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200"
+                        animate={{ 
+                          backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
+                          borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
+                        }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                      >
+                        <AlertOctagon className="h-4 w-4 text-red-600 animate-pulse" />
+                        <span className="text-xs font-bold text-red-700">DİKKAT! KIRILACAK EŞYA İÇERİYOR</span>
+                      </motion.div>
+                    )}
+
+                    {/* Sevkiyat Durumu */}
+                    {pallet.shipment_code ? (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200">
+                        <Truck className="h-4 w-4 text-purple-600" />
+                        <span className="text-xs text-purple-700">
+                          <span className="font-medium">{pallet.shipment_code}</span> sevkiyatında
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <span className="text-xs text-amber-700 font-medium">
+                          Sevkiyata eklenmedi
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Kolilere Git Butonu */}
+                    {pallet.box_count > 0 && (
+                      <div 
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/app/pallets/${pallet.code}`);
+                        }}
+                      >
+                        <Package className="h-4 w-4 text-blue-600" />
+                        <span className="text-xs text-blue-700 font-medium">
+                          Bu palete ait kolileri görüntüle ({pallet.box_count} koli)
+                        </span>
+                        <ArrowRight className="h-3 w-3 text-blue-500 ml-auto" />
+                      </div>
+                    )}
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                       <div>

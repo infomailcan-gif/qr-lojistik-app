@@ -333,7 +333,8 @@ class BoxRepository {
         photo_url: null,
         photo_url_2: null,
         needs_reprint: false,
-        is_direct_shipment: (data as any).is_direct_shipment || false,
+        is_direct_shipment: data.is_direct_shipment || false,
+        is_fragile: data.is_fragile || false,
         shipment_code: null,
         created_at: now,
         updated_at: now,
@@ -355,6 +356,7 @@ class BoxRepository {
           status: "draft",
           revision: 1,
           is_direct_shipment: data.is_direct_shipment || false,
+          is_fragile: data.is_fragile || false,
         })
         .select()
         .single();

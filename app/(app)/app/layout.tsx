@@ -8,6 +8,7 @@ import { BottomNav } from "@/components/app/BottomNav";
 import { Sidebar } from "@/components/app/Sidebar";
 import { LoadingPage } from "@/components/app/Loading";
 import { PageTransition } from "@/components/app/PageTransition";
+import { PdfProgressProvider } from "@/contexts/pdf-progress-context";
 import { auth, type User } from "@/lib/auth";
 import { activityTracker } from "@/lib/activity-tracker";
 import { motion } from "framer-motion";
@@ -128,6 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <PdfProgressProvider>
     <div className="min-h-screen">
       <AnimatedBackground />
       <TopBar userName={user.name} onSignOut={handleSignOut} />
@@ -193,5 +195,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <BottomNav userRole={user.role} />
     </div>
+    </PdfProgressProvider>
   );
 }

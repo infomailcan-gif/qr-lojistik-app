@@ -48,6 +48,7 @@ import type { BoxWithDepartment, BoxWithDetails } from "@/lib/types/box";
 import type { Department } from "@/lib/types/box";
 import type { PalletWithBoxCount } from "@/lib/types/pallet";
 import type { ShipmentWithCounts } from "@/lib/types/shipment";
+import { usePdfProgress } from "@/contexts/pdf-progress-context";
 
 export default function ManagerDashboard() {
   const router = useRouter();
@@ -82,10 +83,8 @@ export default function ManagerDashboard() {
   const [kpiModalOpen, setKpiModalOpen] = useState(false);
   const [kpiModalType, setKpiModalType] = useState<"total" | "sealed" | "draft" | "last24h" | "pallets" | "shipments" | null>(null);
   
-  // PDF loading states
-  const [pdfLoading, setPdfLoading] = useState<"boxes" | "pallets" | "shipments" | null>(null);
-  const [pdfProgress, setPdfProgress] = useState<number>(0);
-  const [pdfProgressTotal, setPdfProgressTotal] = useState<number>(0);
+  // PDF Global Progress Context
+  const { startPdfGeneration, updateProgress, completePdfGeneration, resetState: resetPdfState, state: pdfState } = usePdfProgress();
   
   // PDF Department Selection Modal
   const [pdfDeptModalOpen, setPdfDeptModalOpen] = useState(false);
@@ -435,13 +434,12 @@ export default function ManagerDashboard() {
 
   // PDF Generation Functions with Turkish support and images
   const generateBoxesPDF = async (deptId: string | null = null) => {
-    setPdfLoading("boxes");
     setPdfDeptModalOpen(false);
-    setPdfProgress(0);
+    const filteredBoxes = getFilteredBoxesForPdf(deptId);
+    const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
+    
+    startPdfGeneration("boxes", filteredBoxes.length);
     try {
-      const filteredBoxes = getFilteredBoxesForPdf(deptId);
-      const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
-      setPdfProgressTotal(filteredBoxes.length);
       
       // Her koli için detaylı bilgi çek (cins ve adet için)
       const boxesWithDetails: any[] = [];
@@ -453,7 +451,7 @@ export default function ManagerDashboard() {
         } catch {
           boxesWithDetails.push({ ...box, lines: [] });
         }
-        setPdfProgress(i + 1);
+        updateProgress(i + 1);
       }
       
       const doc = new jsPDF();
@@ -607,21 +605,20 @@ export default function ManagerDashboard() {
         ? `koliler-${turkishToAscii(deptName || "").toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
         : `koliler-tum-${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(fileName);
+      completePdfGeneration(fileName);
     } catch (error) {
       console.error("PDF generation error:", error);
-    } finally {
-      setPdfLoading(null);
+      resetPdfState();
     }
   };
 
   const generatePalletsPDF = async (deptId: string | null = null) => {
-    setPdfLoading("pallets");
     setPdfDeptModalOpen(false);
-    setPdfProgress(0);
+    const filteredPallets = getFilteredPalletsForPdf(deptId);
+    const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
+    
+    startPdfGeneration("pallets", filteredPallets.length);
     try {
-      const filteredPallets = getFilteredPalletsForPdf(deptId);
-      const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
-      setPdfProgressTotal(filteredPallets.length);
       
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -664,7 +661,7 @@ export default function ManagerDashboard() {
       // Table rows with images
       for (let i = 0; i < filteredPallets.length; i++) {
         const pallet = filteredPallets[i];
-        setPdfProgress(i + 1);
+        updateProgress(i + 1);
         
         if (yPosition > pageHeight - 15) {
           doc.setFontSize(6);
@@ -735,21 +732,20 @@ export default function ManagerDashboard() {
         ? `paletler-${turkishToAscii(deptName || "").toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
         : `paletler-tum-${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(fileName);
+      completePdfGeneration(fileName);
     } catch (error) {
       console.error("PDF generation error:", error);
-    } finally {
-      setPdfLoading(null);
+      resetPdfState();
     }
   };
 
   const generateShipmentsPDF = async (deptId: string | null = null) => {
-    setPdfLoading("shipments");
     setPdfDeptModalOpen(false);
-    setPdfProgress(0);
+    const filteredShipments = getFilteredShipmentsForPdf(deptId);
+    const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
+    
+    startPdfGeneration("shipments", filteredShipments.length);
     try {
-      const filteredShipments = getFilteredShipmentsForPdf(deptId);
-      const deptName = deptId ? departments.find(d => d.id === deptId)?.name : "Tum Departmanlar";
-      setPdfProgressTotal(filteredShipments.length);
       
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -794,7 +790,7 @@ export default function ManagerDashboard() {
       // Table rows with images
       for (let i = 0; i < filteredShipments.length; i++) {
         const shipment = filteredShipments[i];
-        setPdfProgress(i + 1);
+        updateProgress(i + 1);
         
         if (yPosition > pageHeight - 15) {
           doc.setFontSize(6);
@@ -867,10 +863,10 @@ export default function ManagerDashboard() {
         ? `sevkiyatlar-${turkishToAscii(deptName || "").toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
         : `sevkiyatlar-tum-${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(fileName);
+      completePdfGeneration(fileName);
     } catch (error) {
       console.error("PDF generation error:", error);
-    } finally {
-      setPdfLoading(null);
+      resetPdfState();
     }
   };
 
@@ -1136,10 +1132,10 @@ export default function ManagerDashboard() {
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
                   onClick={() => openPdfDeptModal("boxes")}
-                  disabled={pdfLoading !== null}
+                  disabled={pdfState.isGenerating}
                   className="w-full h-16 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25"
                 >
-                  {pdfLoading === "boxes" ? (
+                  {pdfState.isGenerating && pdfState.type === "boxes" ? (
                     <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                   ) : (
                     <Download className="h-5 w-5 mr-2" />
@@ -1154,10 +1150,10 @@ export default function ManagerDashboard() {
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
                   onClick={() => openPdfDeptModal("pallets")}
-                  disabled={pdfLoading !== null}
+                  disabled={pdfState.isGenerating}
                   className="w-full h-16 bg-gradient-to-r from-cyan-500 to-teal-600 hover:from-cyan-600 hover:to-teal-700 text-white shadow-lg shadow-cyan-500/25"
                 >
-                  {pdfLoading === "pallets" ? (
+                  {pdfState.isGenerating && pdfState.type === "pallets" ? (
                     <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                   ) : (
                     <Download className="h-5 w-5 mr-2" />
@@ -1172,10 +1168,10 @@ export default function ManagerDashboard() {
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
                   onClick={() => openPdfDeptModal("shipments")}
-                  disabled={pdfLoading !== null}
+                  disabled={pdfState.isGenerating}
                   className="w-full h-16 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white shadow-lg shadow-violet-500/25"
                 >
-                  {pdfLoading === "shipments" ? (
+                  {pdfState.isGenerating && pdfState.type === "shipments" ? (
                     <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                   ) : (
                     <Download className="h-5 w-5 mr-2" />
@@ -2060,60 +2056,6 @@ export default function ManagerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* PDF Progress Bar - Fixed at bottom, non-blocking */}
-      <AnimatePresence>
-        {pdfLoading !== null && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-4 right-4 z-50 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden"
-          >
-            <div className="p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                  pdfLoading === "boxes" 
-                    ? "from-blue-500 to-indigo-600" 
-                    : pdfLoading === "pallets" 
-                      ? "from-cyan-500 to-teal-600" 
-                      : "from-violet-500 to-purple-600"
-                }`}>
-                  <FileText className="h-4 w-4 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-slate-800">
-                    {pdfLoading === "boxes" ? "Koliler" : pdfLoading === "pallets" ? "Paletler" : "Sevkiyatlar"} PDF
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {pdfProgress} / {pdfProgressTotal} işleniyor
-                  </p>
-                </div>
-                <span className="text-sm font-bold text-slate-700">
-                  {pdfProgressTotal > 0 ? Math.round((pdfProgress / pdfProgressTotal) * 100) : 0}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                <motion.div
-                  className={`h-full rounded-full ${
-                    pdfLoading === "boxes" 
-                      ? "bg-gradient-to-r from-blue-500 to-indigo-600" 
-                      : pdfLoading === "pallets" 
-                        ? "bg-gradient-to-r from-cyan-500 to-teal-600" 
-                        : "bg-gradient-to-r from-violet-500 to-purple-600"
-                  }`}
-                  initial={{ width: 0 }}
-                  animate={{ width: pdfProgressTotal > 0 ? `${(pdfProgress / pdfProgressTotal) * 100}%` : "0%" }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-              <p className="mt-2 text-xs text-slate-400 text-center">
-                Sayfada gezinmeye devam edebilirsiniz
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* PDF Department Selection Modal */}
       <Dialog open={pdfDeptModalOpen} onOpenChange={setPdfDeptModalOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -2149,7 +2091,7 @@ export default function ManagerDashboard() {
                   else if (pdfType === "pallets") generatePalletsPDF(null);
                   else if (pdfType === "shipments") generateShipmentsPDF(null);
                 }}
-                disabled={pdfLoading !== null}
+                disabled={pdfState.isGenerating}
               >
                 <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 text-white">
                   <Download className="h-5 w-5" />
@@ -2190,7 +2132,7 @@ export default function ManagerDashboard() {
                         else if (pdfType === "pallets") generatePalletsPDF(dept.id);
                         else if (pdfType === "shipments") generateShipmentsPDF(dept.id);
                       }}
-                      disabled={pdfLoading !== null || count === 0}
+                      disabled={pdfState.isGenerating || count === 0}
                     >
                       <div className="p-2 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 text-white">
                         <Building2 className="h-5 w-5" />
@@ -2270,9 +2212,20 @@ export default function ManagerDashboard() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-semibold">
-                            {index + 1}
-                          </div>
+                          {/* Küçük resim kutucuğu */}
+                          {box.photo_url ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                              <img 
+                                src={box.photo_url} 
+                                alt={box.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                              {index + 1}
+                            </div>
+                          )}
                           <div>
                             <p className="font-medium text-slate-800 group-hover:text-blue-600 transition-colors">{box.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -2309,9 +2262,20 @@ export default function ManagerDashboard() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center text-white text-xs font-semibold">
-                            {index + 1}
-                          </div>
+                          {/* Küçük resim kutucuğu */}
+                          {pallet.photo_url ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                              <img 
+                                src={pallet.photo_url} 
+                                alt={pallet.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                              {index + 1}
+                            </div>
+                          )}
                           <div>
                             <p className="font-medium text-slate-800 group-hover:text-cyan-600 transition-colors">{pallet.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -2346,9 +2310,20 @@ export default function ManagerDashboard() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-                            {index + 1}
-                          </div>
+                          {/* Küçük resim kutucuğu */}
+                          {shipment.photo_url ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                              <img 
+                                src={shipment.photo_url} 
+                                alt={shipment.name_or_plate}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                              {index + 1}
+                            </div>
+                          )}
                           <div>
                             <p className="font-medium text-slate-800 group-hover:text-violet-600 transition-colors">{shipment.name_or_plate}</p>
                             <div className="flex items-center gap-2 mt-0.5">
