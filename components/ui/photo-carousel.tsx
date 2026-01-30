@@ -13,7 +13,10 @@ interface PhotoCarouselProps {
 }
 
 export function PhotoCarousel({ photos, onPhotoClick, size = "md", className = "" }: PhotoCarouselProps) {
+  // All hooks must be called before any returns
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
   
   // Filter out null/undefined photos
   const validPhotos = photos.filter((p): p is string => !!p);
@@ -49,10 +52,6 @@ export function PhotoCarousel({ photos, onPhotoClick, size = "md", className = "
     e.stopPropagation();
     setCurrentIndex((prev) => (prev === validPhotos.length - 1 ? 0 : prev + 1));
   };
-  
-  // Swipe support for mobile
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
   
   const minSwipeDistance = 50;
   
