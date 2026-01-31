@@ -423,18 +423,9 @@ export default function SuperAdminPage() {
   };
 
   const handleSaveLockdownMessage = async () => {
-    if (!lockdownMessage.trim()) {
-      toast({
-        title: "Hata",
-        description: "Mesaj boş olamaz",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLockdownSaving(true);
     try {
-      const success = await siteLockdown.updateMessage(lockdownMessage, lockdownSubtitle);
+      const success = await siteLockdown.updateMessage(lockdownMessage.trim(), lockdownSubtitle.trim());
       
       if (success) {
         setLockdownSettings(prev => prev ? { 
@@ -1059,36 +1050,45 @@ export default function SuperAdminPage() {
                     Cyberpunk Theme
                   </Badge>
                 </div>
-                <div className="p-6 relative">
+                <div className="p-6 relative" style={{ background: "linear-gradient(135deg, #000a0f 0%, #001015 100%)" }}>
                   {/* Mini Grid Background */}
                   <div 
-                    className="absolute inset-0 opacity-20"
+                    className="absolute inset-0 opacity-30"
                     style={{
                       backgroundImage: `
-                        linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px)
+                        linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px)
                       `,
                       backgroundSize: "20px 20px"
                     }}
                   />
                   
                   <div className="relative text-center py-6">
-                    <h3 
-                      className="text-lg md:text-xl font-bold text-red-500 mb-2 tracking-wide"
-                      style={{
-                        textShadow: "0 0 20px rgba(239, 68, 68, 0.5)"
-                      }}
-                    >
-                      {lockdownMessage || "ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR"}
-                    </h3>
+                    {lockdownMessage && (
+                      <h3 
+                        className="text-lg md:text-xl font-bold mb-2 tracking-wide"
+                        style={{
+                          color: "#0ff",
+                          textShadow: "0 0 20px rgba(0,255,255,0.5)"
+                        }}
+                      >
+                        {lockdownMessage}
+                      </h3>
+                    )}
                     
-                    <p className="text-gray-400 font-mono text-xs md:text-sm tracking-wide mb-4">
-                      {lockdownSubtitle || "Güvenlik protokolleri devreye alındı."}
-                    </p>
+                    {lockdownSubtitle && (
+                      <p className="text-cyan-300/70 font-mono text-xs md:text-sm tracking-wide mb-4">
+                        {lockdownSubtitle}
+                      </p>
+                    )}
+
+                    {!lockdownMessage && !lockdownSubtitle && (
+                      <p className="text-gray-500 text-sm italic mb-4">Mesaj girilmedi</p>
+                    )}
 
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full">
                       <span className="text-gray-500 text-[10px] font-mono">powered by</span>
-                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 font-bold text-xs">
+                      <span className="font-bold text-xs" style={{ color: "#0ff", textShadow: "0 0 10px #0ff" }}>
                         Canberk Şıklı
                       </span>
                     </div>
