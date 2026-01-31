@@ -13,7 +13,7 @@ interface LockdownSettings {
 export default function AccessDeniedPage() {
   const [settings, setSettings] = useState<LockdownSettings>({
     lockdown_message: "ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR",
-    lockdown_subtitle: "Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı."
+    lockdown_subtitle: "Güvenlik protokolleri devreye alındı."
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [glitchActive, setGlitchActive] = useState(false);
@@ -185,18 +185,6 @@ export default function AccessDeniedPage() {
           </div>
         </motion.div>
 
-        {/* Alert Badge */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3 }}
-          className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/50 rounded-full mb-6"
-        >
-          <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
-          <span className="text-red-400 font-mono text-sm tracking-wider">SECURITY BREACH DETECTED</span>
-          <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
-        </motion.div>
-
         {/* Main Message */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -277,7 +265,7 @@ export default function AccessDeniedPage() {
                 textShadow: "0 0 20px rgba(6, 182, 212, 0.5)"
               }}
             >
-              CANBERK
+              Canberk Şıklı
             </span>
           </div>
         </motion.div>

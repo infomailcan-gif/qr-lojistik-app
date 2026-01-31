@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS site_lockdown (
   id TEXT PRIMARY KEY DEFAULT 'default',
   is_active BOOLEAN DEFAULT false,
   lockdown_message TEXT DEFAULT 'ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR',
-  lockdown_subtitle TEXT DEFAULT 'Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı.',
+  lockdown_subtitle TEXT DEFAULT 'Güvenlik protokolleri devreye alındı.',
   activated_at TIMESTAMPTZ,
   activated_by TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -311,7 +311,7 @@ CREATE TABLE IF NOT EXISTS site_lockdown (
 
 -- Default ayarları ekle
 INSERT INTO site_lockdown (id, is_active, lockdown_message, lockdown_subtitle) 
-VALUES ('default', false, 'ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR', 'Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı.')
+VALUES ('default', false, 'ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR', 'Güvenlik protokolleri devreye alındı.')
 ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE site_lockdown ENABLE ROW LEVEL SECURITY;

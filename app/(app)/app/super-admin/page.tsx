@@ -1017,7 +1017,7 @@ export default function SuperAdminPage() {
                     <Textarea
                       value={lockdownSubtitle}
                       onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setLockdownSubtitle(e.target.value)}
-                      placeholder="Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı."
+                      placeholder="Güvenlik protokolleri devreye alındı."
                       className="min-h-[60px] border-slate-200 focus:border-violet-300 resize-none"
                     />
                     <p className="text-xs text-slate-400">Ek açıklama için kullanılır</p>
@@ -1073,11 +1073,6 @@ export default function SuperAdminPage() {
                   />
                   
                   <div className="relative text-center py-6">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-full mb-4">
-                      <AlertTriangle className="w-3 h-3 text-red-400" />
-                      <span className="text-red-400 font-mono text-xs tracking-wider">SECURITY BREACH</span>
-                    </div>
-                    
                     <h3 
                       className="text-lg md:text-xl font-bold text-red-500 mb-2 tracking-wide"
                       style={{
@@ -1088,13 +1083,13 @@ export default function SuperAdminPage() {
                     </h3>
                     
                     <p className="text-gray-400 font-mono text-xs md:text-sm tracking-wide mb-4">
-                      {lockdownSubtitle || "Yetkisiz erişim tespit edildi."}
+                      {lockdownSubtitle || "Güvenlik protokolleri devreye alındı."}
                     </p>
 
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full">
                       <span className="text-gray-500 text-[10px] font-mono">powered by</span>
                       <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 font-bold text-xs">
-                        CANBERK
+                        Canberk Şıklı
                       </span>
                     </div>
                   </div>
