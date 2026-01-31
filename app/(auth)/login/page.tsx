@@ -362,12 +362,15 @@ export default function LoginPage() {
                     type="text"
                     placeholder="Kullanıcı adınızı girin"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => setUsername(e.target.value.trim())}
                     onFocus={() => setFocusedField('username')}
                     onBlur={() => setFocusedField(null)}
                     className="relative bg-[#0a0e1a] border-0 text-white placeholder:text-slate-500 h-12 sm:h-14 rounded-xl px-4 text-base focus:ring-2 focus:ring-cyan-500/50 transition-all"
                     disabled={loading}
                     autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
               </motion.div>
@@ -399,6 +402,9 @@ export default function LoginPage() {
                     className="relative bg-[#0a0e1a] border-0 text-white placeholder:text-slate-500 h-12 sm:h-14 rounded-xl px-4 text-base focus:ring-2 focus:ring-purple-500/50 transition-all"
                     disabled={loading}
                     autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
               </motion.div>
