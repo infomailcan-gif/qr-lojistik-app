@@ -11,6 +11,7 @@ import { PageTransition } from "@/components/app/PageTransition";
 import { PdfProgressProvider } from "@/contexts/pdf-progress-context";
 import { auth, type User } from "@/lib/auth";
 import { activityTracker } from "@/lib/activity-tracker";
+import { siteLockdown } from "@/lib/site-lockdown";
 import { motion } from "framer-motion";
 import { Cpu, Sparkles } from "lucide-react";
 
@@ -110,6 +111,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.push("/login");
       return;
     }
+    
+    // Site lockdown kontrolü - super_admin hariç herkes engellenir
+    if (session.user.role !== "super_admin") {
+      const isLocked = await siteLockdown.isActive();
+      if (isLocked) {
+        router.push("/access-denied");
+        return;
+      }
+    }
+    
     setUser(session.user);
     setLoading(false);
   };

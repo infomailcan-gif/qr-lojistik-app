@@ -296,6 +296,30 @@ CREATE POLICY "Public update access" ON ban_settings FOR UPDATE USING (true);
 CREATE POLICY "Public insert access" ON ban_settings FOR INSERT WITH CHECK (true);
 
 -- ============================================
+-- 14. SİTE LOCKDOWN - Tüm Site Erişim Engelleme
+-- ============================================
+-- Site lockdown ayarları tablosu
+CREATE TABLE IF NOT EXISTS site_lockdown (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  is_active BOOLEAN DEFAULT false,
+  lockdown_message TEXT DEFAULT 'ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR',
+  lockdown_subtitle TEXT DEFAULT 'Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı.',
+  activated_at TIMESTAMPTZ,
+  activated_by TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Default ayarları ekle
+INSERT INTO site_lockdown (id, is_active, lockdown_message, lockdown_subtitle) 
+VALUES ('default', false, 'ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR', 'Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı.')
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE site_lockdown ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON site_lockdown FOR SELECT USING (true);
+CREATE POLICY "Public update access" ON site_lockdown FOR UPDATE USING (true);
+CREATE POLICY "Public insert access" ON site_lockdown FOR INSERT WITH CHECK (true);
+
+-- ============================================
 -- BAŞARILI! 🎉
 -- ============================================
 -- Veritabanı hazır. Şimdi Storage bucket'ı oluşturun.

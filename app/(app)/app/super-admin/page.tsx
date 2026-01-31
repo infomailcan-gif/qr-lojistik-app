@@ -18,6 +18,12 @@ import {
   Sparkles,
   RefreshCw,
   Loader2,
+  Power,
+  Lock,
+  Unlock,
+  Terminal,
+  Zap,
+  ShieldAlert,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +50,12 @@ import { auth, type UserRole, type MockUser } from "@/lib/auth";
 import { departmentRepository } from "@/lib/repositories/department";
 import { activityTracker, type PageVisit } from "@/lib/activity-tracker";
 import { userRepository, type UserWithBan } from "@/lib/repositories/user";
+import { siteLockdown, type SiteLockdownSettings } from "@/lib/site-lockdown";
 import type { Department } from "@/lib/types/box";
 import { useToast } from "@/components/ui/use-toast";
 import { Eye, Clock, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 interface UserFormData {
   username: string;
@@ -69,6 +78,12 @@ export default function SuperAdminPage() {
   const [pageVisits, setPageVisits] = useState<PageVisit[]>([]);
   const [activityPage, setActivityPage] = useState(1);
   const activityPerPage = 20;
+
+  // Site Lockdown State
+  const [lockdownSettings, setLockdownSettings] = useState<SiteLockdownSettings | null>(null);
+  const [lockdownMessage, setLockdownMessage] = useState("");
+  const [lockdownSubtitle, setLockdownSubtitle] = useState("");
+  const [lockdownSaving, setLockdownSaving] = useState(false);
 
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<UserWithBan, "password"> | null>(null);
@@ -105,15 +120,22 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData, visitsData] = await Promise.all([
+      const [usersData, deptsData, visitsData, lockdownData] = await Promise.all([
         auth.getAvailableUsers(),
         departmentRepository.getAll(),
-        activityTracker.getAllRecentPageVisits(200)
+        activityTracker.getAllRecentPageVisits(200),
+        siteLockdown.getSettings()
       ]);
       
       setUsers(usersData as any);
       setDepartments(deptsData);
       setPageVisits(visitsData);
+      
+      if (lockdownData) {
+        setLockdownSettings(lockdownData);
+        setLockdownMessage(lockdownData.lockdown_message);
+        setLockdownSubtitle(lockdownData.lockdown_subtitle);
+      }
     } catch (error) {
       console.error("Error loading data:", error);
       toast({
@@ -359,6 +381,90 @@ export default function SuperAdminPage() {
     }
   };
 
+  // Site Lockdown Fonksiyonları
+  const handleToggleLockdown = async (enabled: boolean) => {
+    setLockdownSaving(true);
+    try {
+      const session = await auth.getSession();
+      const userName = session?.user?.name || "Unknown";
+      
+      let success: boolean;
+      if (enabled) {
+        success = await siteLockdown.activate(userName);
+      } else {
+        success = await siteLockdown.deactivate();
+      }
+      
+      if (success) {
+        setLockdownSettings(prev => prev ? { ...prev, is_active: enabled } : null);
+        toast({
+          title: enabled ? "Site Kilitlendi" : "Site Açıldı",
+          description: enabled 
+            ? "Tüm kullanıcıların erişimi engellendi" 
+            : "Kullanıcılar artık siteye erişebilir",
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: "İşlem başarısız oldu",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling lockdown:", error);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setLockdownSaving(false);
+    }
+  };
+
+  const handleSaveLockdownMessage = async () => {
+    if (!lockdownMessage.trim()) {
+      toast({
+        title: "Hata",
+        description: "Mesaj boş olamaz",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLockdownSaving(true);
+    try {
+      const success = await siteLockdown.updateMessage(lockdownMessage, lockdownSubtitle);
+      
+      if (success) {
+        setLockdownSettings(prev => prev ? { 
+          ...prev, 
+          lockdown_message: lockdownMessage,
+          lockdown_subtitle: lockdownSubtitle 
+        } : null);
+        toast({
+          title: "Başarılı",
+          description: "Mesaj güncellendi",
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: "Mesaj güncellenemedi",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving lockdown message:", error);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setLockdownSaving(false);
+    }
+  };
+
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
       case "super_admin":
@@ -468,6 +574,15 @@ export default function SuperAdminPage() {
               <Badge variant="secondary" className="ml-1 bg-white/20">
                 {pageVisits.length}
               </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="site-control" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-rose-500 data-[state=active]:text-white">
+              <ShieldAlert className="h-4 w-4" />
+              Site Kontrolü
+              {lockdownSettings?.is_active && (
+                <Badge className="ml-1 bg-red-500 text-white animate-pulse">
+                  AKTİF
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -776,6 +891,217 @@ export default function SuperAdminPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Site Control Tab */}
+        <TabsContent value="site-control" className="space-y-6">
+          {/* Warning Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-red-500/10 via-rose-500/10 to-red-500/10 border border-red-200 rounded-xl p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-red-500/20">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-red-700">Dikkat: Kritik Alan</h3>
+                <p className="text-sm text-red-600/80 mt-1">
+                  Site kilidi aktif edildiğinde super admin hariç tüm kullanıcıların erişimi engellenecektir.
+                  Bu özellik sadece acil durumlarda kullanılmalıdır.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Main Control Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <Card className={`border-2 transition-all duration-500 ${
+              lockdownSettings?.is_active 
+                ? "border-red-500 bg-gradient-to-br from-red-50 to-rose-50 shadow-lg shadow-red-500/20" 
+                : "border-slate-200 bg-white/80"
+            }`}>
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${
+                      lockdownSettings?.is_active 
+                        ? "bg-gradient-to-br from-red-500 to-rose-500 shadow-xl shadow-red-500/40" 
+                        : "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl shadow-emerald-500/30"
+                    }`}>
+                      {lockdownSettings?.is_active ? (
+                        <Lock className="h-8 w-8 text-white" />
+                      ) : (
+                        <Unlock className="h-8 w-8 text-white" />
+                      )}
+                      {lockdownSettings?.is_active && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-ping" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className={`text-2xl font-bold ${
+                        lockdownSettings?.is_active ? "text-red-600" : "text-slate-800"
+                      }`}>
+                        {lockdownSettings?.is_active ? "Site Kilitli" : "Site Açık"}
+                      </h2>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {lockdownSettings?.is_active 
+                          ? `${lockdownSettings.activated_by} tarafından kilitlendi` 
+                          : "Tüm kullanıcılar erişebilir"}
+                      </p>
+                      {lockdownSettings?.is_active && lockdownSettings.activated_at && (
+                        <p className="text-xs text-red-500/70 mt-0.5">
+                          {new Date(lockdownSettings.activated_at).toLocaleString("tr-TR")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-medium text-slate-600 mb-1">
+                        Site Kilidi
+                      </span>
+                      <Switch
+                        checked={lockdownSettings?.is_active || false}
+                        onCheckedChange={handleToggleLockdown}
+                        disabled={lockdownSaving}
+                        className="data-[state=checked]:bg-red-500"
+                      />
+                    </div>
+                    {lockdownSaving && (
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Message Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 shadow-lg">
+                    <Terminal className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">Engel Ekranı Mesajları</h3>
+                    <p className="text-xs text-slate-500">Site kilitlendiğinde gösterilecek mesajları özelleştirin</p>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium">Ana Mesaj</Label>
+                    <Textarea
+                      value={lockdownMessage}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setLockdownMessage(e.target.value)}
+                      placeholder="ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR"
+                      className="min-h-[80px] border-slate-200 focus:border-violet-300 resize-none"
+                    />
+                    <p className="text-xs text-slate-400">Bu mesaj büyük ve dikkat çekici şekilde gösterilir</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium">Alt Mesaj</Label>
+                    <Textarea
+                      value={lockdownSubtitle}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setLockdownSubtitle(e.target.value)}
+                      placeholder="Yetkisiz erişim tespit edildi. Güvenlik protokolleri devreye alındı."
+                      className="min-h-[60px] border-slate-200 focus:border-violet-300 resize-none"
+                    />
+                    <p className="text-xs text-slate-400">Ek açıklama için kullanılır</p>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      onClick={handleSaveLockdownMessage}
+                      disabled={lockdownSaving}
+                      className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 shadow-lg shadow-violet-500/25"
+                    >
+                      {lockdownSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-2" />
+                      )}
+                      Mesajları Kaydet
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Preview Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="bg-slate-900 border-slate-700 overflow-hidden">
+              <CardContent className="p-0">
+                <div className="px-4 py-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-300">Önizleme</span>
+                  </div>
+                  <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                    Cyberpunk Theme
+                  </Badge>
+                </div>
+                <div className="p-6 relative">
+                  {/* Mini Grid Background */}
+                  <div 
+                    className="absolute inset-0 opacity-20"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px)
+                      `,
+                      backgroundSize: "20px 20px"
+                    }}
+                  />
+                  
+                  <div className="relative text-center py-6">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-full mb-4">
+                      <AlertTriangle className="w-3 h-3 text-red-400" />
+                      <span className="text-red-400 font-mono text-xs tracking-wider">SECURITY BREACH</span>
+                    </div>
+                    
+                    <h3 
+                      className="text-lg md:text-xl font-bold text-red-500 mb-2 tracking-wide"
+                      style={{
+                        textShadow: "0 0 20px rgba(239, 68, 68, 0.5)"
+                      }}
+                    >
+                      {lockdownMessage || "ERİŞİMİNİZ SİSTEM YÖNETİCİSİ TARAFINDAN KISITLANMIŞTIR"}
+                    </h3>
+                    
+                    <p className="text-gray-400 font-mono text-xs md:text-sm tracking-wide mb-4">
+                      {lockdownSubtitle || "Yetkisiz erişim tespit edildi."}
+                    </p>
+
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full">
+                      <span className="text-gray-500 text-[10px] font-mono">powered by</span>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 font-bold text-xs">
+                        CANBERK
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </TabsContent>
       </Tabs>
 

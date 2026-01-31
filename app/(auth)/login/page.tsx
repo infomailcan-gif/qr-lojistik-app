@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth } from "@/lib/auth";
+import { siteLockdown } from "@/lib/site-lockdown";
 import { useToast } from "@/components/ui/use-toast";
 
 // 3D Floating Cube Component
@@ -163,7 +164,21 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await auth.login(username, password);
+      const session = await auth.login(username, password);
+      
+      // Site lockdown kontrolü - super_admin hariç herkes engellenir
+      if (session.user.role !== "super_admin") {
+        const isLocked = await siteLockdown.isActive();
+        if (isLocked) {
+          toast({
+            title: "Erişim Engellendi",
+            description: "Site şu anda kilitli. Sistem yöneticisi ile iletişime geçin.",
+            variant: "destructive",
+          });
+          router.push("/access-denied");
+          return;
+        }
+      }
       
       toast({
         title: "Başarılı",
