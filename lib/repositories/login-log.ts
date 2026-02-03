@@ -242,7 +242,7 @@ class LoginLogRepository {
     }
   }
 
-  // Oturum başlat/güncelle
+  // Oturum başlat - her login'de yeni oturum oluştur (süre sıfırlanır)
   async startSession(params: {
     user_id: string;
     username: string;
@@ -255,10 +255,12 @@ class LoginLogRepository {
 
     if (!isSupabaseConfigured || !supabase) {
       const sessions = this.getLocalSessions();
-      const existingIndex = sessions.findIndex(s => s.user_id === params.user_id);
+      // Önce eski session'ı sil
+      const filteredSessions = sessions.filter(s => s.user_id !== params.user_id);
       
+      // Yeni session oluştur - her giriş sıfırdan başlar
       const session: ActiveSession = {
-        id: existingIndex >= 0 ? sessions[existingIndex].id : `session-${Date.now()}`,
+        id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_id: params.user_id,
         username: params.username,
         user_name: params.user_name,
@@ -266,49 +268,31 @@ class LoginLogRepository {
         ip_address,
         user_agent,
         last_activity: now,
-        created_at: existingIndex >= 0 ? sessions[existingIndex].created_at : now,
+        created_at: now, // Her login'de yeni başlangıç zamanı
       };
 
-      if (existingIndex >= 0) {
-        sessions[existingIndex] = session;
-      } else {
-        sessions.push(session);
-      }
-      
-      this.saveLocalSessions(sessions);
+      filteredSessions.push(session);
+      this.saveLocalSessions(filteredSessions);
       return;
     }
 
     try {
-      // Önce mevcut oturumu kontrol et
-      const { data: existing } = await supabase
+      // Önce mevcut oturumu sil
+      await supabase
         .from("active_sessions")
-        .select("id")
-        .eq("user_id", params.user_id)
-        .single();
+        .delete()
+        .eq("user_id", params.user_id);
 
-      if (existing) {
-        // Güncelle
-        await supabase
-          .from("active_sessions")
-          .update({
-            ip_address,
-            user_agent,
-            last_activity: now,
-          })
-          .eq("user_id", params.user_id);
-      } else {
-        // Yeni oturum
-        await supabase.from("active_sessions").insert({
-          user_id: params.user_id,
-          username: params.username,
-          user_name: params.user_name,
-          department_name: params.department_name,
-          ip_address,
-          user_agent,
-          last_activity: now,
-        });
-      }
+      // Yeni oturum oluştur - her login'de sıfırdan
+      await supabase.from("active_sessions").insert({
+        user_id: params.user_id,
+        username: params.username,
+        user_name: params.user_name,
+        department_name: params.department_name,
+        ip_address,
+        user_agent,
+        last_activity: now,
+      });
     } catch (error) {
       console.error("Error managing session in Supabase:", error);
     }

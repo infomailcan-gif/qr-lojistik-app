@@ -51,9 +51,10 @@ import { departmentRepository } from "@/lib/repositories/department";
 import { activityTracker, type PageVisit } from "@/lib/activity-tracker";
 import { userRepository, type UserWithBan } from "@/lib/repositories/user";
 import { siteLockdown, type SiteLockdownSettings } from "@/lib/site-lockdown";
+import { announcementRepository, type Announcement } from "@/lib/repositories/announcement";
 import type { Department } from "@/lib/types/box";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, Clock, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -84,6 +85,14 @@ export default function SuperAdminPage() {
   const [lockdownMessage, setLockdownMessage] = useState("");
   const [lockdownSubtitle, setLockdownSubtitle] = useState("");
   const [lockdownSaving, setLockdownSaving] = useState(false);
+
+  // Announcement/Duyuru State
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [announcementSpeed, setAnnouncementSpeed] = useState<"slow" | "normal" | "fast">("normal");
+  const [announcementBgColor, setAnnouncementBgColor] = useState("#3b82f6");
+  const [announcementTextColor, setAnnouncementTextColor] = useState("#ffffff");
+  const [announcementSaving, setAnnouncementSaving] = useState(false);
 
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<UserWithBan, "password"> | null>(null);
@@ -120,11 +129,12 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData, visitsData, lockdownData] = await Promise.all([
+      const [usersData, deptsData, visitsData, lockdownData, announcementData] = await Promise.all([
         auth.getAvailableUsers(),
         departmentRepository.getAll(),
         activityTracker.getAllRecentPageVisits(200),
-        siteLockdown.getSettings()
+        siteLockdown.getSettings(),
+        announcementRepository.getAnnouncement()
       ]);
       
       setUsers(usersData as any);
@@ -135,6 +145,14 @@ export default function SuperAdminPage() {
         setLockdownSettings(lockdownData);
         setLockdownMessage(lockdownData.lockdown_message);
         setLockdownSubtitle(lockdownData.lockdown_subtitle);
+      }
+
+      if (announcementData) {
+        setAnnouncement(announcementData);
+        setAnnouncementMessage(announcementData.message);
+        setAnnouncementSpeed(announcementData.marquee_speed);
+        setAnnouncementBgColor(announcementData.background_color);
+        setAnnouncementTextColor(announcementData.text_color);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -456,6 +474,97 @@ export default function SuperAdminPage() {
     }
   };
 
+  // Announcement/Duyuru Fonksiyonları
+  const handleToggleAnnouncement = async (enabled: boolean) => {
+    setAnnouncementSaving(true);
+    try {
+      const session = await auth.getSession();
+      const userName = session?.user?.name || "Unknown";
+      
+      const success = await announcementRepository.toggleActive(enabled, userName);
+      
+      if (success) {
+        setAnnouncement(prev => prev ? { ...prev, is_active: enabled } : null);
+        toast({
+          title: enabled ? "Duyuru Aktif" : "Duyuru Kapalı",
+          description: enabled 
+            ? "Kayan yazı tüm kullanıcılara gösterilecek" 
+            : "Kayan yazı gizlendi",
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: "İşlem başarısız oldu",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling announcement:", error);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setAnnouncementSaving(false);
+    }
+  };
+
+  const handleSaveAnnouncement = async () => {
+    if (!announcementMessage.trim()) {
+      toast({
+        title: "Hata",
+        description: "Duyuru mesajı boş olamaz",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAnnouncementSaving(true);
+    try {
+      const session = await auth.getSession();
+      const userName = session?.user?.name || "Unknown";
+      
+      const success = await announcementRepository.updateAnnouncement({
+        message: announcementMessage.trim(),
+        is_active: announcement?.is_active || false,
+        marquee_speed: announcementSpeed,
+        background_color: announcementBgColor,
+        text_color: announcementTextColor,
+        updated_by: userName,
+      });
+      
+      if (success) {
+        setAnnouncement(prev => prev ? { 
+          ...prev, 
+          message: announcementMessage,
+          marquee_speed: announcementSpeed,
+          background_color: announcementBgColor,
+          text_color: announcementTextColor,
+        } : null);
+        toast({
+          title: "Başarılı",
+          description: "Duyuru güncellendi",
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: "Duyuru güncellenemedi",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving announcement:", error);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setAnnouncementSaving(false);
+    }
+  };
+
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
       case "super_admin":
@@ -572,6 +681,15 @@ export default function SuperAdminPage() {
               {lockdownSettings?.is_active && (
                 <Badge className="ml-1 bg-red-500 text-white animate-pulse">
                   AKTİF
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="announcements" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white">
+              <Megaphone className="h-4 w-4" />
+              Duyurular
+              {announcement?.is_active && (
+                <Badge className="ml-1 bg-blue-500 text-white animate-pulse">
+                  YAYIN
                 </Badge>
               )}
             </TabsTrigger>
@@ -1094,6 +1212,268 @@ export default function SuperAdminPage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+
+        {/* Announcements Tab */}
+        <TabsContent value="announcements" className="space-y-6">
+          {/* Info Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-blue-500/10 border border-blue-200 rounded-xl p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <Megaphone className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-blue-700">Kayan Yazı Duyuru Sistemi</h3>
+                <p className="text-sm text-blue-600/80 mt-1">
+                  Tüm kullanıcılara ekranın üstünde kayan bir yazı ile mesaj gönderin. 
+                  Mobil ve masaüstü uyumludur.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Main Control Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <Card className={`border-2 transition-all duration-500 ${
+              announcement?.is_active 
+                ? "border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg shadow-blue-500/20" 
+                : "border-slate-200 bg-white/80"
+            }`}>
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${
+                      announcement?.is_active 
+                        ? "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-xl shadow-blue-500/40" 
+                        : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-xl shadow-slate-500/30"
+                    }`}>
+                      {announcement?.is_active ? (
+                        <Volume2 className="h-8 w-8 text-white" />
+                      ) : (
+                        <Megaphone className="h-8 w-8 text-white" />
+                      )}
+                      {announcement?.is_active && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-ping" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className={`text-2xl font-bold ${
+                        announcement?.is_active ? "text-blue-600" : "text-slate-800"
+                      }`}>
+                        {announcement?.is_active ? "Duyuru Yayında" : "Duyuru Kapalı"}
+                      </h2>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {announcement?.is_active 
+                          ? "Kayan yazı tüm kullanıcılara gösteriliyor" 
+                          : "Duyuru aktif değil"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-medium text-slate-600 mb-1">
+                        Duyuru Durumu
+                      </span>
+                      <Switch
+                        checked={announcement?.is_active || false}
+                        onCheckedChange={handleToggleAnnouncement}
+                        disabled={announcementSaving || !announcementMessage.trim()}
+                        className="data-[state=checked]:bg-blue-500"
+                      />
+                    </div>
+                    {announcementSaving && (
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Announcement Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg">
+                    <FileText className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">Duyuru Ayarları</h3>
+                    <p className="text-xs text-slate-500">Kayan yazının içeriğini ve görünümünü özelleştirin</p>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Duyuru Mesajı */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium">Duyuru Mesajı</Label>
+                    <Textarea
+                      value={announcementMessage}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAnnouncementMessage(e.target.value)}
+                      placeholder="Örn: Sistem bakımı nedeniyle yarın 10:00-12:00 arası erişim kısıtlı olacaktır."
+                      className="min-h-[100px] border-slate-200 focus:border-blue-300 resize-none"
+                    />
+                    <p className="text-xs text-slate-400">Bu mesaj ekranın üstünde kayan yazı olarak gösterilecek</p>
+                  </div>
+
+                  {/* Hız Seçimi */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium">Kayan Yazı Hızı</Label>
+                    <Select
+                      value={announcementSpeed}
+                      onValueChange={(value: "slow" | "normal" | "fast") => setAnnouncementSpeed(value)}
+                    >
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="slow">Yavaş (30 saniye)</SelectItem>
+                        <SelectItem value="normal">Normal (20 saniye)</SelectItem>
+                        <SelectItem value="fast">Hızlı (10 saniye)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Renk Seçimleri */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 font-medium">Arka Plan Rengi</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={announcementBgColor}
+                          onChange={(e) => setAnnouncementBgColor(e.target.value)}
+                          className="w-12 h-10 rounded border border-slate-200 cursor-pointer"
+                        />
+                        <Input
+                          value={announcementBgColor}
+                          onChange={(e) => setAnnouncementBgColor(e.target.value)}
+                          className="flex-1 border-slate-200 font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 font-medium">Yazı Rengi</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={announcementTextColor}
+                          onChange={(e) => setAnnouncementTextColor(e.target.value)}
+                          className="w-12 h-10 rounded border border-slate-200 cursor-pointer"
+                        />
+                        <Input
+                          value={announcementTextColor}
+                          onChange={(e) => setAnnouncementTextColor(e.target.value)}
+                          className="flex-1 border-slate-200 font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      onClick={handleSaveAnnouncement}
+                      disabled={announcementSaving || !announcementMessage.trim()}
+                      className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-lg shadow-blue-500/25"
+                    >
+                      {announcementSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-2" />
+                      )}
+                      Duyuruyu Kaydet
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Preview Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-slate-200 overflow-hidden">
+              <CardContent className="p-0">
+                <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-600">Önizleme</span>
+                  </div>
+                  <Badge className="bg-blue-100 text-blue-600 border-blue-200">
+                    Canlı Görünüm
+                  </Badge>
+                </div>
+                <div className="relative overflow-hidden" style={{ backgroundColor: announcementBgColor }}>
+                  {announcementMessage ? (
+                    <div className="py-3 whitespace-nowrap animate-marquee">
+                      <span 
+                        className="inline-block px-4 font-medium text-sm"
+                        style={{ color: announcementTextColor }}
+                      >
+                        📢 {announcementMessage} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 📢 {announcementMessage}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="py-3 text-center">
+                      <span className="text-sm opacity-70" style={{ color: announcementTextColor }}>
+                        Mesaj girilmedi - önizleme için bir mesaj yazın
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Usage Tips */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
+              <CardContent className="p-5">
+                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-500" />
+                  Kullanım İpuçları
+                </h4>
+                <ul className="space-y-2 text-sm text-slate-600">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500">•</span>
+                    <span>Duyuru aktif edildiğinde tüm kullanıcılar ekranın üstünde kayan yazıyı görecek</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500">•</span>
+                    <span>Acil duyurular için dikkat çekici renkler (kırmızı, turuncu) kullanın</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500">•</span>
+                    <span>Mesajlar kısa ve öz olmalı - uzun mesajlar okunmayı zorlaştırır</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500">•</span>
+                    <span>Mobil cihazlarda duyuru otomatik olarak küçük ekrana uyum sağlar</span>
+                  </li>
+                </ul>
               </CardContent>
             </Card>
           </motion.div>

@@ -8,6 +8,7 @@ import { BottomNav } from "@/components/app/BottomNav";
 import { Sidebar } from "@/components/app/Sidebar";
 import { LoadingPage } from "@/components/app/Loading";
 import { PageTransition } from "@/components/app/PageTransition";
+import { AnnouncementBanner } from "@/components/app/AnnouncementBanner";
 import { PdfProgressProvider } from "@/contexts/pdf-progress-context";
 import { auth, type User } from "@/lib/auth";
 import { activityTracker } from "@/lib/activity-tracker";
@@ -143,6 +144,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <PdfProgressProvider>
     <div className="min-h-screen">
       <AnimatedBackground />
+      <AnnouncementBanner />
       <TopBar userName={user.name} onSignOut={handleSignOut} />
       <Sidebar userRole={user.role} />
       

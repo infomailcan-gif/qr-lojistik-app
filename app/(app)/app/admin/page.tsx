@@ -20,7 +20,6 @@ import {
   FileText,
   QrCode,
   RefreshCw,
-  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -44,7 +43,6 @@ import type { ShipmentWithCounts } from "@/lib/types/shipment";
 import { AdminKpiCard } from "@/components/admin/AdminKpiCard";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { EntityTable } from "@/components/admin/EntityTable";
-import { ActivityTracker } from "@/lib/activity-tracker";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminPage() {
@@ -460,36 +458,15 @@ export default function AdminPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={handleRefresh}
-            variant="outline"
-            className="border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-            Yenile
-          </Button>
-          <Button
-            onClick={() => {
-              if (confirm("TÜM VERİLERİ SİLMEK İSTEDİĞİNİZE EMİN MİSİNİZ?\n\nBu işlem tüm kolileri, paletleri, sevkiyatları ve aktiviteleri siler.\nBu işlem geri alınamaz!")) {
-                ActivityTracker.clearAllData();
-                toast({
-                  title: "Veriler Temizlendi",
-                  description: "Tüm veriler silindi.",
-                });
-                setTimeout(() => {
-                  window.location.reload();
-                }, 500);
-              }
-            }}
-            variant="destructive"
-            className="bg-red-500 hover:bg-red-600"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Tümünü Sil
-          </Button>
-        </div>
+        <Button
+          onClick={handleRefresh}
+          variant="outline"
+          className="border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
+          disabled={refreshing}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+          Yenile
+        </Button>
       </motion.div>
 
       {/* Content */}
