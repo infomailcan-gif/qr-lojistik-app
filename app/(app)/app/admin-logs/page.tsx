@@ -193,6 +193,13 @@ export default function AdminLogsPage() {
             Giriş
           </Badge>
         );
+      case "auto_login":
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+            <Wifi className="w-3 h-3 mr-1" />
+            Oto. Giriş
+          </Badge>
+        );
       case "logout":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
@@ -491,6 +498,7 @@ export default function AdminLogsPage() {
           <SelectContent>
             <SelectItem value="all">Tümü</SelectItem>
             <SelectItem value="login">Giriş</SelectItem>
+            <SelectItem value="auto_login">Oto. Giriş</SelectItem>
             <SelectItem value="logout">Çıkış</SelectItem>
             <SelectItem value="failed_login">Başarısız</SelectItem>
           </SelectContent>

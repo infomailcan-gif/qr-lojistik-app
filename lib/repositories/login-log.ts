@@ -4,7 +4,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 const LOGIN_LOGS_STORAGE_KEY = "qr_lojistik_login_logs";
 const ACTIVE_SESSIONS_STORAGE_KEY = "qr_lojistik_active_sessions";
 
-export type LoginAction = "login" | "logout" | "failed_login";
+export type LoginAction = "login" | "logout" | "failed_login" | "auto_login";
 
 export interface LoginLog {
   id: string;
@@ -242,12 +242,13 @@ class LoginLogRepository {
     }
   }
 
-  // Oturum başlat - her login'de yeni oturum oluştur (süre sıfırlanır)
+  // Oturum başlat veya güncelle - mevcut session varsa sadece last_activity güncellenir
   async startSession(params: {
     user_id: string;
     username: string;
     user_name: string;
     department_name?: string | null;
+    forceNew?: boolean; // Yeni giriş için true gönderilir
   }): Promise<void> {
     const ip_address = await this.getClientIP();
     const user_agent = typeof window !== "undefined" ? navigator.userAgent : null;
@@ -255,10 +256,19 @@ class LoginLogRepository {
 
     if (!isSupabaseConfigured || !supabase) {
       const sessions = this.getLocalSessions();
-      // Önce eski session'ı sil
-      const filteredSessions = sessions.filter(s => s.user_id !== params.user_id);
+      const existingIndex = sessions.findIndex(s => s.user_id === params.user_id);
       
-      // Yeni session oluştur - her giriş sıfırdan başlar
+      if (existingIndex >= 0 && !params.forceNew) {
+        // Mevcut session varsa sadece last_activity ve IP/user_agent güncelle
+        sessions[existingIndex].last_activity = now;
+        sessions[existingIndex].ip_address = ip_address;
+        sessions[existingIndex].user_agent = user_agent;
+        this.saveLocalSessions(sessions);
+        return;
+      }
+      
+      // Mevcut session yoksa veya forceNew ise yeni oluştur
+      const filteredSessions = sessions.filter(s => s.user_id !== params.user_id);
       const session: ActiveSession = {
         id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_id: params.user_id,
@@ -268,7 +278,7 @@ class LoginLogRepository {
         ip_address,
         user_agent,
         last_activity: now,
-        created_at: now, // Her login'de yeni başlangıç zamanı
+        created_at: now,
       };
 
       filteredSessions.push(session);
@@ -277,22 +287,45 @@ class LoginLogRepository {
     }
 
     try {
-      // Önce mevcut oturumu sil
-      await supabase
+      // Önce mevcut oturumu kontrol et
+      const { data: existing } = await supabase
         .from("active_sessions")
-        .delete()
-        .eq("user_id", params.user_id);
+        .select("id, created_at")
+        .eq("user_id", params.user_id)
+        .single();
 
-      // Yeni oturum oluştur - her login'de sıfırdan
-      await supabase.from("active_sessions").insert({
-        user_id: params.user_id,
-        username: params.username,
-        user_name: params.user_name,
-        department_name: params.department_name,
-        ip_address,
-        user_agent,
-        last_activity: now,
-      });
+      if (existing && !params.forceNew) {
+        // Mevcut oturum varsa sadece last_activity ve IP/user_agent güncelle (created_at korunur)
+        await supabase
+          .from("active_sessions")
+          .update({
+            last_activity: now,
+            ip_address,
+            user_agent,
+            username: params.username,
+            user_name: params.user_name,
+            department_name: params.department_name,
+          })
+          .eq("user_id", params.user_id);
+      } else {
+        // Mevcut oturum yoksa veya forceNew ise yeni oluştur
+        // Önce eski oturumu sil (varsa)
+        await supabase
+          .from("active_sessions")
+          .delete()
+          .eq("user_id", params.user_id);
+
+        // Yeni oturum oluştur
+        await supabase.from("active_sessions").insert({
+          user_id: params.user_id,
+          username: params.username,
+          user_name: params.user_name,
+          department_name: params.department_name,
+          ip_address,
+          user_agent,
+          last_activity: now,
+        });
+      }
     } catch (error) {
       console.error("Error managing session in Supabase:", error);
     }
@@ -408,20 +441,23 @@ class LoginLogRepository {
       const last24h = logs.filter(l => new Date(l.created_at) >= twentyFourHoursAgo);
       const sessions = await this.getActiveSessions();
 
+      // login ve auto_login'i birlikte say
+      const loginActions = last24h.filter(l => l.action === "login" || l.action === "auto_login");
+
       return {
-        totalLogins24h: last24h.filter(l => l.action === "login").length,
-        uniqueUsers24h: new Set(last24h.filter(l => l.action === "login").map(l => l.username)).size,
+        totalLogins24h: loginActions.length,
+        uniqueUsers24h: new Set(loginActions.map(l => l.username)).size,
         failedLogins24h: last24h.filter(l => l.action === "failed_login").length,
         activeNow: sessions.length,
       };
     }
 
     try {
-      // Son 24 saat giriş sayısı
+      // Son 24 saat giriş sayısı (login + auto_login)
       const { count: loginCount } = await supabase
         .from("login_logs")
         .select("*", { count: "exact", head: true })
-        .eq("action", "login")
+        .in("action", ["login", "auto_login"])
         .gte("created_at", twentyFourHoursAgo.toISOString());
 
       // Başarısız giriş sayısı
@@ -431,11 +467,11 @@ class LoginLogRepository {
         .eq("action", "failed_login")
         .gte("created_at", twentyFourHoursAgo.toISOString());
 
-      // Benzersiz kullanıcı sayısı
+      // Benzersiz kullanıcı sayısı (login + auto_login)
       const { data: uniqueData } = await supabase
         .from("login_logs")
         .select("username")
-        .eq("action", "login")
+        .in("action", ["login", "auto_login"])
         .gte("created_at", twentyFourHoursAgo.toISOString());
 
       const uniqueUsers = new Set(uniqueData?.map(d => d.username) || []).size;

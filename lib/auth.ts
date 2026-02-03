@@ -28,6 +28,7 @@ export interface Session {
 }
 
 const SESSION_STORAGE_KEY = "qr_lojistik_session";
+const AUTO_LOGIN_LOGGED_KEY = "qr_lojistik_auto_login_logged";
 
 class MockAuth {
   async login(username: string, password: string): Promise<Session> {
@@ -69,12 +70,13 @@ class MockAuth {
       action: "login",
     });
 
-    // Aktif oturum başlat
+    // Aktif oturum başlat - yeni giriş olduğu için forceNew: true
     await loginLogRepository.startSession({
       user_id: user.id,
       username: user.username,
       user_name: user.name,
       department_name: user.department_name,
+      forceNew: true, // Gerçek login - süre sıfırdan başlar
     });
 
     return session;
@@ -98,6 +100,8 @@ class MockAuth {
 
     if (typeof window !== "undefined") {
       localStorage.removeItem(SESSION_STORAGE_KEY);
+      // Otomatik giriş bayrağını temizle
+      sessionStorage.removeItem(AUTO_LOGIN_LOGGED_KEY);
     }
   }
 
@@ -181,13 +185,36 @@ class MockAuth {
   async ensureSession(): Promise<void> {
     const session = await this.getSession();
     if (session) {
-      // Aktif oturum başlat/güncelle
+      // Otomatik giriş logu - sadece bir kez kaydet (browser session başına)
+      if (typeof window !== "undefined") {
+        const autoLoginLogged = sessionStorage.getItem(AUTO_LOGIN_LOGGED_KEY);
+        if (!autoLoginLogged) {
+          // Bu browser session'ında ilk kez - auto_login logu kaydet
+          await loginLogRepository.logAction({
+            user_id: session.user.id,
+            username: session.user.username,
+            user_name: session.user.name,
+            department_name: session.user.department_name,
+            action: "auto_login",
+          });
+          sessionStorage.setItem(AUTO_LOGIN_LOGGED_KEY, "true");
+        }
+      }
+
+      // Aktif oturum başlat/güncelle (forceNew yok - mevcut süreyi korur)
       await loginLogRepository.startSession({
         user_id: session.user.id,
         username: session.user.username,
         user_name: session.user.name,
         department_name: session.user.department_name,
       });
+    }
+  }
+
+  // Otomatik giriş bayrağını temizle (logout sırasında çağrılacak)
+  private clearAutoLoginFlag(): void {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(AUTO_LOGIN_LOGGED_KEY);
     }
   }
 }

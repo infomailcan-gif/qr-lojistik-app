@@ -155,16 +155,42 @@ class AnnouncementRepository {
     }
 
     try {
-      const { error } = await supabase
+      // Önce mevcut kaydı kontrol et
+      const { data: existing } = await supabase
         .from("announcements")
-        .update({
-          is_active,
-          updated_at: new Date().toISOString(),
-          created_by: updated_by,
-        })
-        .eq("id", "main-announcement");
+        .select("*")
+        .eq("id", "main-announcement")
+        .single();
 
-      if (error) throw error;
+      if (existing) {
+        // Kayıt varsa güncelle
+        const { error } = await supabase
+          .from("announcements")
+          .update({
+            is_active,
+            updated_at: new Date().toISOString(),
+            created_by: updated_by,
+          })
+          .eq("id", "main-announcement");
+
+        if (error) throw error;
+      } else {
+        // Kayıt yoksa oluştur (upsert)
+        const { error } = await supabase
+          .from("announcements")
+          .upsert({
+            id: "main-announcement",
+            message: "",
+            is_active,
+            marquee_speed: "normal",
+            background_color: "#3b82f6",
+            text_color: "#ffffff",
+            created_by: updated_by,
+            updated_at: new Date().toISOString(),
+          });
+
+        if (error) throw error;
+      }
       return true;
     } catch (error) {
       console.error("Error toggling announcement in Supabase:", error);
