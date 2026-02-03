@@ -47,22 +47,20 @@ export function AnnouncementBanner() {
         animate={{ height: "auto", opacity: 1 }}
         exit={{ height: 0, opacity: 0 }}
         transition={{ duration: 0.3 }}
-        className="relative overflow-hidden z-50"
+        className="relative overflow-hidden group"
         style={{ backgroundColor: announcement.background_color }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Close Button - Only visible on hover */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isHovered ? 1 : 0 }}
+        {/* Close Button - Mobilde her zaman görünür, masaüstünde hover'da */}
+        <button
           onClick={() => setIsVisible(false)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-black/20 hover:bg-black/40 transition-all opacity-70 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100"
           style={{ color: announcement.text_color }}
           title="Duyuruyu gizle"
         >
           <X className="h-4 w-4" />
-        </motion.button>
+        </button>
 
         {/* Marquee Container */}
         <div className="relative py-2 sm:py-2.5 overflow-hidden">

@@ -142,9 +142,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <PdfProgressProvider>
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <AnimatedBackground />
-      <AnnouncementBanner />
+      {/* Duyuru banner - en üstte sabit */}
+      <div className="sticky top-0 z-[60]">
+        <AnnouncementBanner />
+      </div>
       <TopBar userName={user.name} onSignOut={handleSignOut} />
       <Sidebar userRole={user.role} />
       
