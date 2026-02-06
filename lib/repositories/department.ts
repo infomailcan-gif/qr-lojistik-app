@@ -32,7 +32,8 @@ class DepartmentRepository {
       const { data, error } = await supabase
         .from("departments")
         .select("*")
-        .order("name", { ascending: true });
+        .order("name", { ascending: true })
+        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
 
       if (error) throw error;
       return data || [];

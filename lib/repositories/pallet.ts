@@ -56,7 +56,8 @@ class PalletRepository {
           boxes:boxes!boxes_pallet_code_fkey(count)
         `
         )
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
 
       if (error) throw error;
 
@@ -294,7 +295,8 @@ class PalletRepository {
         `
         )
         .eq("shipment_code", shipmentCode)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
 
       if (error) throw error;
 
@@ -407,7 +409,8 @@ class PalletRepository {
         .select("*")
         .is("shipment_code", null)
         .eq("created_by", userName)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
 
       if (error) throw error;
 
