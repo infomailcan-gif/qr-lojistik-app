@@ -47,6 +47,16 @@ const PAGE_VISITS_STORAGE_KEY = "qr_lojistik_page_visits";
 const MAX_ACTIVITIES = 50; // Son 50 aktiviteyi sakla
 const MAX_PAGE_VISITS = 200; // Son 200 sayfa ziyaretini sakla
 
+// Aktiviteleri gizlenecek kullanıcılar (sistemde görünmeyecek)
+const HIDDEN_USERS = ["canberk"];
+
+// Kullanıcı adının gizli listede olup olmadığını kontrol et
+const isHiddenUser = (userName: string): boolean => {
+  return HIDDEN_USERS.some(hiddenName => 
+    userName.toLowerCase().includes(hiddenName.toLowerCase())
+  );
+};
+
 // Aktivite metinleri
 export const activityLabels: Record<ActivityAction, string> = {
   box_created: "koli oluşturdu",
@@ -93,6 +103,11 @@ export class ActivityTracker {
     entityName?: string,
     details?: string
   ): Promise<void> {
+    // Gizli kullanıcılar için aktivite kaydetme
+    if (isHiddenUser(user.name)) {
+      return;
+    }
+
     const newActivity: Activity = {
       id: `activity-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       user_id: user.id,
@@ -150,36 +165,46 @@ export class ActivityTracker {
   async getRecent(limit: number = 15): Promise<Activity[]> {
     if (isSupabaseConfigured && supabase) {
       try {
+        // Daha fazla veri çek çünkü gizli kullanıcılar filtrelenecek
         const { data, error } = await supabase
           .from("activities")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(limit);
+          .limit(limit * 3);
 
         if (error) {
           console.error("Supabase activity fetch error:", error);
-          return this.getLocalActivities().slice(0, limit);
+          return this.getLocalActivities()
+            .filter(a => !isHiddenUser(a.user_name))
+            .slice(0, limit);
         }
 
-        return (data || []).map((item) => ({
-          id: item.id,
-          user_id: item.user_id,
-          user_name: item.user_name,
-          user_department: item.user_department,
-          action: item.action as ActivityAction,
-          entity_type: item.entity_type as "box" | "pallet" | "shipment",
-          entity_code: item.entity_code,
-          entity_name: item.entity_name,
-          details: item.details,
-          created_at: item.created_at,
-        }));
+        return (data || [])
+          .filter((item) => !isHiddenUser(item.user_name))
+          .slice(0, limit)
+          .map((item) => ({
+            id: item.id,
+            user_id: item.user_id,
+            user_name: item.user_name,
+            user_department: item.user_department,
+            action: item.action as ActivityAction,
+            entity_type: item.entity_type as "box" | "pallet" | "shipment",
+            entity_code: item.entity_code,
+            entity_name: item.entity_name,
+            details: item.details,
+            created_at: item.created_at,
+          }));
       } catch (error) {
         console.error("Activity fetch error:", error);
-        return this.getLocalActivities().slice(0, limit);
+        return this.getLocalActivities()
+          .filter(a => !isHiddenUser(a.user_name))
+          .slice(0, limit);
       }
     }
 
-    return this.getLocalActivities().slice(0, limit);
+    return this.getLocalActivities()
+      .filter(a => !isHiddenUser(a.user_name))
+      .slice(0, limit);
   }
 
   // Belirli bir kullanıcının aktivitelerini getir
@@ -228,36 +253,39 @@ export class ActivityTracker {
           .eq("entity_type", entityType)
           .eq("entity_code", entityCode)
           .order("created_at", { ascending: false })
-          .limit(limit);
+          .limit(limit * 3);
 
         if (error) {
           console.error("Supabase activity fetch error:", error);
           return this.getLocalActivities()
-            .filter((a) => a.entity_type === entityType && a.entity_code === entityCode)
+            .filter((a) => a.entity_type === entityType && a.entity_code === entityCode && !isHiddenUser(a.user_name))
             .slice(0, limit);
         }
 
-        return (data || []).map((item) => ({
-          id: item.id,
-          user_id: item.user_id,
-          user_name: item.user_name,
-          user_department: item.user_department,
-          action: item.action as ActivityAction,
-          entity_type: item.entity_type as "box" | "pallet" | "shipment",
-          entity_code: item.entity_code,
-          entity_name: item.entity_name,
-          details: item.details,
-          created_at: item.created_at,
-        }));
+        return (data || [])
+          .filter((item) => !isHiddenUser(item.user_name))
+          .slice(0, limit)
+          .map((item) => ({
+            id: item.id,
+            user_id: item.user_id,
+            user_name: item.user_name,
+            user_department: item.user_department,
+            action: item.action as ActivityAction,
+            entity_type: item.entity_type as "box" | "pallet" | "shipment",
+            entity_code: item.entity_code,
+            entity_name: item.entity_name,
+            details: item.details,
+            created_at: item.created_at,
+          }));
       } catch (error) {
         return this.getLocalActivities()
-          .filter((a) => a.entity_type === entityType && a.entity_code === entityCode)
+          .filter((a) => a.entity_type === entityType && a.entity_code === entityCode && !isHiddenUser(a.user_name))
           .slice(0, limit);
       }
     }
 
     return this.getLocalActivities()
-      .filter((a) => a.entity_type === entityType && a.entity_code === entityCode)
+      .filter((a) => a.entity_type === entityType && a.entity_code === entityCode && !isHiddenUser(a.user_name))
       .slice(0, limit);
   }
 
@@ -278,6 +306,12 @@ export class ActivityTracker {
         },
         (payload) => {
           const item = payload.new;
+          
+          // Gizli kullanıcıların aktivitelerini realtime'da da gösterme
+          if (isHiddenUser(item.user_name)) {
+            return;
+          }
+          
           const activity: Activity = {
             id: item.id,
             user_id: item.user_id,
@@ -356,6 +390,11 @@ export class ActivityTracker {
     pagePath: string,
     pageName: string
   ): Promise<string> {
+    // Gizli kullanıcılar için sayfa ziyareti kaydetme
+    if (isHiddenUser(user.name)) {
+      return `hidden-visit-${Date.now()}`;
+    }
+    
     const visitId = `visit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
 
@@ -482,19 +521,23 @@ export class ActivityTracker {
           .from("page_visits")
           .select("*")
           .order("entered_at", { ascending: false })
-          .limit(limit);
+          .limit(limit * 3);
 
         if (error) throw error;
-        return data || [];
+        return (data || [])
+          .filter(v => !isHiddenUser(v.user_name))
+          .slice(0, limit);
       } catch (error) {
         console.error("All page visits fetch error:", error);
         return this.getLocalPageVisits()
+          .filter(v => !isHiddenUser(v.user_name))
           .sort((a, b) => new Date(b.entered_at).getTime() - new Date(a.entered_at).getTime())
           .slice(0, limit);
       }
     }
 
     return this.getLocalPageVisits()
+      .filter(v => !isHiddenUser(v.user_name))
       .sort((a, b) => new Date(b.entered_at).getTime() - new Date(a.entered_at).getTime())
       .slice(0, limit);
   }

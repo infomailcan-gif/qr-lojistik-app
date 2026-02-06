@@ -33,7 +33,7 @@ class DepartmentRepository {
         .from("departments")
         .select("*")
         .order("name", { ascending: true })
-        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
+        .range(0, 99999); // Supabase varsayılan 1000 limitini aşmak için - tüm kayıtları çek
 
       if (error) throw error;
       return data || [];

@@ -85,7 +85,7 @@ class BoxRepository {
         `
         )
         .order("created_at", { ascending: false })
-        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
+        .range(0, 99999); // Supabase varsayılan 1000 limitini aşmak için - tüm kayıtları çek
 
       if (error) throw error;
       return (data || []).map((item) => ({
@@ -606,7 +606,7 @@ class BoxRepository {
         )
         .eq("pallet_code", palletCode)
         .order("created_at", { ascending: false })
-        .range(0, 50000); // Supabase varsayılan 1000 limitini aşmak için
+        .range(0, 99999); // Supabase varsayılan 1000 limitini aşmak için - tüm kayıtları çek
 
       if (error) throw error;
       return (data || []).map((item) => ({
