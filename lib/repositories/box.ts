@@ -57,7 +57,7 @@ class BoxRepository {
     return `BOX-${timestamp}-${random}`;
   }
 
-  // Get all boxes with department info
+  // Get all boxes with department info (sayfalı çekme: Supabase tek istekte max 1000 satır döndürür)
   async getAll(): Promise<BoxWithDepartment[]> {
     if (!isSupabaseConfigured || !supabase) {
       const boxes = this.getLocalBoxes();
@@ -76,24 +76,37 @@ class BoxRepository {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("boxes")
-        .select(
-          `
-          *,
-          department:departments(id, name)
-        `
-        )
-        .order("created_at", { ascending: false })
-        .range(0, 99999); // Supabase varsayılan 1000 limitini aşmak için - tüm kayıtları çek
+      const PAGE_SIZE = 1000; // PostgREST tek istekte max 1000 satır
+      const allData: BoxWithDepartment[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      return (data || []).map((item) => ({
-        ...item,
-        department: Array.isArray(item.department)
-          ? item.department[0]
-          : item.department,
-      }));
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("boxes")
+          .select(
+            `
+            *,
+            department:departments(id, name)
+          `
+          )
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        const page = data || [];
+        const mapped = page.map((item: any) => ({
+          ...item,
+          department: Array.isArray(item.department)
+            ? item.department[0]
+            : item.department,
+        }));
+        allData.push(...mapped);
+        if (page.length < PAGE_SIZE) hasMore = false;
+        else offset += PAGE_SIZE;
+      }
+
+      return allData;
     } catch (error) {
       console.error("Error fetching boxes from Supabase:", error);
       // Fallback to localStorage
@@ -596,25 +609,38 @@ class BoxRepository {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("boxes")
-        .select(
-          `
-          *,
-          department:departments(id, name)
-        `
-        )
-        .eq("pallet_code", palletCode)
-        .order("created_at", { ascending: false })
-        .range(0, 99999); // Supabase varsayılan 1000 limitini aşmak için - tüm kayıtları çek
+      const PAGE_SIZE = 1000;
+      const allData: BoxWithDepartment[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      return (data || []).map((item) => ({
-        ...item,
-        department: Array.isArray(item.department)
-          ? item.department[0]
-          : item.department,
-      }));
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("boxes")
+          .select(
+            `
+            *,
+            department:departments(id, name)
+          `
+          )
+          .eq("pallet_code", palletCode)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        const page = data || [];
+        const mapped = page.map((item: any) => ({
+          ...item,
+          department: Array.isArray(item.department)
+            ? item.department[0]
+            : item.department,
+        }));
+        allData.push(...mapped);
+        if (page.length < PAGE_SIZE) hasMore = false;
+        else offset += PAGE_SIZE;
+      }
+
+      return allData;
     } catch (error) {
       console.error("Error fetching boxes by pallet from Supabase:", error);
       const boxes = this.getLocalBoxes().filter(
