@@ -100,7 +100,6 @@ class MockAuth {
 
     if (typeof window !== "undefined") {
       localStorage.removeItem(SESSION_STORAGE_KEY);
-      localStorage.removeItem("qr_lojistik_last_auto_login");
       // Otomatik giriş bayrağını temizle
       sessionStorage.removeItem(AUTO_LOGIN_LOGGED_KEY);
     }
@@ -184,46 +183,47 @@ class MockAuth {
 
   // Oturum başlat veya güncelle - sayfa ilk yüklendiğinde çağrılacak
   async ensureSession(): Promise<void> {
-    const session = await this.getSession();
-    if (session) {
-      // Otomatik giriş logu - her sayfa yüklemesinde/yenilemede kaydet (saat başına en fazla 1)
+    try {
+      const session = await this.getSession();
+      if (!session) return;
+
+      // Auto-login logu - tarayıcı sekmesi/penceresi başına 1 kez
+      // sessionStorage sekme kapandığında temizlenir, yeni sekme = yeni log
       if (typeof window !== "undefined") {
-        const lastAutoLoginTime = localStorage.getItem("qr_lojistik_last_auto_login");
-        const now = Date.now();
-        const ONE_HOUR = 60 * 60 * 1000;
-        const shouldLog = !lastAutoLoginTime || (now - parseInt(lastAutoLoginTime)) > ONE_HOUR;
+        const alreadyLoggedThisTab = sessionStorage.getItem(AUTO_LOGIN_LOGGED_KEY);
         
-        // Ayrıca sessionStorage'ı da kontrol et - yeni sekme/pencere açıldığında kesinlikle logla
-        const sessionAutoLoginLogged = sessionStorage.getItem(AUTO_LOGIN_LOGGED_KEY);
-        
-        if (!sessionAutoLoginLogged || shouldLog) {
-          // auto_login logu kaydet - kullanıcı sisteme erişti
-          await loginLogRepository.logAction({
-            user_id: session.user.id,
-            username: session.user.username,
-            user_name: session.user.name,
-            department_name: session.user.department_name,
-            action: "auto_login",
-          });
-          localStorage.setItem("qr_lojistik_last_auto_login", now.toString());
+        if (!alreadyLoggedThisTab) {
+          try {
+            // auto_login logu kaydet - kullanıcı sisteme erişti (şifre girmeden)
+            await loginLogRepository.logAction({
+              user_id: session.user.id,
+              username: session.user.username,
+              user_name: session.user.name,
+              department_name: session.user.department_name,
+              action: "auto_login",
+            });
+            console.log("[Auth] auto_login logged for:", session.user.username);
+          } catch (err) {
+            console.error("[Auth] auto_login log failed:", err);
+          }
+          // Başarılı olsun olmasın, tekrar denemeyi engelle (bu sekme için)
           sessionStorage.setItem(AUTO_LOGIN_LOGGED_KEY, "true");
         }
       }
 
       // Aktif oturum başlat/güncelle (forceNew yok - mevcut süreyi korur)
-      await loginLogRepository.startSession({
-        user_id: session.user.id,
-        username: session.user.username,
-        user_name: session.user.name,
-        department_name: session.user.department_name,
-      });
-    }
-  }
-
-  // Otomatik giriş bayrağını temizle (logout sırasında çağrılacak)
-  private clearAutoLoginFlag(): void {
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem(AUTO_LOGIN_LOGGED_KEY);
+      try {
+        await loginLogRepository.startSession({
+          user_id: session.user.id,
+          username: session.user.username,
+          user_name: session.user.name,
+          department_name: session.user.department_name,
+        });
+      } catch (err) {
+        console.error("[Auth] startSession failed:", err);
+      }
+    } catch (err) {
+      console.error("[Auth] ensureSession failed:", err);
     }
   }
 }

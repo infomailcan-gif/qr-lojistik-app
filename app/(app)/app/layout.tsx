@@ -124,6 +124,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     
     setUser(session.user);
     setLoading(false);
+
+    // Oturum mevcut - hemen auto_login logla ve aktif oturum başlat
+    // Bu, useEffect'ten ÖNCE çalışır, böylece kayıtlı şifreyle girenler anında loglanır
+    auth.ensureSession();
   };
 
   const handleSignOut = async () => {
