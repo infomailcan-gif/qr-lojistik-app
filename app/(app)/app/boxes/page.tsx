@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon, ArrowUpDown, QrCode, Download, Printer, CheckSquare, Square, CheckCircle } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
 import { boxRepository } from "@/lib/repositories/box";
 import { departmentRepository } from "@/lib/repositories/department";
 import { auth } from "@/lib/auth";
+import QRCode from "qrcode";
 import type { BoxWithDepartment, Department } from "@/lib/types/box";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import { PhotoCarousel } from "@/components/ui/photo-carousel";
 
 type FilterTab = "all" | "sealed" | "draft";
 type AssignmentFilter = "all" | "in_pallet" | "not_in_pallet" | "in_shipment" | "not_in_shipment";
+type SortOption = "newest" | "oldest" | "alphabetical";
 
 export default function BoxesPage() {
   const router = useRouter();
@@ -43,6 +45,12 @@ export default function BoxesPage() {
   const [userRole, setUserRole] = useState<string>("user");
   const [searchQuery, setSearchQuery] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
+  const [sortOption, setSortOption] = useState<SortOption>("newest");
+
+  // Bulk selection
+  const [selectedBoxIds, setSelectedBoxIds] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkActionModalOpen, setBulkActionModalOpen] = useState(false);
 
   const [selectedBox, setSelectedBox] = useState<BoxWithDepartment | null>(null);
   const [actionModalOpen, setActionModalOpen] = useState(false);
@@ -68,7 +76,7 @@ export default function BoxesPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole, searchQuery, assignmentFilter]);
+  }, [boxes, activeTab, selectedDepartment, currentUserName, userRole, searchQuery, assignmentFilter, sortOption]);
 
   const loadData = async () => {
     try {
@@ -158,6 +166,15 @@ export default function BoxesPage() {
       filtered = filtered.filter((b) => !b.pallet_code && !(b as any).shipment_code);
     }
     
+    // Sıralama
+    if (sortOption === "newest") {
+      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (sortOption === "oldest") {
+      filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    } else if (sortOption === "alphabetical") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name, "tr"));
+    }
+
     setFilteredBoxes(filtered);
   };
 
@@ -220,6 +237,195 @@ export default function BoxesPage() {
       setDeleteModalOpen(false);
       setSelectedBox(null);
     }
+  };
+
+  // Bulk selection functions
+  const toggleBoxSelection = (boxId: string) => {
+    setSelectedBoxIds(prev => {
+      const next = new Set(prev);
+      if (next.has(boxId)) {
+        next.delete(boxId);
+      } else {
+        next.add(boxId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    const visibleBoxes = filteredBoxes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const allSelected = visibleBoxes.every(b => selectedBoxIds.has(b.id));
+    if (allSelected) {
+      // Deselect all visible
+      setSelectedBoxIds(prev => {
+        const next = new Set(prev);
+        visibleBoxes.forEach(b => next.delete(b.id));
+        return next;
+      });
+    } else {
+      // Select all visible
+      setSelectedBoxIds(prev => {
+        const next = new Set(prev);
+        visibleBoxes.forEach(b => next.add(b.id));
+        return next;
+      });
+    }
+  };
+
+  const selectedBoxes = filteredBoxes.filter(b => selectedBoxIds.has(b.id));
+
+  // Generate QR canvas for a single box
+  const generateQRCanvas = async (box: BoxWithDepartment): Promise<string> => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const qrUrl = `${baseUrl}/q/box/${box.code}`;
+    const qrDataUrl = await QRCode.toDataURL(qrUrl, {
+      width: 600,
+      margin: 2,
+      color: { dark: "#1e40af", light: "#ffffff" },
+    });
+
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
+      const img = document.createElement("img");
+      img.onload = () => {
+        const qrSize = 600;
+        const isFragile = (box as any).is_fragile;
+        const fragileHeight = isFragile ? 50 : 0;
+        const textHeight = 80;
+        const maxWidth = qrSize - 40;
+        
+        canvas.width = qrSize;
+        canvas.height = qrSize + textHeight + fragileHeight;
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if (isFragile) {
+          ctx.fillStyle = "#dc2626";
+          ctx.fillRect(0, 0, qrSize, fragileHeight);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 24px Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("DİKKAT! KIRILACAK EŞYA", qrSize / 2, fragileHeight / 2);
+        }
+        
+        ctx.drawImage(img, 0, fragileHeight, qrSize, qrSize);
+        
+        ctx.fillStyle = "#1e40af";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        let boxName = box.name;
+        let fontSize = 32;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        while (ctx.measureText(boxName).width > maxWidth && fontSize > 14) {
+          fontSize -= 2;
+          ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        }
+        if (ctx.measureText(boxName).width > maxWidth) {
+          while (ctx.measureText(boxName + "...").width > maxWidth && boxName.length > 0) {
+            boxName = boxName.slice(0, -1);
+          }
+          boxName += "...";
+        }
+        
+        ctx.fillText(boxName, qrSize / 2, fragileHeight + qrSize + textHeight / 2);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.src = qrDataUrl;
+    });
+  };
+
+  // Toplu QR İndir
+  const handleBulkDownloadQR = async () => {
+    if (selectedBoxes.length === 0) return;
+    setBulkActionModalOpen(false);
+    
+    toast({ title: "QR Kodları Hazırlanıyor", description: `${selectedBoxes.length} koli için QR kodları oluşturuluyor...` });
+    
+    for (const box of selectedBoxes) {
+      try {
+        const dataUrl = await generateQRCanvas(box);
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `${box.code}-qr.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        // Küçük bir bekleme, tarayıcının indirmeyi işlemesi için
+        await new Promise(r => setTimeout(r, 300));
+      } catch (error) {
+        console.error(`QR generation error for ${box.code}:`, error);
+      }
+    }
+    
+    toast({ title: "Tamamlandı", description: `${selectedBoxes.length} QR kodu indirildi` });
+    setBulkMode(false);
+    setSelectedBoxIds(new Set());
+  };
+
+  // Toplu QR Yazdır
+  const handleBulkPrintQR = async () => {
+    if (selectedBoxes.length === 0) return;
+    setBulkActionModalOpen(false);
+    
+    toast({ title: "QR Kodları Hazırlanıyor", description: `${selectedBoxes.length} koli için yazdırma hazırlanıyor...` });
+    
+    const qrImages: string[] = [];
+    for (const box of selectedBoxes) {
+      try {
+        const dataUrl = await generateQRCanvas(box);
+        qrImages.push(dataUrl);
+      } catch (error) {
+        console.error(`QR generation error for ${box.code}:`, error);
+      }
+    }
+    
+    // Tüm QR kodlarını tek bir yazdırma sayfasında göster
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      const imagesHtml = qrImages.map((src, i) => 
+        `<div class="qr-item"><img src="${src}" alt="QR ${i + 1}" /></div>`
+      ).join("");
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Toplu QR Kodları</title>
+            <style>
+              body { margin: 0; padding: 20px; background: white; }
+              .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+              .qr-item { page-break-inside: avoid; text-align: center; }
+              .qr-item img { max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+              @media print {
+                body { padding: 10px; }
+                .qr-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+                .qr-item img { border: 1px solid #ccc; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="qr-grid">${imagesHtml}</div>
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                  window.onafterprint = function() { window.close(); };
+                }, 500);
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+    
+    toast({ title: "Tamamlandı", description: `${selectedBoxes.length} QR kodu yazdırılıyor` });
+    setBulkMode(false);
+    setSelectedBoxIds(new Set());
   };
 
   const getStatusColor = (status: "draft" | "sealed") => {
@@ -323,16 +529,71 @@ export default function BoxesPage() {
           </div>
         </div>
         
-        {/* Action Button - Full width on mobile */}
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button 
-            onClick={() => router.push("/app/boxes/new")} 
-            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 h-12 sm:h-10 text-base sm:text-sm active:scale-95 transition-transform"
-          >
-            <Plus className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
-            Yeni Koli Oluştur
-          </Button>
-        </motion.div>
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 sm:flex-initial">
+            <Button 
+              onClick={() => router.push("/app/boxes/new")} 
+              className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 h-12 sm:h-10 text-base sm:text-sm active:scale-95 transition-transform"
+            >
+              <Plus className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
+              Yeni Koli Oluştur
+            </Button>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 sm:flex-initial">
+            <Button 
+              onClick={() => {
+                if (bulkMode) {
+                  setBulkMode(false);
+                  setSelectedBoxIds(new Set());
+                } else {
+                  setBulkMode(true);
+                }
+              }} 
+              variant={bulkMode ? "default" : "outline"}
+              className={`w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm ${bulkMode ? "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700" : "border-purple-200 text-purple-600 hover:bg-purple-50"}`}
+            >
+              <QrCode className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
+              {bulkMode ? "Seçimi İptal Et" : "Toplu QR İşlemi"}
+            </Button>
+          </motion.div>
+        </div>
+
+        {/* Bulk Actions Bar */}
+        <AnimatePresence>
+          {bulkMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -10, height: 0 }}
+              className="flex flex-wrap items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200"
+            >
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-5 w-5 text-purple-600" />
+                <span className="text-sm font-medium text-purple-700">
+                  {selectedBoxIds.size} koli seçildi
+                </span>
+              </div>
+              <Button
+                onClick={selectAllVisible}
+                variant="outline"
+                size="sm"
+                className="border-purple-200 text-purple-600 hover:bg-purple-100"
+              >
+                {filteredBoxes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).every(b => selectedBoxIds.has(b.id)) ? "Tümünü Kaldır" : "Sayfadakileri Seç"}
+              </Button>
+              <div className="flex-1" />
+              <Button
+                onClick={() => setBulkActionModalOpen(true)}
+                disabled={selectedBoxIds.size === 0}
+                className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 shadow-lg"
+              >
+                <QrCode className="h-4 w-4 mr-2" />
+                İşlem Yap ({selectedBoxIds.size})
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Filters */}
@@ -446,6 +707,19 @@ export default function BoxesPage() {
             </SelectContent>
           </Select>
           
+          {/* Sıralama */}
+          <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+            <SelectTrigger className="w-[180px] border-slate-200 bg-white/80 h-10">
+              <ArrowUpDown className="h-4 w-4 mr-2 text-slate-400" />
+              <SelectValue placeholder="Sıralama" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Yeniden Eskiye</SelectItem>
+              <SelectItem value="oldest">Eskiden Yeniye</SelectItem>
+              <SelectItem value="alphabetical">Alfabetik (A-Z)</SelectItem>
+            </SelectContent>
+          </Select>
+          
           {userRole !== "user" && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -517,12 +791,27 @@ export default function BoxesPage() {
                 whileHover={shouldReduceMotion ? {} : { y: -2 }}
               >
                 <Card
-                  className="relative overflow-hidden border-slate-200 bg-white/80 backdrop-blur-sm hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer group"
-                  onClick={() => handleBoxClick(box)}
+                  className={`relative overflow-hidden border-slate-200 bg-white/80 backdrop-blur-sm hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer group ${bulkMode && selectedBoxIds.has(box.id) ? "ring-2 ring-purple-500 border-purple-300" : ""}`}
+                  onClick={() => bulkMode ? toggleBoxSelection(box.id) : handleBoxClick(box)}
                 >
                   {/* Top Gradient Line */}
                   <div className={`h-1 bg-gradient-to-r ${box.status === "sealed" ? "from-emerald-400 to-teal-500" : "from-amber-400 to-orange-500"}`} />
                   
+                  {/* Bulk Select Checkbox */}
+                  {bulkMode && (
+                    <div className="absolute top-3 right-3 z-10">
+                      {selectedBoxIds.has(box.id) ? (
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
+                          <CheckCircle className="h-5 w-5 text-white" />
+                        </div>
+                      ) : (
+                        <div className="w-7 h-7 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center">
+                          <Square className="h-4 w-4 text-slate-300" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Shimmer Effect */}
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
@@ -808,6 +1097,57 @@ export default function BoxesPage() {
               className="bg-gradient-to-r from-red-500 to-rose-500"
             >
               {isDeleting ? "Siliniyor..." : "Sil"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Action Modal */}
+      <Dialog open={bulkActionModalOpen} onOpenChange={setBulkActionModalOpen}>
+        <DialogContent className="sm:max-w-md border-purple-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-purple-600">
+              <QrCode className="h-5 w-5" />
+              Toplu QR İşlemi
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBoxIds.size} koli seçildi. Yapılacak işlemi seçin.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-3 py-4">
+            <Button
+              onClick={handleBulkDownloadQR}
+              variant="outline"
+              className="h-14 justify-start gap-3 hover:bg-blue-50 hover:border-blue-300 group"
+            >
+              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+                <Download className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-700 group-hover:text-blue-600">QR Kodları İndir</p>
+                <p className="text-xs text-slate-400">Her koli için ayrı QR kodu indirilir</p>
+              </div>
+            </Button>
+            
+            <Button
+              onClick={handleBulkPrintQR}
+              variant="outline"
+              className="h-14 justify-start gap-3 hover:bg-emerald-50 hover:border-emerald-300 group"
+            >
+              <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+                <Printer className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-700 group-hover:text-emerald-600">QR Kodları Yazdır</p>
+                <p className="text-xs text-slate-400">Tüm QR kodları tek sayfada yazdırılır</p>
+              </div>
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBulkActionModalOpen(false)}>
+              İptal
             </Button>
           </DialogFooter>
         </DialogContent>

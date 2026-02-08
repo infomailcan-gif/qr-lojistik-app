@@ -677,3 +677,20 @@ html {
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* Announcement Banner Marquee - Reliable CSS animation for mobile & desktop */
+@keyframes announcement-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.announcement-marquee-track {
+  animation: announcement-marquee 20s linear infinite;
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}

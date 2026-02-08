@@ -55,63 +55,48 @@ export function AnnouncementBanner() {
         {/* Close Button - Mobilde her zaman görünür, masaüstünde hover'da */}
         <button
           onClick={() => setIsVisible(false)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-black/20 hover:bg-black/40 transition-all opacity-70 hover:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-black/20 hover:bg-black/40 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
           style={{ color: announcement.text_color }}
           title="Duyuruyu gizle"
         >
           <X className="h-4 w-4" />
         </button>
 
-        {/* Marquee Container */}
-        <div className="relative py-2 sm:py-2.5 overflow-hidden">
-          <motion.div
-            className="flex whitespace-nowrap"
-            animate={{
-              x: ["0%", "-50%"],
-            }}
-            transition={{
-              x: {
-                repeat: Infinity,
-                repeatType: "loop",
-                duration: animationDuration,
-                ease: "linear",
-              },
-            }}
+        {/* Marquee Container - CSS Animation Based */}
+        <div className="relative py-2.5 sm:py-3 overflow-hidden">
+          <div 
+            className="announcement-marquee-track flex whitespace-nowrap"
             style={{
+              animationDuration: `${animationDuration}s`,
               animationPlayState: isHovered ? "paused" : "running",
             }}
           >
-            {/* İçeriği iki kez tekrarla - sürekli döngü için */}
-            {[0, 1].map((i) => (
-              <div
+            {/* İçeriği 4 kez tekrarla - sürekli döngü için */}
+            {[0, 1, 2, 3].map((i) => (
+              <span
                 key={i}
-                className="flex items-center gap-2 px-4"
+                className="inline-flex items-center gap-2 px-4 flex-shrink-0"
                 style={{ color: announcement.text_color }}
               >
                 <Megaphone className="h-4 w-4 flex-shrink-0" />
-                <span className="font-medium text-sm sm:text-base">
+                <span className="font-medium text-sm sm:text-base whitespace-nowrap">
                   {announcement.message}
                 </span>
-                <span className="mx-8 opacity-50">•</span>
-                <Megaphone className="h-4 w-4 flex-shrink-0" />
-                <span className="font-medium text-sm sm:text-base">
-                  {announcement.message}
-                </span>
-                <span className="mx-8 opacity-50">•</span>
-              </div>
+                <span className="mx-6 opacity-50">•</span>
+              </span>
             ))}
-          </motion.div>
+          </div>
         </div>
 
-        {/* Gradient Overlays */}
+        {/* Gradient Overlays - daha kısa, mobilde daha az yer kaplar */}
         <div 
-          className="absolute left-0 top-0 bottom-0 w-8 sm:w-16 pointer-events-none"
+          className="absolute left-0 top-0 bottom-0 w-6 sm:w-12 pointer-events-none z-[5]"
           style={{
             background: `linear-gradient(to right, ${announcement.background_color}, transparent)`,
           }}
         />
         <div 
-          className="absolute right-0 top-0 bottom-0 w-8 sm:w-16 pointer-events-none"
+          className="absolute right-0 top-0 bottom-0 w-6 sm:w-12 pointer-events-none z-[5]"
           style={{
             background: `linear-gradient(to left, ${announcement.background_color}, transparent)`,
           }}

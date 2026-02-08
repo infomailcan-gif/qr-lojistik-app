@@ -52,9 +52,10 @@ import { activityTracker, type PageVisit } from "@/lib/activity-tracker";
 import { userRepository, type UserWithBan } from "@/lib/repositories/user";
 import { siteLockdown, type SiteLockdownSettings } from "@/lib/site-lockdown";
 import { announcementRepository, type Announcement } from "@/lib/repositories/announcement";
+import { loginLogRepository, type LoginLog, type ActiveSession } from "@/lib/repositories/login-log";
 import type { Department } from "@/lib/types/box";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2 } from "lucide-react";
+import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2, LogIn, LogOut, Wifi, WifiOff, Monitor, Globe, Activity as ActivityIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -79,6 +80,13 @@ export default function SuperAdminPage() {
   const [pageVisits, setPageVisits] = useState<PageVisit[]>([]);
   const [activityPage, setActivityPage] = useState(1);
   const activityPerPage = 20;
+
+  // Login Logs State
+  const [loginLogs, setLoginLogs] = useState<LoginLog[]>([]);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+  const [loginStats, setLoginStats] = useState({ totalLogins24h: 0, uniqueUsers24h: 0, failedLogins24h: 0, activeNow: 0 });
+  const [loginLogsPage, setLoginLogsPage] = useState(1);
+  const loginLogsPerPage = 20;
 
   // Site Lockdown State
   const [lockdownSettings, setLockdownSettings] = useState<SiteLockdownSettings | null>(null);
@@ -129,17 +137,23 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData, visitsData, lockdownData, announcementData] = await Promise.all([
+      const [usersData, deptsData, visitsData, lockdownData, announcementData, logsData, sessionsData, statsData] = await Promise.all([
         auth.getAvailableUsers(),
         departmentRepository.getAll(),
         activityTracker.getAllRecentPageVisits(200),
         siteLockdown.getSettings(),
-        announcementRepository.getAnnouncement()
+        announcementRepository.getAnnouncement(),
+        loginLogRepository.getLogs({ limit: 200 }),
+        loginLogRepository.getActiveSessions(),
+        loginLogRepository.getStats(),
       ]);
       
       setUsers(usersData as any);
       setDepartments(deptsData);
       setPageVisits(visitsData);
+      setLoginLogs(logsData);
+      setActiveSessions(sessionsData);
+      setLoginStats(statsData);
       
       if (lockdownData) {
         setLockdownSettings(lockdownData);
@@ -675,6 +689,15 @@ export default function SuperAdminPage() {
                 {pageVisits.length}
               </Badge>
             </TabsTrigger>
+            <TabsTrigger value="login-logs" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-rose-500 data-[state=active]:to-red-500 data-[state=active]:text-white">
+              <LogIn className="h-4 w-4" />
+              Giriş Logları
+              {loginStats.activeNow > 0 && (
+                <Badge className="ml-1 bg-green-500 text-white animate-pulse">
+                  {loginStats.activeNow} online
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="site-control" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-rose-500 data-[state=active]:text-white">
               <ShieldAlert className="h-4 w-4" />
               Site Kontrolü
@@ -992,6 +1015,249 @@ export default function SuperAdminPage() {
                         >
                           Sonraki
                           <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Login Logs Tab */}
+        <TabsContent value="login-logs" className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { title: "Şu An Online", value: loginStats.activeNow, icon: Wifi, gradient: "from-green-500 to-emerald-600", bg: "from-green-50 to-emerald-50", pulse: true },
+              { title: "Giriş (24 saat)", value: loginStats.totalLogins24h, icon: LogIn, gradient: "from-blue-500 to-indigo-600", bg: "from-blue-50 to-indigo-50", pulse: false },
+              { title: "Benzersiz Kullanıcı", value: loginStats.uniqueUsers24h, icon: Users, gradient: "from-purple-500 to-pink-600", bg: "from-purple-50 to-pink-50", pulse: false },
+              { title: "Başarısız Giriş", value: loginStats.failedLogins24h, icon: AlertTriangle, gradient: "from-red-500 to-rose-600", bg: "from-red-50 to-rose-50", pulse: false },
+            ].map((stat, index) => (
+              <motion.div key={stat.title} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.05 }}>
+                <Card className={`bg-gradient-to-br ${stat.bg} border-0`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-slate-500">{stat.title}</p>
+                        <p className="text-2xl font-bold text-slate-800 mt-1">{stat.value}</p>
+                      </div>
+                      <motion.div
+                        className={`p-2.5 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg`}
+                        animate={stat.pulse ? { scale: [1, 1.1, 1] } : {}}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        <stat.icon className="h-5 w-5 text-white" />
+                      </motion.div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Active Sessions */}
+          <Card className="border-green-200 bg-gradient-to-br from-green-50/50 to-emerald-50/50">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="relative">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
+                    <Wifi className="h-5 w-5 text-white" />
+                  </div>
+                  <motion.div
+                    className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white"
+                    animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-green-700">Şu An Sistemde ({activeSessions.length} kişi)</h3>
+                  <p className="text-xs text-slate-500">Son 5 dakika içinde aktif olan kullanıcılar</p>
+                </div>
+              </div>
+              
+              {activeSessions.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <WifiOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Şu an aktif kullanıcı yok</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {activeSessions.map((session, index) => {
+                    const ua = session.user_agent || "";
+                    let browser = "Bilinmiyor";
+                    let device = "Masaüstü";
+                    if (ua.includes("Chrome")) browser = "Chrome";
+                    else if (ua.includes("Firefox")) browser = "Firefox";
+                    else if (ua.includes("Safari")) browser = "Safari";
+                    else if (ua.includes("Edge")) browser = "Edge";
+                    if (ua.includes("Mobile") || ua.includes("Android") || ua.includes("iPhone")) device = "Mobil";
+                    
+                    const startDate = new Date(session.created_at);
+                    const now = new Date();
+                    const diffMinutes = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60));
+                    const hours = Math.floor(diffMinutes / 60);
+                    const mins = diffMinutes % 60;
+                    const duration = hours > 0 ? `${hours} saat ${mins} dk` : `${diffMinutes} dk`;
+                    
+                    return (
+                      <motion.div
+                        key={session.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="p-4 rounded-xl bg-white border border-green-200 hover:border-green-400 hover:shadow-md transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold">
+                              {session.user_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-800 truncate">{session.user_name}</p>
+                            <p className="text-xs text-slate-500">@{session.username}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-1.5 text-xs text-slate-500">
+                          {session.current_page && (
+                            <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-green-50 border border-green-200">
+                              <Eye className="h-3 w-3 text-green-600" />
+                              <span className="text-green-700 font-medium">{session.current_page}</span>
+                            </div>
+                          )}
+                          {session.department_name && (
+                            <div className="flex items-center gap-1.5">
+                              <Shield className="h-3 w-3" />
+                              <span>{session.department_name}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            <Monitor className="h-3 w-3" />
+                            <span>{browser} • {device}</span>
+                          </div>
+                          {session.ip_address && (
+                            <div className="flex items-center gap-1.5">
+                              <Globe className="h-3 w-3" />
+                              <span className="font-mono">{session.ip_address}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3 w-3" />
+                            <span>Sistemde: {duration}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Login Logs */}
+          <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-rose-500 to-red-500 shadow-lg">
+                  <ActivityIcon className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800">Giriş/Çıkış Geçmişi</h3>
+                  <p className="text-xs text-slate-500">Kim, ne zaman sisteme giriş yaptı</p>
+                </div>
+                <Badge variant="secondary" className="ml-auto">{loginLogs.length} kayıt</Badge>
+              </div>
+
+              {loginLogs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <ActivityIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Henüz giriş kaydı yok</p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">Kullanıcı</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">İşlem</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase hidden md:table-cell">IP</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">Tarih/Saat</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loginLogs
+                          .slice((loginLogsPage - 1) * loginLogsPerPage, loginLogsPage * loginLogsPerPage)
+                          .map((log, index) => (
+                          <motion.tr
+                            key={log.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.02 }}
+                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 font-semibold text-sm">
+                                  {log.user_name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-slate-800 text-sm">{log.user_name}</p>
+                                  <p className="text-xs text-slate-500">@{log.username}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              {log.action === "login" ? (
+                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                                  <LogIn className="w-3 h-3 mr-1" />Giriş
+                                </Badge>
+                              ) : log.action === "auto_login" ? (
+                                <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                                  <Wifi className="w-3 h-3 mr-1" />Oto. Giriş
+                                </Badge>
+                              ) : log.action === "logout" ? (
+                                <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                                  <LogOut className="w-3 h-3 mr-1" />Çıkış
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-700 border-red-200">
+                                  <AlertTriangle className="w-3 h-3 mr-1" />Başarısız
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 hidden md:table-cell">
+                              <span className="font-mono text-xs text-slate-500">{log.ip_address || "-"}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-sm text-slate-600">
+                                {new Date(log.created_at).toLocaleString("tr-TR", {
+                                  day: "2-digit", month: "2-digit", year: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Pagination */}
+                  {loginLogs.length > loginLogsPerPage && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
+                      <div className="text-sm text-slate-500">
+                        Sayfa {loginLogsPage} / {Math.ceil(loginLogs.length / loginLogsPerPage)} ({loginLogs.length} kayıt)
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setLoginLogsPage(Math.max(1, loginLogsPage - 1))} disabled={loginLogsPage === 1} className="h-9">
+                          <ChevronLeft className="h-4 w-4 mr-1" />Önceki
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setLoginLogsPage(Math.min(Math.ceil(loginLogs.length / loginLogsPerPage), loginLogsPage + 1))} disabled={loginLogsPage >= Math.ceil(loginLogs.length / loginLogsPerPage)} className="h-9">
+                          Sonraki<ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
                       </div>
                     </div>
@@ -1424,13 +1690,19 @@ export default function SuperAdminPage() {
                 </div>
                 <div className="relative overflow-hidden" style={{ backgroundColor: announcementBgColor }}>
                   {announcementMessage ? (
-                    <div className="py-3 whitespace-nowrap animate-marquee">
-                      <span 
-                        className="inline-block px-4 font-medium text-sm"
-                        style={{ color: announcementTextColor }}
-                      >
-                        📢 {announcementMessage} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 📢 {announcementMessage}
-                      </span>
+                    <div className="py-3 overflow-hidden">
+                      <div className="announcement-marquee-track flex whitespace-nowrap">
+                        {[0, 1, 2, 3].map((i) => (
+                          <span 
+                            key={i}
+                            className="inline-flex items-center gap-2 px-4 flex-shrink-0 font-medium text-sm"
+                            style={{ color: announcementTextColor }}
+                          >
+                            📢 {announcementMessage}
+                            <span className="mx-6 opacity-50">•</span>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="py-3 text-center">

@@ -100,6 +100,7 @@ class MockAuth {
 
     if (typeof window !== "undefined") {
       localStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem("qr_lojistik_last_auto_login");
       // Otomatik giriş bayrağını temizle
       sessionStorage.removeItem(AUTO_LOGIN_LOGGED_KEY);
     }
@@ -185,11 +186,18 @@ class MockAuth {
   async ensureSession(): Promise<void> {
     const session = await this.getSession();
     if (session) {
-      // Otomatik giriş logu - sadece bir kez kaydet (browser session başına)
+      // Otomatik giriş logu - her sayfa yüklemesinde/yenilemede kaydet (saat başına en fazla 1)
       if (typeof window !== "undefined") {
-        const autoLoginLogged = sessionStorage.getItem(AUTO_LOGIN_LOGGED_KEY);
-        if (!autoLoginLogged) {
-          // Bu browser session'ında ilk kez - auto_login logu kaydet
+        const lastAutoLoginTime = localStorage.getItem("qr_lojistik_last_auto_login");
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+        const shouldLog = !lastAutoLoginTime || (now - parseInt(lastAutoLoginTime)) > ONE_HOUR;
+        
+        // Ayrıca sessionStorage'ı da kontrol et - yeni sekme/pencere açıldığında kesinlikle logla
+        const sessionAutoLoginLogged = sessionStorage.getItem(AUTO_LOGIN_LOGGED_KEY);
+        
+        if (!sessionAutoLoginLogged || shouldLog) {
+          // auto_login logu kaydet - kullanıcı sisteme erişti
           await loginLogRepository.logAction({
             user_id: session.user.id,
             username: session.user.username,
@@ -197,6 +205,7 @@ class MockAuth {
             department_name: session.user.department_name,
             action: "auto_login",
           });
+          localStorage.setItem("qr_lojistik_last_auto_login", now.toString());
           sessionStorage.setItem(AUTO_LOGIN_LOGGED_KEY, "true");
         }
       }
