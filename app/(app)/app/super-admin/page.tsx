@@ -1057,44 +1057,6 @@ export default function SuperAdminPage() {
             ))}
           </div>
 
-          {/* Legend / Info Box */}
-          <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50/30 to-purple-50/30">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-                  <Info className="h-4 w-4 text-white" />
-                </div>
-                <h4 className="font-semibold text-sm text-indigo-800">Giriş Takip Sistemi - Nasıl Çalışır?</h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-white/60 border border-emerald-200">
-                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0 mt-0.5">
-                    <LogIn className="w-3 h-3 mr-1" />Giriş
-                  </Badge>
-                  <span className="text-slate-600">Kullanıcı adı ve şifre ile sisteme giriş yapıldı</span>
-                </div>
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-white/60 border border-purple-200">
-                  <Badge className="bg-purple-100 text-purple-700 border-purple-200 shrink-0 mt-0.5">
-                    <Wifi className="w-3 h-3 mr-1" />Oto. Giriş
-                  </Badge>
-                  <span className="text-slate-600">Tarayıcıda kayıtlı oturum ile şifre girmeden erişildi (sekme/pencere başına 1 kayıt)</span>
-                </div>
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-white/60 border border-blue-200">
-                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 shrink-0 mt-0.5">
-                    <LogOut className="w-3 h-3 mr-1" />Çıkış
-                  </Badge>
-                  <span className="text-slate-600">Kullanıcı çıkış yaptı tuşuna bastı</span>
-                </div>
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-white/60 border border-red-200">
-                  <Badge className="bg-red-100 text-red-700 border-red-200 shrink-0 mt-0.5">
-                    <AlertTriangle className="w-3 h-3 mr-1" />Başarısız
-                  </Badge>
-                  <span className="text-slate-600">Hatalı şifre ile giriş denemesi yapıldı</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Active Sessions */}
           <Card className="border-green-200 bg-gradient-to-br from-green-50/50 to-emerald-50/50">
             <CardContent className="p-5">
@@ -1302,6 +1264,40 @@ export default function SuperAdminPage() {
                   )}
                 </>
               )}
+
+              {/* Etiket Rehberi - Giriş/Çıkış tablosunun altında */}
+              <div className="mt-5 pt-4 border-t border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Info className="h-4 w-4 text-indigo-500" />
+                  <span className="font-semibold text-sm text-slate-700">Etiket Açıklamaları</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0">
+                      <LogIn className="w-3 h-3 mr-1" />Giriş
+                    </Badge>
+                    <span className="text-slate-600">Kullanıcı adı ve şifre ile giriş yapıldı</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-50 border border-purple-200">
+                    <Badge className="bg-purple-100 text-purple-700 border-purple-200 shrink-0">
+                      <Wifi className="w-3 h-3 mr-1" />Oto. Giriş
+                    </Badge>
+                    <span className="text-slate-600">Kayıtlı oturum ile şifresiz erişim (her sekme/pencere için 1 kayıt)</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
+                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 shrink-0">
+                      <LogOut className="w-3 h-3 mr-1" />Çıkış
+                    </Badge>
+                    <span className="text-slate-600">Kullanıcı çıkış yap tuşuna bastı</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-200">
+                    <Badge className="bg-red-100 text-red-700 border-red-200 shrink-0">
+                      <AlertTriangle className="w-3 h-3 mr-1" />Başarısız
+                    </Badge>
+                    <span className="text-slate-600">Hatalı şifre ile giriş denemesi</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

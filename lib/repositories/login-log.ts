@@ -96,17 +96,10 @@ class LoginLogRepository {
       return;
     }
 
+    const ip_address = await this.getClientIP();
     const user_agent = typeof window !== "undefined" ? navigator.userAgent : null;
 
-    // IP adresini paralel olarak al - log kaydını geciktirmesin
-    // Önce log'u IP'siz kaydet, sonra IP gelirse güncelle
-    let ip_address: string | null = null;
-    
-    // IP'yi arka planda al (engellemesin)
-    const ipPromise = this.getClientIP().catch(() => null);
-
     if (!isSupabaseConfigured || !supabase) {
-      ip_address = await ipPromise;
       const logs = this.getLocalLogs();
       const newLog: LoginLog = {
         id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -125,38 +118,25 @@ class LoginLogRepository {
     }
 
     try {
-      // Önce IP'siz kaydet (hızlı)
-      const { data, error } = await supabase.from("login_logs").insert({
+      const { error } = await supabase.from("login_logs").insert({
         user_id: params.user_id,
         username: params.username,
         user_name: params.user_name,
         department_name: params.department_name,
-        ip_address: null,
+        ip_address,
         user_agent,
         action: params.action,
-      }).select("id").single();
+      });
 
       if (error) {
         console.error("[LoginLog] Insert error:", error);
         throw error;
       }
 
-      console.log(`[LoginLog] ${params.action} logged for ${params.username} (id: ${data?.id})`);
-
-      // IP adresini arka planda güncelle
-      ipPromise.then(async (ip) => {
-        if (ip && data?.id && supabase) {
-          try {
-            await supabase.from("login_logs").update({ ip_address: ip }).eq("id", data.id);
-          } catch {
-            // IP güncellenemedi, önemli değil
-          }
-        }
-      });
+      console.log(`[LoginLog] ${params.action} logged for ${params.username}`);
     } catch (error) {
       console.error("Error logging action to Supabase:", error);
       // Fallback to localStorage
-      ip_address = await ipPromise;
       const logs = this.getLocalLogs();
       const newLog: LoginLog = {
         id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
