@@ -145,7 +145,7 @@ class LoginLogRepository {
 
       // IP adresini arka planda güncelle
       ipPromise.then(async (ip) => {
-        if (ip && data?.id) {
+        if (ip && data?.id && supabase) {
           try {
             await supabase.from("login_logs").update({ ip_address: ip }).eq("id", data.id);
           } catch {
