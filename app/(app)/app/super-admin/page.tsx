@@ -1688,18 +1688,18 @@ export default function SuperAdminPage() {
                     Canlı Görünüm
                   </Badge>
                 </div>
-                <div className="relative overflow-hidden" style={{ backgroundColor: announcementBgColor }}>
+                <div className="announcement-banner relative overflow-hidden" style={{ backgroundColor: announcementBgColor }}>
                   {announcementMessage ? (
-                    <div className="py-3 overflow-hidden">
-                      <div className="announcement-marquee-track flex whitespace-nowrap">
-                        {[0, 1, 2, 3].map((i) => (
+                    <div className="py-2 overflow-hidden">
+                      <div className="announcement-scroll flex whitespace-nowrap" style={{ ["--marquee-duration" as string]: `${{ slow: 30, normal: 20, fast: 10 }[announcementSpeed] || 20}s` }}>
+                        {[0, 1, 2, 3, 4, 5].map((i) => (
                           <span 
                             key={i}
-                            className="inline-flex items-center gap-2 px-4 flex-shrink-0 font-medium text-sm"
+                            className="inline-flex items-center gap-2 px-6 flex-shrink-0 font-semibold text-xs sm:text-sm"
                             style={{ color: announcementTextColor }}
                           >
                             📢 {announcementMessage}
-                            <span className="mx-6 opacity-50">•</span>
+                            <span className="mx-4 opacity-40">|</span>
                           </span>
                         ))}
                       </div>

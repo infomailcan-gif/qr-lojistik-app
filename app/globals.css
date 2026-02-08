@@ -678,19 +678,36 @@ html {
   animation-play-state: paused;
 }
 
-/* Announcement Banner Marquee - Reliable CSS animation for mobile & desktop */
-@keyframes announcement-marquee {
+/* ============================================
+   ANNOUNCEMENT BANNER - Mobile & Desktop
+   ============================================ */
+
+.announcement-banner {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes announcement-scroll {
   0% {
-    transform: translate3d(0, 0, 0);
+    transform: translateX(0%);
   }
   100% {
-    transform: translate3d(-50%, 0, 0);
+    transform: translateX(-50%);
   }
 }
 
-.announcement-marquee-track {
-  animation: announcement-marquee 20s linear infinite;
+.announcement-scroll {
+  display: flex;
+  white-space: nowrap;
+  animation: announcement-scroll var(--marquee-duration, 20s) linear infinite;
   will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Hover'da durdur - masaüstü */
+@media (hover: hover) {
+  .announcement-banner:hover .announcement-scroll {
+    animation-play-state: paused;
+  }
 }
