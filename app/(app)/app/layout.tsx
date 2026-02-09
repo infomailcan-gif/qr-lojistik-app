@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/app/Sidebar";
 import { LoadingPage } from "@/components/app/Loading";
 import { PageTransition } from "@/components/app/PageTransition";
 import { AnnouncementBanner } from "@/components/app/AnnouncementBanner";
+import { AnnouncementPopup } from "@/components/app/AnnouncementPopup";
 import { PdfProgressProvider } from "@/contexts/pdf-progress-context";
 import { auth, type User } from "@/lib/auth";
 import { activityTracker } from "@/lib/activity-tracker";
@@ -150,6 +151,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <AnimatedBackground />
       {/* Duyuru banner - en üstte, TopBar'dan önce */}
       <AnnouncementBanner />
+      {/* Popup duyuru - giriş sonrası bir kere gösterilir */}
+      <AnnouncementPopup />
       <TopBar userName={user.name} onSignOut={handleSignOut} />
       <Sidebar userRole={user.role} />
       

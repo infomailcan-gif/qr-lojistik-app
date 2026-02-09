@@ -232,4 +232,53 @@ export async function uploadShipmentPhoto(
   }
 }
 
+/**
+ * Base64 data URL'i Supabase Storage'a yükler (Popup duyuru resmi için)
+ * @param dataUrl - base64 data URL (örn: "data:image/jpeg;base64,...")
+ * @returns Public URL veya null (hata durumunda)
+ */
+export async function uploadPopupImage(
+  dataUrl: string
+): Promise<string> {
+  // Supabase yapılandırılmamışsa hata fırlat
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error("Supabase Storage yapılandırılmamış. Resim yüklenemedi.");
+  }
+
+  try {
+    // Base64 data URL'den blob oluştur
+    const blob = await dataUrlToBlob(dataUrl);
+    
+    // Dosya uzantısını belirle
+    const extension = getExtensionFromMimeType(blob.type);
+    
+    // Benzersiz dosya adı oluştur
+    const timestamp = Date.now();
+    const fileName = `popup-${timestamp}.${extension}`;
+    
+    // Supabase Storage'a yükle
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(`popup-announcements/${fileName}`, blob, {
+        contentType: blob.type,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      throw new Error(`Resim yüklenemedi: ${error.message}`);
+    }
+
+    // Public URL al
+    const { data: urlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch (error: any) {
+    console.error("Popup image upload error:", error);
+    throw new Error(error?.message || "Resim yüklenirken bir hata oluştu");
+  }
+}
+
 

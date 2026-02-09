@@ -52,10 +52,12 @@ import { activityTracker, type PageVisit } from "@/lib/activity-tracker";
 import { userRepository, type UserWithBan } from "@/lib/repositories/user";
 import { siteLockdown, type SiteLockdownSettings } from "@/lib/site-lockdown";
 import { announcementRepository, type Announcement } from "@/lib/repositories/announcement";
+import { popupAnnouncementRepository, type PopupAnnouncement } from "@/lib/repositories/popup-announcement";
 import { loginLogRepository, type LoginLog, type ActiveSession } from "@/lib/repositories/login-log";
 import type { Department } from "@/lib/types/box";
+import { uploadPopupImage } from "@/lib/supabase/storage";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2, LogIn, LogOut, Wifi, WifiOff, Monitor, Globe, Activity as ActivityIcon, Info } from "lucide-react";
+import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2, LogIn, LogOut, Wifi, WifiOff, Monitor, Globe, Activity as ActivityIcon, Info, ImageIcon, Upload, BellRing } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -102,6 +104,14 @@ export default function SuperAdminPage() {
   const [announcementTextColor, setAnnouncementTextColor] = useState("#ffffff");
   const [announcementSaving, setAnnouncementSaving] = useState(false);
 
+  // Popup Duyuru State
+  const [popupData, setPopupData] = useState<PopupAnnouncement | null>(null);
+  const [popupTitle, setPopupTitle] = useState("");
+  const [popupImageUrl, setPopupImageUrl] = useState("");
+  const [popupImagePreview, setPopupImagePreview] = useState("");
+  const [popupSaving, setPopupSaving] = useState(false);
+  const [popupUploading, setPopupUploading] = useState(false);
+
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<UserWithBan, "password"> | null>(null);
   const [userForm, setUserForm] = useState<UserFormData>({
@@ -137,12 +147,13 @@ export default function SuperAdminPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, deptsData, visitsData, lockdownData, announcementData, logsData, sessionsData, statsData] = await Promise.all([
+      const [usersData, deptsData, visitsData, lockdownData, announcementData, popupAnnouncementData, logsData, sessionsData, statsData] = await Promise.all([
         auth.getAvailableUsers(),
         departmentRepository.getAll(),
         activityTracker.getAllRecentPageVisits(200),
         siteLockdown.getSettings(),
         announcementRepository.getAnnouncement(),
+        popupAnnouncementRepository.getPopup(),
         loginLogRepository.getLogs({ limit: 200 }),
         loginLogRepository.getActiveSessions(),
         loginLogRepository.getStats(),
@@ -167,6 +178,13 @@ export default function SuperAdminPage() {
         setAnnouncementSpeed(announcementData.marquee_speed);
         setAnnouncementBgColor(announcementData.background_color);
         setAnnouncementTextColor(announcementData.text_color);
+      }
+
+      if (popupAnnouncementData) {
+        setPopupData(popupAnnouncementData);
+        setPopupTitle(popupAnnouncementData.title);
+        setPopupImageUrl(popupAnnouncementData.image_url);
+        setPopupImagePreview(popupAnnouncementData.image_url);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -579,6 +597,173 @@ export default function SuperAdminPage() {
     }
   };
 
+  // Popup Duyuru Fonksiyonları
+  const handleTogglePopup = async (enabled: boolean) => {
+    setPopupSaving(true);
+    try {
+      const session = await auth.getSession();
+      const userName = session?.user?.name || "Unknown";
+      
+      const success = await popupAnnouncementRepository.toggleActive(enabled, userName);
+      
+      if (success) {
+        setPopupData(prev => prev ? { ...prev, is_active: enabled } : null);
+        toast({
+          title: enabled ? "Popup Aktif" : "Popup Kapalı",
+          description: enabled 
+            ? "Popup duyuru tüm kullanıcılara gösterilecek" 
+            : "Popup duyuru gizlendi",
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: "İşlem başarısız oldu",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling popup:", error);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setPopupSaving(false);
+    }
+  };
+
+  const handlePopupImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Dosya boyut kontrolü (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Hata",
+        description: "Dosya boyutu 5MB'dan küçük olmalıdır",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Dosya tipi kontrolü
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Hata",
+        description: "Sadece resim dosyaları yüklenebilir",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPopupUploading(true);
+    try {
+      // Base64'e çevir
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const dataUrl = event.target?.result as string;
+        
+        // Önizleme için hemen göster
+        setPopupImagePreview(dataUrl);
+
+        try {
+          // Supabase Storage'a yükle
+          const publicUrl = await uploadPopupImage(dataUrl);
+          setPopupImageUrl(publicUrl);
+          setPopupImagePreview(publicUrl);
+          toast({
+            title: "Başarılı",
+            description: "Resim yüklendi",
+          });
+        } catch (uploadError: any) {
+          console.error("Upload error:", uploadError);
+          // Yükleme başarısız olursa base64 olarak kullan
+          setPopupImageUrl(dataUrl);
+          toast({
+            title: "Uyarı",
+            description: "Resim yerel olarak kaydedildi",
+          });
+        } finally {
+          setPopupUploading(false);
+        }
+      };
+      reader.onerror = () => {
+        setPopupUploading(false);
+        toast({
+          title: "Hata",
+          description: "Dosya okunamadı",
+          variant: "destructive",
+        });
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Error handling image:", error);
+      setPopupUploading(false);
+      toast({
+        title: "Hata",
+        description: "Resim işlenirken hata oluştu",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemovePopupImage = () => {
+    setPopupImageUrl("");
+    setPopupImagePreview("");
+  };
+
+  const handleSavePopup = async () => {
+    if (!popupTitle.trim() && !popupImageUrl) {
+      toast({
+        title: "Hata",
+        description: "Başlık veya resim eklemelisiniz",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPopupSaving(true);
+    try {
+      const session = await auth.getSession();
+      const userName = session?.user?.name || "Unknown";
+      
+      const success = await popupAnnouncementRepository.updatePopup({
+        title: popupTitle.trim(),
+        image_url: popupImageUrl,
+        is_active: popupData?.is_active || false,
+        updated_by: userName,
+      });
+      
+      if (success) {
+        setPopupData(prev => prev ? { 
+          ...prev, 
+          title: popupTitle,
+          image_url: popupImageUrl,
+        } : null);
+        toast({
+          title: "Başarılı",
+          description: "Popup duyuru güncellendi",
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: "Popup güncellenemedi",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving popup:", error);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setPopupSaving(false);
+    }
+  };
+
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
       case "super_admin":
@@ -713,6 +898,15 @@ export default function SuperAdminPage() {
               {announcement?.is_active && (
                 <Badge className="ml-1 bg-blue-500 text-white animate-pulse">
                   YAYIN
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="popup-announcement" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-500 data-[state=active]:text-white">
+              <BellRing className="h-4 w-4" />
+              Popup Duyuru
+              {popupData?.is_active && (
+                <Badge className="ml-1 bg-emerald-500 text-white animate-pulse">
+                  AKTİF
                 </Badge>
               )}
             </TabsTrigger>
@@ -1778,6 +1972,314 @@ export default function SuperAdminPage() {
                   <li className="flex items-start gap-2">
                     <span className="text-blue-500">•</span>
                     <span>Mobil cihazlarda duyuru otomatik olarak küçük ekrana uyum sağlar</span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+
+        {/* Popup Announcement Tab */}
+        <TabsContent value="popup-announcement" className="space-y-6">
+          {/* Info Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-200 rounded-xl p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/20">
+                <BellRing className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-emerald-700">Popup Duyuru Sistemi</h3>
+                <p className="text-sm text-emerald-600/80 mt-1">
+                  Kullanıcılar uygulamaya giriş yaptığında tam ekran bir popup duyuru gösterin.
+                  Resim ve başlık ekleyebilirsiniz. Her oturumda sadece bir kere gösterilir.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Main Control Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <Card className={`border-2 transition-all duration-500 ${
+              popupData?.is_active 
+                ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-lg shadow-emerald-500/20" 
+                : "border-slate-200 bg-white/80"
+            }`}>
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${
+                      popupData?.is_active 
+                        ? "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl shadow-emerald-500/40" 
+                        : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-xl shadow-slate-500/30"
+                    }`}>
+                      {popupData?.is_active ? (
+                        <BellRing className="h-8 w-8 text-white" />
+                      ) : (
+                        <BellRing className="h-8 w-8 text-white opacity-60" />
+                      )}
+                      {popupData?.is_active && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full animate-ping" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className={`text-2xl font-bold ${
+                        popupData?.is_active ? "text-emerald-600" : "text-slate-800"
+                      }`}>
+                        {popupData?.is_active ? "Popup Aktif" : "Popup Kapalı"}
+                      </h2>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {popupData?.is_active 
+                          ? "Kullanıcılar girişte popup duyuruyu görecek" 
+                          : "Popup duyuru aktif değil"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-medium text-slate-600 mb-1">
+                        Popup Durumu
+                      </span>
+                      <Switch
+                        checked={popupData?.is_active || false}
+                        onCheckedChange={handleTogglePopup}
+                        disabled={popupSaving || (!popupTitle.trim() && !popupImageUrl)}
+                        className="data-[state=checked]:bg-emerald-500"
+                      />
+                    </div>
+                    {popupSaving && (
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Popup Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg">
+                    <ImageIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">Popup Ayarları</h3>
+                    <p className="text-xs text-slate-500">Resim yükleyin ve başlık belirleyin</p>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Başlık */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium">Duyuru Başlığı</Label>
+                    <Input
+                      value={popupTitle}
+                      onChange={(e) => setPopupTitle(e.target.value)}
+                      placeholder="Örn: Sistem Güncelleme Duyurusu"
+                      className="border-slate-200 focus:border-emerald-300 h-11"
+                    />
+                    <p className="text-xs text-slate-400">Popup&apos;ta resmin altında gösterilecek başlık</p>
+                  </div>
+
+                  {/* Resim Yükleme */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-medium">Duyuru Resmi</Label>
+                    
+                    {popupImagePreview ? (
+                      <div className="relative group">
+                        <div className="relative w-full rounded-xl overflow-hidden border-2 border-slate-200 bg-slate-50">
+                          <img 
+                            src={popupImagePreview} 
+                            alt="Popup önizleme" 
+                            className="w-full max-h-[300px] object-contain"
+                          />
+                          {/* Overlay */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                              <label className="cursor-pointer px-4 py-2 bg-white/90 rounded-lg text-sm font-medium text-slate-700 hover:bg-white transition-colors shadow-lg">
+                                <Upload className="h-4 w-4 inline mr-2" />
+                                Değiştir
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handlePopupImageUpload}
+                                  className="hidden"
+                                />
+                              </label>
+                              <button
+                                onClick={handleRemovePopupImage}
+                                className="px-4 py-2 bg-red-500/90 rounded-lg text-sm font-medium text-white hover:bg-red-600 transition-colors shadow-lg"
+                              >
+                                <Trash2 className="h-4 w-4 inline mr-2" />
+                                Kaldır
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        {popupUploading && (
+                          <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+                              <span className="text-sm text-slate-600 font-medium">Yükleniyor...</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer block">
+                        <div className="border-2 border-dashed border-slate-300 hover:border-emerald-400 rounded-xl p-8 text-center transition-all hover:bg-emerald-50/50">
+                          {popupUploading ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
+                              <span className="text-sm text-slate-600 font-medium">Yükleniyor...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center mb-3">
+                                <Upload className="h-7 w-7 text-emerald-500" />
+                              </div>
+                              <p className="text-sm font-medium text-slate-700">Resim yüklemek için tıklayın</p>
+                              <p className="text-xs text-slate-400 mt-1">PNG, JPG, GIF, WEBP - Maks 5MB</p>
+                            </>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePopupImageUpload}
+                          className="hidden"
+                          disabled={popupUploading}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      onClick={handleSavePopup}
+                      disabled={popupSaving || popupUploading || (!popupTitle.trim() && !popupImageUrl)}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-500/25"
+                    >
+                      {popupSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-2" />
+                      )}
+                      Popup Duyuruyu Kaydet
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Preview Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-slate-200 overflow-hidden">
+              <CardContent className="p-0">
+                <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-600">Popup Önizleme</span>
+                  </div>
+                  <Badge className="bg-emerald-100 text-emerald-600 border-emerald-200">
+                    Canlı Görünüm
+                  </Badge>
+                </div>
+                <div className="p-6 bg-slate-900/95 flex items-center justify-center min-h-[300px]">
+                  <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200/80">
+                    {/* Gradient Header Bar */}
+                    <div className="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+
+                    {/* Image Preview */}
+                    {popupImagePreview ? (
+                      <div className="relative w-full bg-slate-100">
+                        <img
+                          src={popupImagePreview}
+                          alt="Önizleme"
+                          className="w-full max-h-[200px] object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full h-32 bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                        <ImageIcon className="h-10 w-10 text-slate-300" />
+                      </div>
+                    )}
+
+                    {/* Content */}
+                    <div className="p-4">
+                      {popupTitle ? (
+                        <div className="flex items-start gap-2">
+                          <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex-shrink-0">
+                            <Megaphone className="h-3.5 w-3.5 text-white" />
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-800 leading-tight">
+                            {popupTitle}
+                          </h3>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400 italic">Başlık girilmedi</p>
+                      )}
+
+                      <div className="mt-3 w-full py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-semibold rounded-lg text-center">
+                        Tamam, Anladım
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Usage Tips */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
+              <CardContent className="p-5">
+                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-500" />
+                  Kullanım İpuçları
+                </h4>
+                <ul className="space-y-2 text-sm text-slate-600">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500">•</span>
+                    <span>Popup, kullanıcı uygulamaya her giriş yaptığında <strong>sadece bir kez</strong> gösterilir</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500">•</span>
+                    <span>Kullanıcı popup&apos;ı kapattıktan sonra aynı oturumda tekrar gösterilmez</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500">•</span>
+                    <span>Duyuruyu güncellerseniz, kapatmış olan kullanıcılara da yeniden gösterilir</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500">•</span>
+                    <span>Mobil ve masaüstü cihazlarda tam uyumlu çalışır</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-500">•</span>
+                    <span>Yüksek çözünürlüklü resimler otomatik olarak sığdırılır</span>
                   </li>
                 </ul>
               </CardContent>
