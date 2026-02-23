@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon, ArrowUpDown, QrCode, Download, Printer, CheckSquare, Square, CheckCircle } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon, ArrowUpDown, QrCode, Download, Printer, CheckSquare, Square, CheckCircle, FileText } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import type { BoxWithDepartment, Department } from "@/lib/types/box";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { PhotoCarousel } from "@/components/ui/photo-carousel";
+import { generateBoxContentPDF } from "@/lib/utils/pdf-content-generator";
 
 type FilterTab = "all" | "sealed" | "draft";
 type AssignmentFilter = "all" | "in_pallet" | "not_in_pallet" | "in_shipment" | "not_in_shipment";
@@ -37,7 +38,7 @@ export default function BoxesPage() {
   const [boxes, setBoxes] = useState<BoxWithDepartment[]>([]);
   const [filteredBoxes, setFilteredBoxes] = useState<BoxWithDepartment[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  
+
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [currentUserName, setCurrentUserName] = useState("");
@@ -57,11 +58,11 @@ export default function BoxesPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
-  
+
   // Performans optimizasyonu için animasyon ayarları
   const motionConfig = useMemo(() => ({
     initial: shouldReduceMotion ? {} : { opacity: 0, y: 20 },
@@ -85,19 +86,19 @@ export default function BoxesPage() {
         router.push("/login");
         return;
       }
-      
+
       setCurrentUserName(session.user.name);
       setUserDepartmentId(session.user.department_id);
       setUserRole(session.user.role);
-      
+
       const [allBoxes, deps] = await Promise.all([
         boxRepository.getAll(),
         departmentRepository.getAll(),
       ]);
-      
+
       setBoxes(allBoxes);
       setDepartments(deps);
-      
+
       // Normal kullanıcı için departman filtresini kendi departmanına sabitler
       if (session.user.role === "user") {
         setSelectedDepartment(session.user.department_id);
@@ -127,34 +128,34 @@ export default function BoxesPage() {
 
   const applyFilters = () => {
     let filtered = [...boxes];
-    
+
     // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi kolilerini görsün
     if (userRole === "user") {
       filtered = filtered.filter((b) => b.created_by === currentUserName);
     }
-    
+
     // Arama filtresi - Türkçe karakter destekli
     if (searchQuery.trim()) {
       const query = turkishToLower(searchQuery.trim());
-      filtered = filtered.filter((b) => 
+      filtered = filtered.filter((b) =>
         turkishToLower(b.name).includes(query) ||
         turkishToLower(b.code).includes(query) ||
         turkishToLower(b.department.name).includes(query) ||
         turkishToLower(b.created_by).includes(query)
       );
     }
-    
+
     if (activeTab === "sealed") {
       filtered = filtered.filter((b) => b.status === "sealed");
     } else if (activeTab === "draft") {
       filtered = filtered.filter((b) => b.status === "draft");
     }
-    
+
     // Departman filtresi sadece manager/super_admin için geçerli
     if (selectedDepartment !== "all" && (userRole === "manager" || userRole === "super_admin")) {
       filtered = filtered.filter((b) => b.department_id === selectedDepartment);
     }
-    
+
     // Palet/Sevkiyat atama filtresi
     if (assignmentFilter === "in_pallet") {
       filtered = filtered.filter((b) => b.pallet_code);
@@ -165,7 +166,7 @@ export default function BoxesPage() {
     } else if (assignmentFilter === "not_in_shipment") {
       filtered = filtered.filter((b) => !b.pallet_code && !(b as any).shipment_code);
     }
-    
+
     // Sıralama
     if (sortOption === "newest") {
       filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -204,7 +205,7 @@ export default function BoxesPage() {
 
   const handleDelete = async () => {
     if (!selectedBox) return;
-    
+
     setIsDeleting(true);
     try {
       if (selectedBox.pallet_code) {
@@ -217,14 +218,14 @@ export default function BoxesPage() {
         setDeleteModalOpen(false);
         return;
       }
-      
+
       await boxRepository.delete(selectedBox.code);
-      
+
       toast({
         title: "Koli Silindi",
         description: `${selectedBox.code} başarıyla silindi`,
       });
-      
+
       await loadData();
     } catch (error) {
       toast({
@@ -294,13 +295,13 @@ export default function BoxesPage() {
         const fragileHeight = isFragile ? 50 : 0;
         const textHeight = 80;
         const maxWidth = qrSize - 40;
-        
+
         canvas.width = qrSize;
         canvas.height = qrSize + textHeight + fragileHeight;
-        
+
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         if (isFragile) {
           ctx.fillStyle = "#dc2626";
           ctx.fillRect(0, 0, qrSize, fragileHeight);
@@ -310,13 +311,13 @@ export default function BoxesPage() {
           ctx.textBaseline = "middle";
           ctx.fillText("DİKKAT! KIRILACAK EŞYA", qrSize / 2, fragileHeight / 2);
         }
-        
+
         ctx.drawImage(img, 0, fragileHeight, qrSize, qrSize);
-        
+
         ctx.fillStyle = "#1e40af";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        
+
         let boxName = box.name;
         let fontSize = 32;
         ctx.font = `bold ${fontSize}px Arial, sans-serif`;
@@ -330,7 +331,7 @@ export default function BoxesPage() {
           }
           boxName += "...";
         }
-        
+
         ctx.fillText(boxName, qrSize / 2, fragileHeight + qrSize + textHeight / 2);
         resolve(canvas.toDataURL("image/png"));
       };
@@ -342,9 +343,9 @@ export default function BoxesPage() {
   const handleBulkDownloadQR = async () => {
     if (selectedBoxes.length === 0) return;
     setBulkActionModalOpen(false);
-    
+
     toast({ title: "QR Kodları Hazırlanıyor", description: `${selectedBoxes.length} koli için QR kodları oluşturuluyor...` });
-    
+
     for (const box of selectedBoxes) {
       try {
         const dataUrl = await generateQRCanvas(box);
@@ -360,7 +361,7 @@ export default function BoxesPage() {
         console.error(`QR generation error for ${box.code}:`, error);
       }
     }
-    
+
     toast({ title: "Tamamlandı", description: `${selectedBoxes.length} QR kodu indirildi` });
     setBulkMode(false);
     setSelectedBoxIds(new Set());
@@ -370,9 +371,9 @@ export default function BoxesPage() {
   const handleBulkPrintQR = async () => {
     if (selectedBoxes.length === 0) return;
     setBulkActionModalOpen(false);
-    
+
     toast({ title: "QR Kodları Hazırlanıyor", description: `${selectedBoxes.length} koli için yazdırma hazırlanıyor...` });
-    
+
     const qrImages: string[] = [];
     for (const box of selectedBoxes) {
       try {
@@ -382,14 +383,14 @@ export default function BoxesPage() {
         console.error(`QR generation error for ${box.code}:`, error);
       }
     }
-    
+
     // Tüm QR kodlarını tek bir yazdırma sayfasında göster
     const printWindow = window.open("", "_blank");
     if (printWindow) {
-      const imagesHtml = qrImages.map((src, i) => 
+      const imagesHtml = qrImages.map((src, i) =>
         `<div class="qr-item"><img src="${src}" alt="QR ${i + 1}" /></div>`
       ).join("");
-      
+
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -422,15 +423,38 @@ export default function BoxesPage() {
       `);
       printWindow.document.close();
     }
-    
+
     toast({ title: "Tamamlandı", description: `${selectedBoxes.length} QR kodu yazdırılıyor` });
     setBulkMode(false);
     setSelectedBoxIds(new Set());
   };
 
+  // Toplu Koli İçeriği PDF İndir
+  const handleBulkContentPDF = async () => {
+    const ids = Array.from(selectedBoxIds);
+    if (ids.length === 0) return;
+
+    try {
+      toast({ title: "Hazırlanıyor...", description: "Koli içerikleri yükleniyor" });
+      const boxDetails = await boxRepository.getByIds(ids);
+      if (boxDetails.length === 0) {
+        toast({ title: "Hata", description: "Koli detayları alınamadı", variant: "destructive" });
+        return;
+      }
+      generateBoxContentPDF(boxDetails);
+      toast({ title: "Tamamlandı", description: `${boxDetails.length} kolinin içeriği PDF olarak indirildi` });
+      setBulkActionModalOpen(false);
+      setBulkMode(false);
+      setSelectedBoxIds(new Set());
+    } catch (error) {
+      console.error("Error generating content PDF:", error);
+      toast({ title: "Hata", description: "PDF oluşturulurken hata oluştu", variant: "destructive" });
+    }
+  };
+
   const getStatusColor = (status: "draft" | "sealed") => {
-    return status === "sealed" 
-      ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
+    return status === "sealed"
+      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
       : "bg-amber-100 text-amber-700 border-amber-200";
   };
 
@@ -449,10 +473,10 @@ export default function BoxesPage() {
   };
 
   // Kullanıcı rolüne göre filtrelenmiş koli sayılarını hesapla
-  const userFilteredBoxes = userRole === "user" 
+  const userFilteredBoxes = userRole === "user"
     ? boxes.filter(b => b.created_by === currentUserName)
     : boxes;
-    
+
   const tabs: { id: FilterTab; label: string; count: number }[] = [
     { id: "all", label: "Tümü", count: userFilteredBoxes.length },
     { id: "sealed", label: "Kapalı", count: userFilteredBoxes.filter(b => b.status === "sealed").length },
@@ -466,7 +490,7 @@ export default function BoxesPage() {
           <div className="relative mx-auto w-16 h-16">
             {/* Basit spinning border - CSS animation (GPU optimized) */}
             <div className="absolute inset-0 rounded-full border-4 border-blue-200" />
-            <div 
+            <div
               className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"
               style={{ animationDuration: "0.8s" }}
             />
@@ -511,7 +535,7 @@ export default function BoxesPage() {
                 <Package className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
               </div>
             </motion.div>
-            
+
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
                 Kolilerim
@@ -528,12 +552,12 @@ export default function BoxesPage() {
             </div>
           </div>
         </div>
-        
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-2">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 sm:flex-initial">
-            <Button 
-              onClick={() => router.push("/app/boxes/new")} 
+            <Button
+              onClick={() => router.push("/app/boxes/new")}
               className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 h-12 sm:h-10 text-base sm:text-sm active:scale-95 transition-transform"
             >
               <Plus className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
@@ -541,7 +565,7 @@ export default function BoxesPage() {
             </Button>
           </motion.div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 sm:flex-initial">
-            <Button 
+            <Button
               onClick={() => {
                 if (bulkMode) {
                   setBulkMode(false);
@@ -549,7 +573,7 @@ export default function BoxesPage() {
                 } else {
                   setBulkMode(true);
                 }
-              }} 
+              }}
               variant={bulkMode ? "default" : "outline"}
               className={`w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm ${bulkMode ? "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700" : "border-purple-200 text-purple-600 hover:bg-purple-50"}`}
             >
@@ -624,19 +648,17 @@ export default function BoxesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               whileTap={{ scale: 0.95 }}
-              className={`relative flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all active:scale-95 ${
-                activeTab === tab.id
+              className={`relative flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all active:scale-95 ${activeTab === tab.id
                   ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
                   : "bg-white/80 text-slate-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300"
-              }`}
+                }`}
             >
               {tab.label}
-              <motion.span 
-                className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
-                  activeTab === tab.id
+              <motion.span
+                className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tab.id
                     ? "bg-white/25 text-white"
                     : "bg-blue-100 text-blue-600"
-                }`}
+                  }`}
                 animate={{ scale: activeTab === tab.id ? [1, 1.1, 1] : 1 }}
                 transition={{ duration: 0.3 }}
               >
@@ -669,7 +691,7 @@ export default function BoxesPage() {
               </Select>
             </div>
           ) : (
-            <motion.div 
+            <motion.div
               className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200"
               whileHover={{ scale: 1.02 }}
             >
@@ -679,10 +701,10 @@ export default function BoxesPage() {
               </span>
             </motion.div>
           )}
-          
-          <motion.div 
+
+          <motion.div
             className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-xl border border-blue-200"
-            animate={{ 
+            animate={{
               boxShadow: filteredBoxes.length > 0 ? ["0 0 0 0 rgba(59,130,246,0)", "0 0 0 4px rgba(59,130,246,0.1)", "0 0 0 0 rgba(59,130,246,0)"] : "none"
             }}
             transition={{ duration: 2, repeat: Infinity }}
@@ -692,7 +714,7 @@ export default function BoxesPage() {
               {filteredBoxes.length} koli
             </span>
           </motion.div>
-          
+
           {/* Palet/Sevkiyat Atama Filtresi */}
           <Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as AssignmentFilter)}>
             <SelectTrigger className="w-[180px] border-slate-200 bg-white/80 h-10">
@@ -706,7 +728,7 @@ export default function BoxesPage() {
               <SelectItem value="not_in_shipment">Sevkiyata Eklenmemiş</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {/* Sıralama */}
           <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
             <SelectTrigger className="w-[180px] border-slate-200 bg-white/80 h-10">
@@ -719,7 +741,7 @@ export default function BoxesPage() {
               <SelectItem value="alphabetical">Alfabetik (A-Z)</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {userRole !== "user" && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -742,7 +764,7 @@ export default function BoxesPage() {
       >
         <AnimatePresence mode="popLayout">
           {filteredBoxes.length === 0 ? (
-            <motion.div 
+            <motion.div
               key="empty"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -751,7 +773,7 @@ export default function BoxesPage() {
               <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <motion.div
-                    animate={{ 
+                    animate={{
                       scale: [1, 1.1, 1],
                       rotate: [0, 5, -5, 0],
                     }}
@@ -764,7 +786,7 @@ export default function BoxesPage() {
                   <p className="text-slate-500 text-center max-w-sm mb-6">
                     Seçili filtreye göre koli bulunamadı. Yeni koli oluşturmak için butona tıklayın.
                   </p>
-                  <Button 
+                  <Button
                     onClick={() => router.push("/app/boxes/new")}
                     className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
                   >
@@ -778,155 +800,155 @@ export default function BoxesPage() {
             filteredBoxes
               .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
               .map((box, index) => (
-              <motion.div
-                key={box.id}
-                layout={!shouldReduceMotion}
-                initial={motionConfig.initial}
-                animate={motionConfig.animate}
-                exit={motionConfig.exit}
-                transition={{ 
-                  duration: animationDuration,
-                  delay: shouldReduceMotion ? 0 : staggerDelay * Math.min(index, 6)
-                }}
-                whileHover={shouldReduceMotion ? {} : { y: -2 }}
-              >
-                <Card
-                  className={`relative overflow-hidden border-slate-200 bg-white/80 backdrop-blur-sm hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer group ${bulkMode && selectedBoxIds.has(box.id) ? "ring-2 ring-purple-500 border-purple-300" : ""}`}
-                  onClick={() => bulkMode ? toggleBoxSelection(box.id) : handleBoxClick(box)}
+                <motion.div
+                  key={box.id}
+                  layout={!shouldReduceMotion}
+                  initial={motionConfig.initial}
+                  animate={motionConfig.animate}
+                  exit={motionConfig.exit}
+                  transition={{
+                    duration: animationDuration,
+                    delay: shouldReduceMotion ? 0 : staggerDelay * Math.min(index, 6)
+                  }}
+                  whileHover={shouldReduceMotion ? {} : { y: -2 }}
                 >
-                  {/* Top Gradient Line */}
-                  <div className={`h-1 bg-gradient-to-r ${box.status === "sealed" ? "from-emerald-400 to-teal-500" : "from-amber-400 to-orange-500"}`} />
-                  
-                  {/* Bulk Select Checkbox */}
-                  {bulkMode && (
-                    <div className="absolute top-3 right-3 z-10">
-                      {selectedBoxIds.has(box.id) ? (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
-                          <CheckCircle className="h-5 w-5 text-white" />
-                        </div>
-                      ) : (
-                        <div className="w-7 h-7 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center">
-                          <Square className="h-4 w-4 text-slate-300" />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <Card
+                    className={`relative overflow-hidden border-slate-200 bg-white/80 backdrop-blur-sm hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer group ${bulkMode && selectedBoxIds.has(box.id) ? "ring-2 ring-purple-500 border-purple-300" : ""}`}
+                    onClick={() => bulkMode ? toggleBoxSelection(box.id) : handleBoxClick(box)}
+                  >
+                    {/* Top Gradient Line */}
+                    <div className={`h-1 bg-gradient-to-r ${box.status === "sealed" ? "from-emerald-400 to-teal-500" : "from-amber-400 to-orange-500"}`} />
 
-                  {/* Shimmer Effect */}
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
-                  />
-
-                  <CardContent className="p-4 sm:p-5 space-y-3 relative">
-                    <div className="flex items-start gap-3">
-                      {/* Küçük resim - Hem web hem mobil için */}
-                      {box.photo_url && (
-                        <motion.div 
-                          className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 flex-shrink-0 cursor-pointer hover:border-blue-400 active:border-blue-500 transition-colors shadow-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFullscreenPhoto(box.photo_url);
-                          }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <img 
-                            src={box.photo_url} 
-                            alt={box.name}
-                            className="w-full h-full object-cover"
-                          />
-                          {/* Büyütme ikonu overlay - Mobilde her zaman görünür */}
-                          <div className="absolute inset-0 bg-black/20 sm:bg-black/0 sm:hover:bg-black/30 active:bg-black/40 transition-colors flex items-center justify-center">
-                            <Eye className="h-4 w-4 text-white drop-shadow-lg" />
+                    {/* Bulk Select Checkbox */}
+                    {bulkMode && (
+                      <div className="absolute top-3 right-3 z-10">
+                        {selectedBoxIds.has(box.id) ? (
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
+                            <CheckCircle className="h-5 w-5 text-white" />
                           </div>
+                        ) : (
+                          <div className="w-7 h-7 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center">
+                            <Square className="h-4 w-4 text-slate-300" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Shimmer Effect */}
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
+                    />
+
+                    <CardContent className="p-4 sm:p-5 space-y-3 relative">
+                      <div className="flex items-start gap-3">
+                        {/* Küçük resim - Hem web hem mobil için */}
+                        {box.photo_url && (
+                          <motion.div
+                            className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 flex-shrink-0 cursor-pointer hover:border-blue-400 active:border-blue-500 transition-colors shadow-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFullscreenPhoto(box.photo_url);
+                            }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <img
+                              src={box.photo_url}
+                              alt={box.name}
+                              className="w-full h-full object-cover"
+                            />
+                            {/* Büyütme ikonu overlay - Mobilde her zaman görünür */}
+                            <div className="absolute inset-0 bg-black/20 sm:bg-black/0 sm:hover:bg-black/30 active:bg-black/40 transition-colors flex items-center justify-center">
+                              <Eye className="h-4 w-4 text-white drop-shadow-lg" />
+                            </div>
+                          </motion.div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-base sm:text-lg truncate text-slate-800 group-hover:text-blue-600 transition-colors">
+                                {box.name}
+                              </h3>
+                              <p className="text-xs sm:text-sm text-slate-400 font-mono truncate">
+                                {box.code}
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-1 items-end">
+                              <Badge className={`${getStatusColor(box.status)} text-xs`}>
+                                {getStatusText(box.status)}
+                              </Badge>
+                              {(box as any).is_direct_shipment && (
+                                <Badge className="bg-orange-500 text-white border-orange-600 text-xs animate-pulse">
+                                  <Truck className="h-3 w-3 mr-1" />
+                                  Direk Sevkiyat
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-50 to-blue-50 text-cyan-700 border border-cyan-200 text-sm font-medium truncate">
+                          {box.department.name}
+                        </div>
+                      </div>
+
+                      {/* Kırılacak Eşya Uyarısı */}
+                      {(box as any).is_fragile && (
+                        <motion.div
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200"
+                          animate={{
+                            backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
+                            borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
+                          }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        >
+                          <AlertOctagon className="h-4 w-4 text-red-600 animate-pulse" />
+                          <span className="text-xs font-bold text-red-700">DİKKAT! KIRILACAK EŞYA</span>
                         </motion.div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-base sm:text-lg truncate text-slate-800 group-hover:text-blue-600 transition-colors">
-                              {box.name}
-                            </h3>
-                            <p className="text-xs sm:text-sm text-slate-400 font-mono truncate">
-                              {box.code}
-                            </p>
-                          </div>
-                          <div className="flex flex-col gap-1 items-end">
-                            <Badge className={`${getStatusColor(box.status)} text-xs`}>
-                              {getStatusText(box.status)}
-                            </Badge>
-                            {(box as any).is_direct_shipment && (
-                              <Badge className="bg-orange-500 text-white border-orange-600 text-xs animate-pulse">
-                                <Truck className="h-3 w-3 mr-1" />
-                                Direk Sevkiyat
-                              </Badge>
-                            )}
-                          </div>
+
+                      {/* Palet/Sevkiyat Durumu */}
+                      {box.pallet_code ? (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                          <Layers className="h-4 w-4 text-emerald-600" />
+                          <span className="text-xs text-emerald-700">
+                            <span className="font-medium">{box.pallet_code}</span> paletinde
+                          </span>
                         </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-50 to-blue-50 text-cyan-700 border border-cyan-200 text-sm font-medium truncate">
-                        {box.department.name}
-                      </div>
-                    </div>
+                      ) : (box as any).is_direct_shipment && (box as any).shipment_code ? (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200">
+                          <Truck className="h-4 w-4 text-purple-600" />
+                          <span className="text-xs text-purple-700">
+                            <span className="font-medium">{(box as any).shipment_code}</span> sevkiyatında
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <span className="text-xs text-amber-700 font-medium">
+                            {(box as any).is_direct_shipment ? "Sevkiyata eklenmedi" : "Palete eklenmedi"}
+                          </span>
+                        </div>
+                      )}
 
-                    {/* Kırılacak Eşya Uyarısı */}
-                    {(box as any).is_fragile && (
-                      <motion.div 
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200"
-                        animate={{ 
-                          backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
-                          borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
-                        }}
-                        transition={{ duration: 1, repeat: Infinity }}
-                      >
-                        <AlertOctagon className="h-4 w-4 text-red-600 animate-pulse" />
-                        <span className="text-xs font-bold text-red-700">DİKKAT! KIRILACAK EŞYA</span>
-                      </motion.div>
-                    )}
-
-                    {/* Palet/Sevkiyat Durumu */}
-                    {box.pallet_code ? (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
-                        <Layers className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs text-emerald-700">
-                          <span className="font-medium">{box.pallet_code}</span> paletinde
-                        </span>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-slate-400">Oluşturan</p>
+                          <p className="text-sm font-medium text-slate-600">{box.created_by}</p>
+                        </div>
+                        <motion.div
+                          className="text-slate-400 group-hover:text-blue-500 transition-colors"
+                          animate={{ x: [0, 5, 0] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          <ArrowRight className="h-5 w-5" />
+                        </motion.div>
                       </div>
-                    ) : (box as any).is_direct_shipment && (box as any).shipment_code ? (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200">
-                        <Truck className="h-4 w-4 text-purple-600" />
-                        <span className="text-xs text-purple-700">
-                          <span className="font-medium">{(box as any).shipment_code}</span> sevkiyatında
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        <span className="text-xs text-amber-700 font-medium">
-                          {(box as any).is_direct_shipment ? "Sevkiyata eklenmedi" : "Palete eklenmedi"}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-slate-400">Oluşturan</p>
-                        <p className="text-sm font-medium text-slate-600">{box.created_by}</p>
-                      </div>
-                      <motion.div
-                        className="text-slate-400 group-hover:text-blue-500 transition-colors"
-                        animate={{ x: [0, 5, 0] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                      >
-                        <ArrowRight className="h-5 w-5" />
-                      </motion.div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))
           )}
         </AnimatePresence>
       </motion.div>
@@ -952,13 +974,13 @@ export default function BoxesPage() {
               <ChevronLeft className="h-4 w-4 mr-1" />
               Önceki
             </Button>
-            
+
             {/* Page Numbers */}
             <div className="hidden sm:flex items-center gap-1">
               {Array.from({ length: Math.min(5, Math.ceil(filteredBoxes.length / itemsPerPage)) }, (_, i) => {
                 const totalPages = Math.ceil(filteredBoxes.length / itemsPerPage);
                 let pageNum;
-                
+
                 if (totalPages <= 5) {
                   pageNum = i + 1;
                 } else if (currentPage <= 3) {
@@ -968,7 +990,7 @@ export default function BoxesPage() {
                 } else {
                   pageNum = currentPage - 2 + i;
                 }
-                
+
                 return (
                   <Button
                     key={pageNum}
@@ -982,7 +1004,7 @@ export default function BoxesPage() {
                 );
               })}
             </div>
-            
+
             <Button
               variant="outline"
               size="sm"
@@ -1009,7 +1031,7 @@ export default function BoxesPage() {
               Kod: {selectedBox?.code} • {selectedBox?.department.name}
             </DialogDescription>
           </DialogHeader>
-          
+
           {/* Fotoğraflar - Kaydırmalı Carousel */}
           {(selectedBox?.photo_url || selectedBox?.photo_url_2) && (
             <div className="py-2">
@@ -1020,7 +1042,7 @@ export default function BoxesPage() {
               />
             </div>
           )}
-          
+
           <div className="flex flex-col gap-3 py-4">
             <Button
               onClick={handleView}
@@ -1035,7 +1057,7 @@ export default function BoxesPage() {
                 <p className="text-xs text-slate-400">Koli detaylarını görüntüle</p>
               </div>
             </Button>
-            
+
             <Button
               onClick={handleEdit}
               variant="outline"
@@ -1049,7 +1071,7 @@ export default function BoxesPage() {
                 <p className="text-xs text-slate-400">Koli bilgilerini düzenle</p>
               </div>
             </Button>
-            
+
             <Button
               onClick={handleDeleteClick}
               variant="outline"
@@ -1085,14 +1107,14 @@ export default function BoxesPage() {
               <span className="font-semibold text-slate-700">{selectedBox?.name}</span> ({selectedBox?.code}) kolisini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
             </DialogDescription>
           </DialogHeader>
-          
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
               İptal
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete} 
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
               disabled={isDeleting}
               className="bg-gradient-to-r from-red-500 to-rose-500"
             >
@@ -1114,7 +1136,7 @@ export default function BoxesPage() {
               {selectedBoxIds.size} koli seçildi. Yapılacak işlemi seçin.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex flex-col gap-3 py-4">
             <Button
               onClick={handleBulkDownloadQR}
@@ -1129,7 +1151,7 @@ export default function BoxesPage() {
                 <p className="text-xs text-slate-400">Her koli için ayrı QR kodu indirilir</p>
               </div>
             </Button>
-            
+
             <Button
               onClick={handleBulkPrintQR}
               variant="outline"
@@ -1141,6 +1163,20 @@ export default function BoxesPage() {
               <div className="text-left">
                 <p className="font-semibold text-slate-700 group-hover:text-emerald-600">QR Kodları Yazdır</p>
                 <p className="text-xs text-slate-400">Tüm QR kodları tek sayfada yazdırılır</p>
+              </div>
+            </Button>
+
+            <Button
+              onClick={handleBulkContentPDF}
+              variant="outline"
+              className="h-14 justify-start gap-3 hover:bg-purple-50 hover:border-purple-300 group"
+            >
+              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 text-white">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-700 group-hover:text-purple-600">Koli İçeriği PDF İndir</p>
+                <p className="text-xs text-slate-400">Seçili kolilerin içerik listesini PDF olarak indirir</p>
               </div>
             </Button>
           </div>
@@ -1170,7 +1206,7 @@ export default function BoxesPage() {
               >
                 <X className="h-5 w-5 sm:h-4 sm:w-4" />
               </Button>
-              
+
               {/* Fotoğraf */}
               <motion.img
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -1180,9 +1216,9 @@ export default function BoxesPage() {
                 className="max-w-full max-h-[85vh] sm:max-h-[80vh] object-contain p-2"
                 onClick={(e) => e.stopPropagation()}
               />
-              
+
               {/* Mobilde kapatmak için tıklama alanı */}
-              <div 
+              <div
                 className="absolute inset-0 -z-10"
                 onClick={() => setFullscreenPhoto(null)}
               />

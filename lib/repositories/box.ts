@@ -211,7 +211,7 @@ class BoxRepository {
           const pallet = pallets.find((p: any) => p.code === boxDetail.pallet_code);
           if (pallet) {
             palletInfo = { code: pallet.code, name: pallet.name };
-            
+
             // Check if pallet is in a shipment
             if (pallet.shipment_code) {
               const SHIPMENT_STORAGE_KEY = "qr_logistics_shipments";
@@ -658,6 +658,88 @@ class BoxRepository {
           },
         };
       });
+    }
+  }
+
+  // Get multiple boxes by IDs with full detail (lines + department)
+  async getByIds(ids: string[]): Promise<BoxDetail[]> {
+    if (ids.length === 0) return [];
+
+    if (!isSupabaseConfigured || !supabase) {
+      const boxes = this.getLocalBoxes();
+      const allLines = this.getLocalBoxLines();
+      const departments = await departmentRepository.getAll();
+
+      return boxes
+        .filter((b) => ids.includes(b.id))
+        .map((box) => {
+          const dept = departments.find((d) => d.id === box.department_id);
+          return {
+            ...box,
+            lines: allLines.filter((l) => l.box_id === box.id),
+            department: dept || {
+              id: box.department_id,
+              name: "Unknown",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          };
+        });
+    }
+
+    try {
+      const PAGE_SIZE = 100; // in() filter batch size
+      const allData: BoxDetail[] = [];
+
+      // Split ids into chunks for Supabase .in() limit
+      for (let i = 0; i < ids.length; i += PAGE_SIZE) {
+        const chunk = ids.slice(i, i + PAGE_SIZE);
+        const { data, error } = await supabase
+          .from("boxes")
+          .select(
+            `
+            *,
+            department:departments(*),
+            lines:box_lines(*)
+          `
+          )
+          .in("id", chunk);
+
+        if (error) throw error;
+
+        const mapped = (data || []).map((item: any) => ({
+          ...item,
+          department: Array.isArray(item.department)
+            ? item.department[0]
+            : item.department,
+          lines: item.lines || [],
+        }));
+        allData.push(...mapped);
+      }
+
+      return allData;
+    } catch (error) {
+      console.error("Error fetching boxes by IDs from Supabase:", error);
+      // Fallback to localStorage
+      const boxes = this.getLocalBoxes();
+      const allLines = this.getLocalBoxLines();
+      const departments = await departmentRepository.getAll();
+
+      return boxes
+        .filter((b) => ids.includes(b.id))
+        .map((box) => {
+          const dept = departments.find((d) => d.id === box.department_id);
+          return {
+            ...box,
+            lines: allLines.filter((l) => l.box_id === box.id),
+            department: dept || {
+              id: box.department_id,
+              name: "Unknown",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          };
+        });
     }
   }
 }

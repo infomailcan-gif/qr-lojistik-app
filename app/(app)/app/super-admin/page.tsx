@@ -53,11 +53,14 @@ import { userRepository, type UserWithBan } from "@/lib/repositories/user";
 import { siteLockdown, type SiteLockdownSettings } from "@/lib/site-lockdown";
 import { announcementRepository, type Announcement } from "@/lib/repositories/announcement";
 import { popupAnnouncementRepository, type PopupAnnouncement } from "@/lib/repositories/popup-announcement";
+import { boxRepository } from "@/lib/repositories/box";
+import type { BoxWithDepartment, BoxDetail } from "@/lib/types/box";
+import { generateBoxContentPDF } from "@/lib/utils/pdf-content-generator";
 import { loginLogRepository, type LoginLog, type ActiveSession } from "@/lib/repositories/login-log";
 import type { Department } from "@/lib/types/box";
 import { uploadPopupImage } from "@/lib/supabase/storage";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2, LogIn, LogOut, Wifi, WifiOff, Monitor, Globe, Activity as ActivityIcon, Info, ImageIcon, Upload, BellRing } from "lucide-react";
+import { Eye, Clock, FileText, ChevronLeft, ChevronRight, Megaphone, Volume2, LogIn, LogOut, Wifi, WifiOff, Monitor, Globe, Activity as ActivityIcon, Info, ImageIcon, Upload, BellRing, Package, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -112,6 +115,13 @@ export default function SuperAdminPage() {
   const [popupSaving, setPopupSaving] = useState(false);
   const [popupUploading, setPopupUploading] = useState(false);
 
+  // PDF Koli İçeriği State
+  const [allBoxes, setAllBoxes] = useState<BoxWithDepartment[]>([]);
+  const [pdfSelectedBoxIds, setPdfSelectedBoxIds] = useState<Set<string>>(new Set());
+  const [pdfDepartmentFilter, setPdfDepartmentFilter] = useState<string>("all");
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<UserWithBan, "password"> | null>(null);
   const [userForm, setUserForm] = useState<UserFormData>({
@@ -158,14 +168,14 @@ export default function SuperAdminPage() {
         loginLogRepository.getActiveSessions(),
         loginLogRepository.getStats(),
       ]);
-      
+
       setUsers(usersData as any);
       setDepartments(deptsData);
       setPageVisits(visitsData);
       setLoginLogs(logsData);
       setActiveSessions(sessionsData);
       setLoginStats(statsData);
-      
+
       if (lockdownData) {
         setLockdownSettings(lockdownData);
         setLockdownMessage(lockdownData.lockdown_message);
@@ -263,7 +273,7 @@ export default function SuperAdminPage() {
     }
 
     setSaving(true);
-    
+
     try {
       const department = departments.find((d) => d.id === userForm.department_id);
 
@@ -324,7 +334,7 @@ export default function SuperAdminPage() {
     if (!deleteDialog) return;
 
     setSaving(true);
-    
+
     try {
       await auth.deleteUser(deleteDialog.id);
       toast({
@@ -368,7 +378,7 @@ export default function SuperAdminPage() {
     }
 
     setSaving(true);
-    
+
     try {
       if (editingDepartment) {
         await departmentRepository.update(editingDepartment.id, departmentName.trim());
@@ -410,7 +420,7 @@ export default function SuperAdminPage() {
     if (!deleteDialog) return;
 
     setSaving(true);
-    
+
     try {
       await departmentRepository.delete(deleteDialog.id);
       toast({
@@ -437,20 +447,20 @@ export default function SuperAdminPage() {
     try {
       const session = await auth.getSession();
       const userName = session?.user?.name || "Unknown";
-      
+
       let success: boolean;
       if (enabled) {
         success = await siteLockdown.activate(userName);
       } else {
         success = await siteLockdown.deactivate();
       }
-      
+
       if (success) {
         setLockdownSettings(prev => prev ? { ...prev, is_active: enabled } : null);
         toast({
           title: enabled ? "Site Kilitlendi" : "Site Açıldı",
-          description: enabled 
-            ? "Tüm kullanıcıların erişimi engellendi" 
+          description: enabled
+            ? "Tüm kullanıcıların erişimi engellendi"
             : "Kullanıcılar artık siteye erişebilir",
         });
       } else {
@@ -476,12 +486,12 @@ export default function SuperAdminPage() {
     setLockdownSaving(true);
     try {
       const success = await siteLockdown.updateMessage(lockdownMessage.trim(), lockdownSubtitle.trim());
-      
+
       if (success) {
-        setLockdownSettings(prev => prev ? { 
-          ...prev, 
+        setLockdownSettings(prev => prev ? {
+          ...prev,
           lockdown_message: lockdownMessage,
-          lockdown_subtitle: lockdownSubtitle 
+          lockdown_subtitle: lockdownSubtitle
         } : null);
         toast({
           title: "Başarılı",
@@ -512,15 +522,15 @@ export default function SuperAdminPage() {
     try {
       const session = await auth.getSession();
       const userName = session?.user?.name || "Unknown";
-      
+
       const success = await announcementRepository.toggleActive(enabled, userName);
-      
+
       if (success) {
         setAnnouncement(prev => prev ? { ...prev, is_active: enabled } : null);
         toast({
           title: enabled ? "Duyuru Aktif" : "Duyuru Kapalı",
-          description: enabled 
-            ? "Kayan yazı tüm kullanıcılara gösterilecek" 
+          description: enabled
+            ? "Kayan yazı tüm kullanıcılara gösterilecek"
             : "Kayan yazı gizlendi",
         });
       } else {
@@ -556,7 +566,7 @@ export default function SuperAdminPage() {
     try {
       const session = await auth.getSession();
       const userName = session?.user?.name || "Unknown";
-      
+
       const success = await announcementRepository.updateAnnouncement({
         message: announcementMessage.trim(),
         is_active: announcement?.is_active || false,
@@ -565,10 +575,10 @@ export default function SuperAdminPage() {
         text_color: announcementTextColor,
         updated_by: userName,
       });
-      
+
       if (success) {
-        setAnnouncement(prev => prev ? { 
-          ...prev, 
+        setAnnouncement(prev => prev ? {
+          ...prev,
           message: announcementMessage,
           marquee_speed: announcementSpeed,
           background_color: announcementBgColor,
@@ -603,15 +613,15 @@ export default function SuperAdminPage() {
     try {
       const session = await auth.getSession();
       const userName = session?.user?.name || "Unknown";
-      
+
       const success = await popupAnnouncementRepository.toggleActive(enabled, userName);
-      
+
       if (success) {
         setPopupData(prev => prev ? { ...prev, is_active: enabled } : null);
         toast({
           title: enabled ? "Popup Aktif" : "Popup Kapalı",
-          description: enabled 
-            ? "Popup duyuru tüm kullanıcılara gösterilecek" 
+          description: enabled
+            ? "Popup duyuru tüm kullanıcılara gösterilecek"
             : "Popup duyuru gizlendi",
         });
       } else {
@@ -663,7 +673,7 @@ export default function SuperAdminPage() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
-        
+
         // Önizleme için hemen göster
         setPopupImagePreview(dataUrl);
 
@@ -727,17 +737,17 @@ export default function SuperAdminPage() {
     try {
       const session = await auth.getSession();
       const userName = session?.user?.name || "Unknown";
-      
+
       const success = await popupAnnouncementRepository.updatePopup({
         title: popupTitle.trim(),
         image_url: popupImageUrl,
         is_active: popupData?.is_active || false,
         updated_by: userName,
       });
-      
+
       if (success) {
-        setPopupData(prev => prev ? { 
-          ...prev, 
+        setPopupData(prev => prev ? {
+          ...prev,
           title: popupTitle,
           image_url: popupImageUrl,
         } : null);
@@ -796,7 +806,7 @@ export default function SuperAdminPage() {
         <div className="text-center">
           <div className="relative mx-auto w-16 h-16">
             <div className="absolute inset-0 rounded-full border-4 border-amber-200" />
-            <div 
+            <div
               className="absolute inset-0 rounded-full border-4 border-transparent border-t-amber-500 animate-spin"
               style={{ animationDuration: "0.8s" }}
             />
@@ -823,7 +833,7 @@ export default function SuperAdminPage() {
             <div className="relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-xl shadow-amber-500/30">
               <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            
+
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent flex items-center gap-2">
                 Süper Admin
@@ -834,7 +844,7 @@ export default function SuperAdminPage() {
               </p>
             </div>
           </div>
-          
+
           {/* Refresh Button */}
           <Button
             onClick={handleRefresh}
@@ -910,6 +920,10 @@ export default function SuperAdminPage() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="box-pdf" className="flex items-center gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-purple-500 data-[state=active]:text-white">
+              <FileText className="h-4 w-4" />
+              Koli İçeriği PDF
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -973,7 +987,7 @@ export default function SuperAdminPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <motion.div 
+                          <motion.div
                             className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-lg font-bold text-slate-600 group-hover:from-amber-100 group-hover:to-orange-100 group-hover:text-amber-700 transition-all"
                             whileHover={{ scale: 1.05 }}
                           >
@@ -1159,7 +1173,7 @@ export default function SuperAdminPage() {
                                   <div className="flex items-center gap-1.5">
                                     <Clock className="h-4 w-4 text-amber-500" />
                                     <span className="text-sm font-semibold text-slate-700">
-                                      {visit.duration_seconds > 60 
+                                      {visit.duration_seconds > 60
                                         ? `${Math.floor(visit.duration_seconds / 60)} dk ${visit.duration_seconds % 60} sn`
                                         : `${visit.duration_seconds} sn`}
                                     </span>
@@ -1270,7 +1284,7 @@ export default function SuperAdminPage() {
                   <p className="text-xs text-slate-500">Son 5 dakika içinde aktif olan kullanıcılar</p>
                 </div>
               </div>
-              
+
               {activeSessions.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
                   <WifiOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -1287,14 +1301,14 @@ export default function SuperAdminPage() {
                     else if (ua.includes("Safari")) browser = "Safari";
                     else if (ua.includes("Edge")) browser = "Edge";
                     if (ua.includes("Mobile") || ua.includes("Android") || ua.includes("iPhone")) device = "Mobil";
-                    
+
                     const startDate = new Date(session.created_at);
                     const now = new Date();
                     const diffMinutes = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60));
                     const hours = Math.floor(diffMinutes / 60);
                     const mins = diffMinutes % 60;
                     const duration = hours > 0 ? `${hours} saat ${mins} dk` : `${diffMinutes} dk`;
-                    
+
                     return (
                       <motion.div
                         key={session.id}
@@ -1386,60 +1400,60 @@ export default function SuperAdminPage() {
                         {loginLogs
                           .slice((loginLogsPage - 1) * loginLogsPerPage, loginLogsPage * loginLogsPerPage)
                           .map((log, index) => (
-                          <motion.tr
-                            key={log.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.02 }}
-                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                          >
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 font-semibold text-sm">
-                                  {log.user_name.charAt(0).toUpperCase()}
+                            <motion.tr
+                              key={log.id}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.02 }}
+                              className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                            >
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 font-semibold text-sm">
+                                    {log.user_name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-slate-800 text-sm">{log.user_name}</p>
+                                    <p className="text-xs text-slate-500">@{log.username}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-medium text-slate-800 text-sm">{log.user_name}</p>
-                                  <p className="text-xs text-slate-500">@{log.username}</p>
+                              </td>
+                              <td className="py-3 px-4">
+                                {log.action === "login" ? (
+                                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                                    <LogIn className="w-3 h-3 mr-1" />Giriş
+                                  </Badge>
+                                ) : log.action === "auto_login" ? (
+                                  <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                                    <Wifi className="w-3 h-3 mr-1" />Oto. Giriş
+                                  </Badge>
+                                ) : log.action === "logout" ? (
+                                  <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                                    <LogOut className="w-3 h-3 mr-1" />Çıkış
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-red-100 text-red-700 border-red-200">
+                                    <AlertTriangle className="w-3 h-3 mr-1" />Başarısız
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 hidden md:table-cell">
+                                <span className="font-mono text-xs text-slate-500">{log.ip_address || "-"}</span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="text-sm text-slate-600">
+                                  {new Date(log.created_at).toLocaleString("tr-TR", {
+                                    day: "2-digit", month: "2-digit", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit",
+                                  })}
                                 </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              {log.action === "login" ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                                  <LogIn className="w-3 h-3 mr-1" />Giriş
-                                </Badge>
-                              ) : log.action === "auto_login" ? (
-                                <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-                                  <Wifi className="w-3 h-3 mr-1" />Oto. Giriş
-                                </Badge>
-                              ) : log.action === "logout" ? (
-                                <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                                  <LogOut className="w-3 h-3 mr-1" />Çıkış
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-red-100 text-red-700 border-red-200">
-                                  <AlertTriangle className="w-3 h-3 mr-1" />Başarısız
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 hidden md:table-cell">
-                              <span className="font-mono text-xs text-slate-500">{log.ip_address || "-"}</span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="text-sm text-slate-600">
-                                {new Date(log.created_at).toLocaleString("tr-TR", {
-                                  day: "2-digit", month: "2-digit", year: "numeric",
-                                  hour: "2-digit", minute: "2-digit",
-                                })}
-                              </div>
-                            </td>
-                          </motion.tr>
-                        ))}
+                              </td>
+                            </motion.tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
-                  
+
                   {/* Pagination */}
                   {loginLogs.length > loginLogsPerPage && (
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
@@ -1523,19 +1537,17 @@ export default function SuperAdminPage() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
           >
-            <Card className={`border-2 transition-all duration-500 ${
-              lockdownSettings?.is_active 
-                ? "border-red-500 bg-gradient-to-br from-red-50 to-rose-50 shadow-lg shadow-red-500/20" 
-                : "border-slate-200 bg-white/80"
-            }`}>
+            <Card className={`border-2 transition-all duration-500 ${lockdownSettings?.is_active
+              ? "border-red-500 bg-gradient-to-br from-red-50 to-rose-50 shadow-lg shadow-red-500/20"
+              : "border-slate-200 bg-white/80"
+              }`}>
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${
-                      lockdownSettings?.is_active 
-                        ? "bg-gradient-to-br from-red-500 to-rose-500 shadow-xl shadow-red-500/40" 
-                        : "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl shadow-emerald-500/30"
-                    }`}>
+                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${lockdownSettings?.is_active
+                      ? "bg-gradient-to-br from-red-500 to-rose-500 shadow-xl shadow-red-500/40"
+                      : "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl shadow-emerald-500/30"
+                      }`}>
                       {lockdownSettings?.is_active ? (
                         <Lock className="h-8 w-8 text-white" />
                       ) : (
@@ -1546,14 +1558,13 @@ export default function SuperAdminPage() {
                       )}
                     </div>
                     <div>
-                      <h2 className={`text-2xl font-bold ${
-                        lockdownSettings?.is_active ? "text-red-600" : "text-slate-800"
-                      }`}>
+                      <h2 className={`text-2xl font-bold ${lockdownSettings?.is_active ? "text-red-600" : "text-slate-800"
+                        }`}>
                         {lockdownSettings?.is_active ? "Site Kilitli" : "Site Açık"}
                       </h2>
                       <p className="text-sm text-slate-500 mt-1">
-                        {lockdownSettings?.is_active 
-                          ? `${lockdownSettings.activated_by} tarafından kilitlendi` 
+                        {lockdownSettings?.is_active
+                          ? `${lockdownSettings.activated_by} tarafından kilitlendi`
                           : "Tüm kullanıcılar erişebilir"}
                       </p>
                       {lockdownSettings?.is_active && lockdownSettings.activated_at && (
@@ -1664,7 +1675,7 @@ export default function SuperAdminPage() {
                 </div>
                 <div className="p-6 relative" style={{ background: "linear-gradient(135deg, #000a0f 0%, #001015 100%)" }}>
                   {/* Mini Grid Background */}
-                  <div 
+                  <div
                     className="absolute inset-0 opacity-30"
                     style={{
                       backgroundImage: `
@@ -1674,10 +1685,10 @@ export default function SuperAdminPage() {
                       backgroundSize: "20px 20px"
                     }}
                   />
-                  
+
                   <div className="relative text-center py-6">
                     {lockdownMessage && (
-                      <h3 
+                      <h3
                         className="text-lg md:text-xl font-bold mb-2 tracking-wide"
                         style={{
                           color: "#0ff",
@@ -1687,7 +1698,7 @@ export default function SuperAdminPage() {
                         {lockdownMessage}
                       </h3>
                     )}
-                    
+
                     {lockdownSubtitle && (
                       <p className="text-cyan-300/70 font-mono text-xs md:text-sm tracking-wide mb-4">
                         {lockdownSubtitle}
@@ -1726,7 +1737,7 @@ export default function SuperAdminPage() {
               <div>
                 <h3 className="font-semibold text-blue-700">Kayan Yazı Duyuru Sistemi</h3>
                 <p className="text-sm text-blue-600/80 mt-1">
-                  Tüm kullanıcılara ekranın üstünde kayan bir yazı ile mesaj gönderin. 
+                  Tüm kullanıcılara ekranın üstünde kayan bir yazı ile mesaj gönderin.
                   Mobil ve masaüstü uyumludur.
                 </p>
               </div>
@@ -1738,19 +1749,17 @@ export default function SuperAdminPage() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
           >
-            <Card className={`border-2 transition-all duration-500 ${
-              announcement?.is_active 
-                ? "border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg shadow-blue-500/20" 
-                : "border-slate-200 bg-white/80"
-            }`}>
+            <Card className={`border-2 transition-all duration-500 ${announcement?.is_active
+              ? "border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg shadow-blue-500/20"
+              : "border-slate-200 bg-white/80"
+              }`}>
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${
-                      announcement?.is_active 
-                        ? "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-xl shadow-blue-500/40" 
-                        : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-xl shadow-slate-500/30"
-                    }`}>
+                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${announcement?.is_active
+                      ? "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-xl shadow-blue-500/40"
+                      : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-xl shadow-slate-500/30"
+                      }`}>
                       {announcement?.is_active ? (
                         <Volume2 className="h-8 w-8 text-white" />
                       ) : (
@@ -1761,14 +1770,13 @@ export default function SuperAdminPage() {
                       )}
                     </div>
                     <div>
-                      <h2 className={`text-2xl font-bold ${
-                        announcement?.is_active ? "text-blue-600" : "text-slate-800"
-                      }`}>
+                      <h2 className={`text-2xl font-bold ${announcement?.is_active ? "text-blue-600" : "text-slate-800"
+                        }`}>
                         {announcement?.is_active ? "Duyuru Yayında" : "Duyuru Kapalı"}
                       </h2>
                       <p className="text-sm text-slate-500 mt-1">
-                        {announcement?.is_active 
-                          ? "Kayan yazı tüm kullanıcılara gösteriliyor" 
+                        {announcement?.is_active
+                          ? "Kayan yazı tüm kullanıcılara gösteriliyor"
                           : "Duyuru aktif değil"}
                       </p>
                     </div>
@@ -1921,7 +1929,7 @@ export default function SuperAdminPage() {
                     <div className="py-2 overflow-hidden">
                       <div className="announcement-scroll flex whitespace-nowrap" style={{ ["--marquee-duration" as string]: `${{ slow: 30, normal: 20, fast: 10 }[announcementSpeed] || 20}s` }}>
                         {[0, 1, 2, 3, 4, 5].map((i) => (
-                          <span 
+                          <span
                             key={i}
                             className="inline-flex items-center gap-2 px-6 flex-shrink-0 font-semibold text-xs sm:text-sm"
                             style={{ color: announcementTextColor }}
@@ -2006,19 +2014,17 @@ export default function SuperAdminPage() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
           >
-            <Card className={`border-2 transition-all duration-500 ${
-              popupData?.is_active 
-                ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-lg shadow-emerald-500/20" 
-                : "border-slate-200 bg-white/80"
-            }`}>
+            <Card className={`border-2 transition-all duration-500 ${popupData?.is_active
+              ? "border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-lg shadow-emerald-500/20"
+              : "border-slate-200 bg-white/80"
+              }`}>
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${
-                      popupData?.is_active 
-                        ? "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl shadow-emerald-500/40" 
-                        : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-xl shadow-slate-500/30"
-                    }`}>
+                    <div className={`relative p-4 rounded-2xl transition-all duration-500 ${popupData?.is_active
+                      ? "bg-gradient-to-br from-emerald-500 to-teal-500 shadow-xl shadow-emerald-500/40"
+                      : "bg-gradient-to-br from-slate-400 to-slate-500 shadow-xl shadow-slate-500/30"
+                      }`}>
                       {popupData?.is_active ? (
                         <BellRing className="h-8 w-8 text-white" />
                       ) : (
@@ -2029,14 +2035,13 @@ export default function SuperAdminPage() {
                       )}
                     </div>
                     <div>
-                      <h2 className={`text-2xl font-bold ${
-                        popupData?.is_active ? "text-emerald-600" : "text-slate-800"
-                      }`}>
+                      <h2 className={`text-2xl font-bold ${popupData?.is_active ? "text-emerald-600" : "text-slate-800"
+                        }`}>
                         {popupData?.is_active ? "Popup Aktif" : "Popup Kapalı"}
                       </h2>
                       <p className="text-sm text-slate-500 mt-1">
-                        {popupData?.is_active 
-                          ? "Kullanıcılar girişte popup duyuruyu görecek" 
+                        {popupData?.is_active
+                          ? "Kullanıcılar girişte popup duyuruyu görecek"
                           : "Popup duyuru aktif değil"}
                       </p>
                     </div>
@@ -2097,13 +2102,13 @@ export default function SuperAdminPage() {
                   {/* Resim Yükleme */}
                   <div className="space-y-2">
                     <Label className="text-slate-700 font-medium">Duyuru Resmi</Label>
-                    
+
                     {popupImagePreview ? (
                       <div className="relative group">
                         <div className="relative w-full rounded-xl overflow-hidden border-2 border-slate-200 bg-slate-50">
-                          <img 
-                            src={popupImagePreview} 
-                            alt="Popup önizleme" 
+                          <img
+                            src={popupImagePreview}
+                            alt="Popup önizleme"
                             className="w-full max-h-[300px] object-contain"
                           />
                           {/* Overlay */}
@@ -2282,6 +2287,204 @@ export default function SuperAdminPage() {
                     <span>Yüksek çözünürlüklü resimler otomatik olarak sığdırılır</span>
                   </li>
                 </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+
+        {/* Box Content PDF Tab */}
+        <TabsContent value="box-pdf" className="space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm border-slate-200">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 shadow-lg">
+                      <FileText className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-800">Koli İçeriği PDF Oluşturma</h3>
+                      <p className="text-xs text-slate-500">Kolileri seçin ve içeriklerini PDF olarak indirin</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={async () => {
+                        setPdfLoading(true);
+                        try {
+                          const data = await boxRepository.getAll();
+                          setAllBoxes(data);
+                        } catch (err) {
+                          console.error(err);
+                          toast({ title: "Hata", description: "Koliler yüklenemedi", variant: "destructive" });
+                        } finally {
+                          setPdfLoading(false);
+                        }
+                      }}
+                      variant="outline"
+                      size="sm"
+                      disabled={pdfLoading}
+                      className="border-violet-200 hover:bg-violet-50 hover:border-violet-300"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-1 ${pdfLoading ? "animate-spin" : ""}`} />
+                      {allBoxes.length > 0 ? "Yenile" : "Kolileri Yükle"}
+                    </Button>
+                  </div>
+                </div>
+
+                {allBoxes.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Kolileri yüklemek için yukarıdaki butona tıklayın</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Filters & Actions */}
+                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                      <Select value={pdfDepartmentFilter} onValueChange={setPdfDepartmentFilter}>
+                        <SelectTrigger className="w-[200px] border-violet-200 bg-white/80 h-10">
+                          <SelectValue placeholder="Departman Filtresi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tüm Departmanlar</SelectItem>
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const filtered = pdfDepartmentFilter === "all" ? allBoxes : allBoxes.filter(b => b.department_id === pdfDepartmentFilter);
+                          if (filtered.every(b => pdfSelectedBoxIds.has(b.id))) {
+                            const newSet = new Set(pdfSelectedBoxIds);
+                            filtered.forEach(b => newSet.delete(b.id));
+                            setPdfSelectedBoxIds(newSet);
+                          } else {
+                            const newSet = new Set(pdfSelectedBoxIds);
+                            filtered.forEach(b => newSet.add(b.id));
+                            setPdfSelectedBoxIds(newSet);
+                          }
+                        }}
+                        className="border-violet-200 text-violet-600 hover:bg-violet-100"
+                      >
+                        {(() => {
+                          const filtered = pdfDepartmentFilter === "all" ? allBoxes : allBoxes.filter(b => b.department_id === pdfDepartmentFilter);
+                          return filtered.length > 0 && filtered.every(b => pdfSelectedBoxIds.has(b.id)) ? "Tümünü Kaldır" : "Tümünü Seç";
+                        })()}
+                      </Button>
+
+                      <div className="flex-1" />
+
+                      <Badge variant="secondary" className="bg-violet-100 text-violet-700">
+                        {pdfSelectedBoxIds.size} koli seçildi
+                      </Badge>
+
+                      <Button
+                        onClick={async () => {
+                          if (pdfSelectedBoxIds.size === 0) {
+                            toast({ title: "Uyarı", description: "Lütfen en az bir koli seçin" });
+                            return;
+                          }
+                          setPdfGenerating(true);
+                          try {
+                            const ids = Array.from(pdfSelectedBoxIds);
+                            const boxDetails = await boxRepository.getByIds(ids);
+                            if (boxDetails.length === 0) {
+                              toast({ title: "Hata", description: "Koli detayları alınamadı", variant: "destructive" });
+                              return;
+                            }
+                            generateBoxContentPDF(boxDetails);
+                            toast({ title: "Tamamlandı", description: `${boxDetails.length} kolinin içeriği PDF olarak indirildi` });
+                          } catch (error) {
+                            console.error("PDF error:", error);
+                            toast({ title: "Hata", description: "PDF oluşturulurken hata oluştu", variant: "destructive" });
+                          } finally {
+                            setPdfGenerating(false);
+                          }
+                        }}
+                        disabled={pdfSelectedBoxIds.size === 0 || pdfGenerating}
+                        className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-lg"
+                      >
+                        {pdfGenerating ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Oluşturuluyor...</>
+                        ) : (
+                          <><Download className="h-4 w-4 mr-2" /> PDF İndir ({pdfSelectedBoxIds.size})</>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Boxes List */}
+                    <div className="max-h-[500px] overflow-y-auto rounded-lg border border-slate-200">
+                      <table className="w-full">
+                        <thead className="sticky top-0 bg-slate-50 z-10">
+                          <tr className="border-b border-slate-200">
+                            <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase w-10"></th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">Koli Adı</th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">Kod</th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">Departman</th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-slate-500 uppercase">Durum</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(pdfDepartmentFilter === "all" ? allBoxes : allBoxes.filter(b => b.department_id === pdfDepartmentFilter))
+                            .map((box) => (
+                              <tr
+                                key={box.id}
+                                onClick={() => {
+                                  const newSet = new Set(pdfSelectedBoxIds);
+                                  if (newSet.has(box.id)) newSet.delete(box.id);
+                                  else newSet.add(box.id);
+                                  setPdfSelectedBoxIds(newSet);
+                                }}
+                                className={`border-b border-slate-100 cursor-pointer transition-colors ${pdfSelectedBoxIds.has(box.id)
+                                  ? "bg-violet-50 hover:bg-violet-100"
+                                  : "hover:bg-slate-50"
+                                  }`}
+                              >
+                                <td className="py-3 px-4">
+                                  {pdfSelectedBoxIds.has(box.id) ? (
+                                    <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                                      <Check className="h-3 w-3 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-5 h-5 rounded border-2 border-slate-300" />
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="font-medium text-slate-800">{box.name}</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-sm text-slate-500 font-mono">{box.code}</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <Badge variant="secondary" className="bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                    {box.department.name}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <Badge className={box.status === "sealed" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-amber-100 text-amber-700 border-amber-200"}>
+                                    {box.status === "sealed" ? "Kapalı" : "Taslak"}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-4 p-3 rounded-lg bg-violet-50 border border-violet-200">
+                      <p className="text-xs text-violet-700">
+                        <span className="font-semibold">İpucu:</span> PDF&apos;te koliler departman başlıkları altında gruplandırılır. Her koli için ürün adı, adet ve tür bilgisi listelenir. Koli resmi eklenmez.
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </motion.div>
