@@ -1096,6 +1096,19 @@ export default function BoxesPage() {
             </div>
           )}
 
+          {/* Sevkiyata eklenmiş uyarısı */}
+          {(selectedBox?.shipment_code || (selectedBox?.pallet_code && filteredBoxes.find(b => b.id === selectedBox?.id && (b as any).shipment_code))) && (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+              <Truck className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-700 text-sm">Bu koli sevkiyata eklenmiştir</p>
+                <p className="text-xs text-red-600 mt-1">
+                  Düzenleme veya silme işlemi yapabilmek için önce koliyi sevkiyattan çıkarmanız gerekmektedir.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 py-4">
             <Button
               onClick={handleView}
@@ -1114,7 +1127,8 @@ export default function BoxesPage() {
             <Button
               onClick={handleEdit}
               variant="outline"
-              className="h-14 justify-start gap-3 hover:bg-amber-50 hover:border-amber-300 group"
+              disabled={!!(selectedBox?.shipment_code || (selectedBox?.pallet_code && filteredBoxes.find(b => b.id === selectedBox?.id && (b as any).shipment_code)))}
+              className="h-14 justify-start gap-3 hover:bg-amber-50 hover:border-amber-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white">
                 <Edit className="h-5 w-5" />
@@ -1128,7 +1142,8 @@ export default function BoxesPage() {
             <Button
               onClick={handleDeleteClick}
               variant="outline"
-              className="h-14 justify-start gap-3 hover:bg-red-50 hover:border-red-300 group"
+              disabled={!!(selectedBox?.shipment_code || (selectedBox?.pallet_code && filteredBoxes.find(b => b.id === selectedBox?.id && (b as any).shipment_code)))}
+              className="h-14 justify-start gap-3 hover:bg-red-50 hover:border-red-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="p-2 rounded-lg bg-gradient-to-br from-red-500 to-rose-500 text-white">
                 <Trash2 className="h-5 w-5" />

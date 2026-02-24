@@ -30,7 +30,7 @@ export default function PalletsPage() {
   const [pallets, setPallets] = useState<PalletWithBoxCount[]>([]);
   const [currentUserName, setCurrentUserName] = useState("");
   const [userRole, setUserRole] = useState<string>("user");
-  
+
   // Performans optimizasyonu için animasyon ayarları
   const motionConfig = useMemo(() => ({
     initial: shouldReduceMotion ? {} : { opacity: 0, y: 20 },
@@ -73,31 +73,31 @@ export default function PalletsPage() {
       setLoading(false);
     }
   };
-  
+
   // KULLANICI YETKİLENDİRMESİ: Normal kullanıcılar sadece kendi paletlerini görsün
   const filteredPallets = useMemo(() => {
     let filtered = pallets;
-    
+
     if (userRole === "user") {
       filtered = filtered.filter(p => p.created_by === currentUserName);
     }
-    
+
     // Arama filtresi
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(query) ||
         p.code.toLowerCase().includes(query)
       );
     }
-    
+
     // Sevkiyat atama filtresi
     if (shipmentFilter === "in_shipment") {
       filtered = filtered.filter(p => p.shipment_code);
     } else if (shipmentFilter === "not_in_shipment") {
       filtered = filtered.filter(p => !p.shipment_code);
     }
-    
+
     return filtered;
   }, [pallets, userRole, currentUserName, searchQuery, shipmentFilter]);
 
@@ -127,7 +127,7 @@ export default function PalletsPage() {
 
   const handleDelete = async () => {
     if (!selectedPallet) return;
-    
+
     setIsDeleting(true);
     try {
       const palletData = await palletRepository.getByCode(selectedPallet.code);
@@ -136,7 +136,7 @@ export default function PalletsPage() {
           await boxRepository.clearPallet(box.code);
         }
       }
-      
+
       await palletRepository.delete(selectedPallet.code);
       toast({
         title: "Palet Silindi",
@@ -173,7 +173,7 @@ export default function PalletsPage() {
           <div className="relative mx-auto w-16 h-16">
             {/* Basit spinning border - CSS animation */}
             <div className="absolute inset-0 rounded-full border-4 border-cyan-200" />
-            <div 
+            <div
               className="absolute inset-0 rounded-full border-4 border-transparent border-t-cyan-500 animate-spin"
               style={{ animationDuration: "0.8s" }}
             />
@@ -218,7 +218,7 @@ export default function PalletsPage() {
                 <Layers className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
               </div>
             </motion.div>
-            
+
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent flex items-center gap-2">
                 Paletlerim
@@ -235,11 +235,11 @@ export default function PalletsPage() {
             </div>
           </div>
         </div>
-        
+
         {/* Action Button - Full width on mobile */}
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button 
-            onClick={() => router.push("/app/pallets/new")} 
+          <Button
+            onClick={() => router.push("/app/pallets/new")}
             className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 shadow-lg shadow-cyan-500/25 h-12 sm:h-10 text-base sm:text-sm active:scale-95 transition-transform"
           >
             <Plus className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
@@ -281,14 +281,14 @@ export default function PalletsPage() {
           </motion.div>
           <span className="text-sm font-semibold text-cyan-700">{filteredPallets.length} palet</span>
         </div>
-        
+
         <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
           <Package className="h-4 w-4 text-emerald-600" />
           <span className="text-sm font-semibold text-emerald-700">
             {filteredPallets.reduce((acc, p) => acc + p.box_count, 0)} toplam koli
           </span>
         </div>
-        
+
         {/* Sevkiyat Atama Filtresi */}
         <Select value={shipmentFilter} onValueChange={(v) => setShipmentFilter(v as "all" | "in_shipment" | "not_in_shipment")}>
           <SelectTrigger className="w-[180px] border-slate-200 bg-white/80 h-10">
@@ -300,7 +300,7 @@ export default function PalletsPage() {
             <SelectItem value="not_in_shipment">Sevkiyata Eklenmemiş</SelectItem>
           </SelectContent>
         </Select>
-        
+
         {userRole !== "user" && (
           <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
             <Shield className="h-4 w-4 text-amber-600" />
@@ -318,7 +318,7 @@ export default function PalletsPage() {
       >
         <AnimatePresence mode="popLayout">
           {filteredPallets.length === 0 ? (
-            <motion.div 
+            <motion.div
               key="empty"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -328,7 +328,7 @@ export default function PalletsPage() {
               <Card className="border-cyan-200 bg-gradient-to-br from-cyan-50 to-teal-50">
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <motion.div
-                    animate={{ 
+                    animate={{
                       scale: [1, 1.1, 1],
                       rotate: [0, 5, -5, 0],
                     }}
@@ -359,7 +359,7 @@ export default function PalletsPage() {
                 initial={motionConfig.initial}
                 animate={motionConfig.animate}
                 exit={motionConfig.exit}
-                transition={{ 
+                transition={{
                   duration: animationDuration,
                   delay: shouldReduceMotion ? 0 : staggerDelay * Math.min(index, 6)
                 }}
@@ -371,17 +371,17 @@ export default function PalletsPage() {
                 >
                   {/* Top Gradient Line */}
                   <div className="h-1 bg-gradient-to-r from-cyan-400 via-teal-500 to-emerald-500" />
-                  
+
                   {/* Shimmer effect on hover */}
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"
                   />
-                  
+
                   <CardContent className="p-5 space-y-4 relative">
                     <div className="flex items-start gap-3">
                       {/* Küçük resim kutucuğu */}
                       {pallet.photo_url && (
-                        <motion.div 
+                        <motion.div
                           className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 border-slate-200 flex-shrink-0 cursor-pointer hover:border-cyan-400 active:border-cyan-500 transition-colors shadow-sm"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -389,8 +389,8 @@ export default function PalletsPage() {
                           }}
                           whileTap={{ scale: 0.95 }}
                         >
-                          <img 
-                            src={pallet.photo_url} 
+                          <img
+                            src={pallet.photo_url}
                             alt={pallet.name}
                             className="w-full h-full object-cover"
                           />
@@ -410,7 +410,7 @@ export default function PalletsPage() {
                             </p>
                           </div>
                           {!pallet.photo_url && (
-                            <motion.div 
+                            <motion.div
                               className="p-3 rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 border border-cyan-200"
                               whileHover={{ rotate: 10, scale: 1.1 }}
                             >
@@ -425,7 +425,7 @@ export default function PalletsPage() {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200">
                         <Package className="h-5 w-5 text-emerald-600" />
-                        <motion.span 
+                        <motion.span
                           key={pallet.box_count}
                           initial={{ scale: 1.5 }}
                           animate={{ scale: 1 }}
@@ -439,9 +439,9 @@ export default function PalletsPage() {
 
                     {/* Kırılacak Eşya Uyarısı - paletteki kolilerden birinde kırılacak eşya varsa */}
                     {(pallet as any).has_fragile && (
-                      <motion.div 
+                      <motion.div
                         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200"
-                        animate={{ 
+                        animate={{
                           backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
                           borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
                         }}
@@ -471,7 +471,7 @@ export default function PalletsPage() {
 
                     {/* Kolilere Git Butonu */}
                     {pallet.box_count > 0 && (
-                      <div 
+                      <div
                         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -519,12 +519,12 @@ export default function PalletsPage() {
               Kod: {selectedPallet?.code} • {selectedPallet?.box_count} koli
             </DialogDescription>
           </DialogHeader>
-          
+
           {/* Fotoğraflar */}
           {(selectedPallet?.photo_url || selectedPallet?.photo_url_2) && (
             <div className="flex gap-3 py-2">
               {selectedPallet?.photo_url && (
-                <div 
+                <div
                   className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-slate-200 cursor-pointer hover:border-cyan-400 transition-colors"
                   onClick={() => setFullscreenPhoto(selectedPallet.photo_url)}
                 >
@@ -535,7 +535,7 @@ export default function PalletsPage() {
                 </div>
               )}
               {selectedPallet?.photo_url_2 && (
-                <div 
+                <div
                   className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-slate-200 cursor-pointer hover:border-cyan-400 transition-colors"
                   onClick={() => setFullscreenPhoto(selectedPallet.photo_url_2)}
                 >
@@ -547,8 +547,21 @@ export default function PalletsPage() {
               )}
             </div>
           )}
-          
+
           <div className="flex flex-col gap-3 py-4">
+            {/* Sevkiyata eklenmiş uyarısı */}
+            {selectedPallet?.shipment_code && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+                <Truck className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-red-700 text-sm">Bu palet sevkiyata eklenmiştir</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    Düzenleme veya silme işlemi yapabilmek için önce paleti sevkiyattan çıkarmanız gerekmektedir.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <Button
               onClick={handleView}
               variant="outline"
@@ -562,11 +575,12 @@ export default function PalletsPage() {
                 <p className="text-xs text-slate-400">Palet detaylarını görüntüle</p>
               </div>
             </Button>
-            
+
             <Button
               onClick={handleEdit}
               variant="outline"
-              className="h-14 justify-start gap-3 hover:bg-amber-50 hover:border-amber-300 group"
+              disabled={!!selectedPallet?.shipment_code}
+              className="h-14 justify-start gap-3 hover:bg-amber-50 hover:border-amber-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white">
                 <Edit className="h-5 w-5" />
@@ -576,11 +590,12 @@ export default function PalletsPage() {
                 <p className="text-xs text-slate-400">Palet bilgilerini düzenle</p>
               </div>
             </Button>
-            
+
             <Button
               onClick={handleDeleteClick}
               variant="outline"
-              className="h-14 justify-start gap-3 hover:bg-red-50 hover:border-red-300 group"
+              disabled={!!selectedPallet?.shipment_code}
+              className="h-14 justify-start gap-3 hover:bg-red-50 hover:border-red-300 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="p-2 rounded-lg bg-gradient-to-br from-red-500 to-rose-500 text-white">
                 <Trash2 className="h-5 w-5" />
@@ -612,14 +627,14 @@ export default function PalletsPage() {
               <span className="font-semibold text-slate-700">{selectedPallet?.name}</span> ({selectedPallet?.code}) paletini silmek istediğinize emin misiniz? Bu işlem geri alınamaz. Paletteki koliler paletten çıkarılacak ama silinmeyecek.
             </DialogDescription>
           </DialogHeader>
-          
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
               İptal
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete} 
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
               disabled={isDeleting}
               className="bg-gradient-to-r from-red-500 to-rose-500"
             >
