@@ -452,6 +452,44 @@ export default function BoxesPage() {
     }
   };
 
+  // Toplu Direk Sevkiyat Olarak İşaretle
+  const handleBulkDirectShipment = async () => {
+    if (selectedBoxes.length === 0) return;
+    setBulkActionModalOpen(false);
+
+    toast({ title: "İşleniyor...", description: `${selectedBoxes.length} koli direk sevkiyat olarak işaretleniyor...` });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const box of selectedBoxes) {
+      try {
+        await boxRepository.update(box.code, { is_direct_shipment: true });
+        successCount++;
+      } catch (error) {
+        console.error(`Error updating box ${box.code}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      toast({
+        title: "Kısmen Tamamlandı",
+        description: `${successCount} koli güncellendi, ${errorCount} koli güncellenemedi`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Tamamlandı",
+        description: `${successCount} koli direk sevkiyat olarak işaretlendi`,
+      });
+    }
+
+    setBulkMode(false);
+    setSelectedBoxIds(new Set());
+    await loadData();
+  };
+
   const getStatusColor = (status: "draft" | "sealed") => {
     return status === "sealed"
       ? "bg-emerald-100 text-emerald-700 border-emerald-200"
@@ -649,15 +687,15 @@ export default function BoxesPage() {
               transition={{ delay: index * 0.1 }}
               whileTap={{ scale: 0.95 }}
               className={`relative flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all active:scale-95 ${activeTab === tab.id
-                  ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
-                  : "bg-white/80 text-slate-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300"
+                ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                : "bg-white/80 text-slate-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-300"
                 }`}
             >
               {tab.label}
               <motion.span
                 className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tab.id
-                    ? "bg-white/25 text-white"
-                    : "bg-blue-100 text-blue-600"
+                  ? "bg-white/25 text-white"
+                  : "bg-blue-100 text-blue-600"
                   }`}
                 animate={{ scale: activeTab === tab.id ? [1, 1.1, 1] : 1 }}
                 transition={{ duration: 0.3 }}
@@ -1177,6 +1215,20 @@ export default function BoxesPage() {
               <div className="text-left">
                 <p className="font-semibold text-slate-700 group-hover:text-purple-600">Koli İçeriği PDF İndir</p>
                 <p className="text-xs text-slate-400">Seçili kolilerin içerik listesini PDF olarak indirir</p>
+              </div>
+            </Button>
+
+            <Button
+              onClick={handleBulkDirectShipment}
+              variant="outline"
+              className="h-14 justify-start gap-3 hover:bg-orange-50 hover:border-orange-300 group"
+            >
+              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 text-white">
+                <Truck className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-700 group-hover:text-orange-600">Direk Sevkiyat Olarak İşaretle</p>
+                <p className="text-xs text-slate-400">Seçili kolileri direk sevkiyat olarak işaretler</p>
               </div>
             </Button>
           </div>
