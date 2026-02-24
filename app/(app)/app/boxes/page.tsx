@@ -455,14 +455,28 @@ export default function BoxesPage() {
   // Toplu Direk Sevkiyat Olarak İşaretle
   const handleBulkDirectShipment = async () => {
     if (selectedBoxes.length === 0) return;
+
+    // Palete bağlı kolileri filtrele
+    const eligibleBoxes = selectedBoxes.filter(box => !box.pallet_code);
+    const skippedCount = selectedBoxes.length - eligibleBoxes.length;
+
+    if (eligibleBoxes.length === 0) {
+      toast({
+        title: "İşlem Yapılamadı",
+        description: "Seçili kolilerin tamamı bir palete bağlı. Palete bağlı koliler direk sevkiyat olarak işaretlenemez.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setBulkActionModalOpen(false);
 
-    toast({ title: "İşleniyor...", description: `${selectedBoxes.length} koli direk sevkiyat olarak işaretleniyor...` });
+    toast({ title: "İşleniyor...", description: `${eligibleBoxes.length} koli direk sevkiyat olarak işaretleniyor...` });
 
     let successCount = 0;
     let errorCount = 0;
 
-    for (const box of selectedBoxes) {
+    for (const box of eligibleBoxes) {
       try {
         await boxRepository.update(box.code, { is_direct_shipment: true });
         successCount++;
@@ -472,18 +486,19 @@ export default function BoxesPage() {
       }
     }
 
-    if (errorCount > 0) {
-      toast({
-        title: "Kısmen Tamamlandı",
-        description: `${successCount} koli güncellendi, ${errorCount} koli güncellenemedi`,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Tamamlandı",
-        description: `${successCount} koli direk sevkiyat olarak işaretlendi`,
-      });
+    let description = `${successCount} koli direk sevkiyat olarak işaretlendi`;
+    if (skippedCount > 0) {
+      description += ` (${skippedCount} koli palete bağlı olduğu için atlandı)`;
     }
+    if (errorCount > 0) {
+      description += `, ${errorCount} koli güncellenemedi`;
+    }
+
+    toast({
+      title: errorCount > 0 ? "Kısmen Tamamlandı" : "Tamamlandı",
+      description,
+      variant: errorCount > 0 ? "destructive" : undefined,
+    });
 
     setBulkMode(false);
     setSelectedBoxIds(new Set());
@@ -615,8 +630,8 @@ export default function BoxesPage() {
               variant={bulkMode ? "default" : "outline"}
               className={`w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm ${bulkMode ? "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700" : "border-purple-200 text-purple-600 hover:bg-purple-50"}`}
             >
-              <QrCode className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
-              {bulkMode ? "Seçimi İptal Et" : "Toplu QR İşlemi"}
+              <CheckSquare className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
+              {bulkMode ? "Seçimi İptal Et" : "Toplu İşlem"}
             </Button>
           </motion.div>
         </div>
@@ -1167,8 +1182,8 @@ export default function BoxesPage() {
         <DialogContent className="sm:max-w-md border-purple-200">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-purple-600">
-              <QrCode className="h-5 w-5" />
-              Toplu QR İşlemi
+              <CheckSquare className="h-5 w-5" />
+              Toplu İşlem
             </DialogTitle>
             <DialogDescription>
               {selectedBoxIds.size} koli seçildi. Yapılacak işlemi seçin.
