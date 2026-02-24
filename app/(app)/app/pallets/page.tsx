@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Layers, Plus, Package, Sparkles, Zap, ArrowRight, Eye, Edit, Trash2, Shield, Search, Truck, AlertTriangle, X, AlertOctagon } from "lucide-react";
+import { Layers, Plus, Package, Sparkles, Zap, ArrowRight, Eye, Edit, Trash2, Shield, Search, Truck, AlertTriangle, X, AlertOctagon, Lock } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { palletRepository } from "@/lib/repositories/pallet";
 import { boxRepository } from "@/lib/repositories/box";
+import { shipmentRepository } from "@/lib/repositories/shipment";
 import { auth } from "@/lib/auth";
 import type { PalletWithBoxCount } from "@/lib/types/pallet";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ export default function PalletsPage() {
   const [pallets, setPallets] = useState<PalletWithBoxCount[]>([]);
   const [currentUserName, setCurrentUserName] = useState("");
   const [userRole, setUserRole] = useState<string>("user");
+  const [shipmentNameMap, setShipmentNameMap] = useState<Map<string, string>>(new Map());
 
   // Performans optimizasyonu için animasyon ayarları
   const motionConfig = useMemo(() => ({
@@ -61,7 +63,17 @@ export default function PalletsPage() {
 
       setCurrentUserName(session.user.name);
       setUserRole(session.user.role);
-      const allPallets = await palletRepository.getAll();
+
+      const [allPallets, allShipments] = await Promise.all([
+        palletRepository.getAll(),
+        shipmentRepository.getAll(),
+      ]);
+
+      // Build shipment code -> name map
+      const sMap = new Map<string, string>();
+      allShipments.forEach(s => sMap.set(s.code, s.name_or_plate));
+      setShipmentNameMap(sMap);
+
       setPallets(allPallets);
     } catch (error) {
       toast({
@@ -454,12 +466,28 @@ export default function PalletsPage() {
 
                     {/* Sevkiyat Durumu */}
                     {pallet.shipment_code ? (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200">
-                        <Truck className="h-4 w-4 text-purple-600" />
-                        <span className="text-xs text-purple-700">
-                          <span className="font-medium">{pallet.shipment_code}</span> sevkiyatında
-                        </span>
-                      </div>
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200">
+                          <Truck className="h-4 w-4 text-purple-600" />
+                          <span className="text-xs text-purple-700">
+                            <span className="font-medium">{shipmentNameMap.get(pallet.shipment_code) || pallet.shipment_code}</span> sevkiyatında
+                          </span>
+                        </div>
+                        <motion.div
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border-2 border-red-300"
+                          animate={{
+                            backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
+                            borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
+                          }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          <Lock className="h-4 w-4 text-red-600 animate-pulse" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-red-700">ÇIKIŞ YAPILMIŞTIR</span>
+                            <span className="text-xs text-red-600">Sevkiyat: {shipmentNameMap.get(pallet.shipment_code) || pallet.shipment_code}</span>
+                          </div>
+                        </motion.div>
+                      </>
                     ) : (
                       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
                         <AlertTriangle className="h-4 w-4 text-amber-600" />

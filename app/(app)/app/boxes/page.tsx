@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon, ArrowUpDown, QrCode, Download, Printer, CheckSquare, Square, CheckCircle, FileText } from "lucide-react";
+import { Package, Plus, Filter, Edit, Trash2, Eye, Sparkles, Boxes, ArrowRight, Shield, Search, X, ChevronLeft, ChevronRight, Truck, Layers, AlertTriangle, AlertOctagon, ArrowUpDown, QrCode, Download, Printer, CheckSquare, Square, CheckCircle, FileText, Lock } from "lucide-react";
 import { usePerformance } from "@/hooks/use-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { boxRepository } from "@/lib/repositories/box";
 import { departmentRepository } from "@/lib/repositories/department";
+import { shipmentRepository } from "@/lib/repositories/shipment";
+import { palletRepository } from "@/lib/repositories/pallet";
 import { auth } from "@/lib/auth";
 import QRCode from "qrcode";
 import type { BoxWithDepartment, Department } from "@/lib/types/box";
@@ -38,6 +40,8 @@ export default function BoxesPage() {
   const [boxes, setBoxes] = useState<BoxWithDepartment[]>([]);
   const [filteredBoxes, setFilteredBoxes] = useState<BoxWithDepartment[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [shipmentNameMap, setShipmentNameMap] = useState<Map<string, string>>(new Map());
+  const [palletShipmentMap, setPalletShipmentMap] = useState<Map<string, string>>(new Map());
 
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
@@ -91,10 +95,22 @@ export default function BoxesPage() {
       setUserDepartmentId(session.user.department_id);
       setUserRole(session.user.role);
 
-      const [allBoxes, deps] = await Promise.all([
+      const [allBoxes, deps, allShipments, allPallets] = await Promise.all([
         boxRepository.getAll(),
         departmentRepository.getAll(),
+        shipmentRepository.getAll(),
+        palletRepository.getAll(),
       ]);
+
+      // Build shipment code -> name map
+      const sMap = new Map<string, string>();
+      allShipments.forEach(s => sMap.set(s.code, s.name_or_plate));
+      setShipmentNameMap(sMap);
+
+      // Build pallet code -> shipment code map
+      const pMap = new Map<string, string>();
+      allPallets.forEach(p => { if (p.shipment_code) pMap.set(p.code, p.shipment_code); });
+      setPalletShipmentMap(pMap);
 
       setBoxes(allBoxes);
       setDepartments(deps);
@@ -984,6 +1000,34 @@ export default function BoxesPage() {
                           </span>
                         </div>
                       )}
+
+                      {/* ÇIKIŞ YAPILMIŞTIR Uyarısı - Sevkiyata eklenmiş koliler */}
+                      {(() => {
+                        // Determine shipment code: direct from box, or from its pallet
+                        const directShipCode = (box as any).shipment_code as string | null;
+                        const palletShipCode = box.pallet_code ? palletShipmentMap.get(box.pallet_code) || null : null;
+                        const shipCode = directShipCode || palletShipCode;
+                        if (!shipCode) return null;
+                        const shipName = shipmentNameMap.get(shipCode);
+                        return (
+                          <motion.div
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border-2 border-red-300"
+                            animate={{
+                              backgroundColor: ["rgba(254,226,226,1)", "rgba(254,202,202,1)", "rgba(254,226,226,1)"],
+                              borderColor: ["rgba(252,165,165,1)", "rgba(248,113,113,1)", "rgba(252,165,165,1)"]
+                            }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          >
+                            <Lock className="h-4 w-4 text-red-600 animate-pulse" />
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-red-700">ÇIKIŞ YAPILMIŞTIR</span>
+                              {shipName && (
+                                <span className="text-xs text-red-600">Sevkiyat: {shipName}</span>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })()}
 
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                         <div>
