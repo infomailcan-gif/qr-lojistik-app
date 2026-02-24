@@ -96,11 +96,30 @@ export default function TerminalModePage() {
     const selectedShipmentRef = useRef<ShipmentWithCounts | null>(null);
     const soundEnabledRef = useRef(true);
     const isProcessingRef = useRef(false);
+    const userNameRef = useRef("");
 
     // Keep refs in sync with state
     useEffect(() => { selectedShipmentRef.current = selectedShipment; }, [selectedShipment]);
     useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
     useEffect(() => { isProcessingRef.current = isProcessing; }, [isProcessing]);
+    useEffect(() => { userNameRef.current = userName; }, [userName]);
+
+    // Confirmation dialog for non-direct boxes
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean;
+        code: string;
+        boxName: string;
+        shipment: ShipmentWithCounts | null;
+        soundOn: boolean;
+    }>({ open: false, code: "", boxName: "", shipment: null, soundOn: true });
+
+    // Success notification dialog
+    const [successDialog, setSuccessDialog] = useState<{
+        open: boolean;
+        type: "pallet" | "box";
+        itemName: string;
+        shipmentName: string;
+    }>({ open: false, type: "box", itemName: "", shipmentName: "" });
 
     useEffect(() => {
         loadData();
@@ -221,6 +240,13 @@ export default function TerminalModePage() {
         }
     };
 
+    const showSuccessNotification = (type: "pallet" | "box", itemName: string, shipmentName: string) => {
+        setSuccessDialog({ open: true, type, itemName, shipmentName });
+        setTimeout(() => {
+            setSuccessDialog(prev => ({ ...prev, open: false }));
+        }, 2000);
+    };
+
     const handleQrResult = useCallback(
         async (decodedText: string) => {
             // Prevent duplicate processing - use ref for guard
@@ -284,7 +310,6 @@ export default function TerminalModePage() {
                         success: false,
                         message: "Tanınmayan QR kod",
                     });
-                    // Remove from processed after delay so it can be retried
                     setTimeout(() => {
                         processedCodesRef.current.delete(decodedText);
                     }, 3000);
@@ -299,10 +324,12 @@ export default function TerminalModePage() {
                     return;
                 }
 
+                const currentUserName = userNameRef.current;
+
                 if (itemType === "pallet") {
-                    await addPalletToShipment(itemCode, currentShipment, currentSoundEnabled);
+                    await addPalletToShipment(itemCode, currentShipment, currentSoundEnabled, currentUserName);
                 } else {
-                    await addBoxToShipment(itemCode, currentShipment, currentSoundEnabled);
+                    await addBoxToShipment(itemCode, currentShipment, currentSoundEnabled, currentUserName);
                 }
             } catch (error) {
                 console.error("QR processing error:", error);
@@ -327,7 +354,7 @@ export default function TerminalModePage() {
         [] // No deps needed - uses refs
     );
 
-    const addPalletToShipment = async (code: string, currentShipment: ShipmentWithCounts, currentSoundEnabled: boolean) => {
+    const addPalletToShipment = async (code: string, currentShipment: ShipmentWithCounts, currentSoundEnabled: boolean, currentUserName: string) => {
         try {
             const pallet = await palletRepository.getByCode(code);
             if (!pallet) {
@@ -340,6 +367,21 @@ export default function TerminalModePage() {
                     timestamp: new Date(),
                     success: false,
                     message: `${code} kodlu palet bulunamadı`,
+                });
+                return;
+            }
+
+            // Department check - different user's pallet
+            if (pallet.created_by && pallet.created_by !== currentUserName) {
+                showFlash("red");
+                if (currentSoundEnabled) playBeep(false);
+                addScannedItem({
+                    code,
+                    type: "pallet",
+                    name: pallet.name,
+                    timestamp: new Date(),
+                    success: false,
+                    message: `⚠️ Bu başka departmanın paletidir (${pallet.created_by})`,
                 });
                 return;
             }
@@ -372,6 +414,7 @@ export default function TerminalModePage() {
                 return;
             }
 
+            // Add pallet directly
             await palletRepository.setShipment(code, currentShipment.code);
             showFlash("green");
             if (currentSoundEnabled) playBeep(true);
@@ -384,6 +427,8 @@ export default function TerminalModePage() {
                 success: true,
                 message: "Sevkiyata eklendi ✓",
             });
+            // Show success notification
+            showSuccessNotification("pallet", pallet.name, currentShipment.name_or_plate);
         } catch (error) {
             showFlash("red");
             if (currentSoundEnabled) playBeep(false);
@@ -398,7 +443,7 @@ export default function TerminalModePage() {
         }
     };
 
-    const addBoxToShipment = async (code: string, currentShipment: ShipmentWithCounts, currentSoundEnabled: boolean) => {
+    const addBoxToShipment = async (code: string, currentShipment: ShipmentWithCounts, currentSoundEnabled: boolean, currentUserName: string) => {
         try {
             const box = await boxRepository.getByCode(code);
             if (!box) {
@@ -415,37 +460,54 @@ export default function TerminalModePage() {
                 return;
             }
 
+            // Department check - different user's box
+            if (box.created_by && box.created_by !== currentUserName) {
+                showFlash("red");
+                if (currentSoundEnabled) playBeep(false);
+                addScannedItem({
+                    code,
+                    type: "box",
+                    name: box.name,
+                    timestamp: new Date(),
+                    success: false,
+                    message: `⚠️ Bu başka departmanın kolisidir (${box.created_by})`,
+                });
+                return;
+            }
+
+            // Already in this shipment check (any mode)
+            if (box.shipment_code === currentShipment.code) {
+                showFlash("red");
+                if (currentSoundEnabled) playBeep(false);
+                addScannedItem({
+                    code,
+                    type: "box",
+                    name: box.name,
+                    timestamp: new Date(),
+                    success: false,
+                    message: "Zaten bu sevkiyatta",
+                });
+                return;
+            }
+
+            // Already in another shipment check
+            if (box.shipment_code && box.shipment_code !== currentShipment.code) {
+                showFlash("red");
+                if (currentSoundEnabled) playBeep(false);
+                addScannedItem({
+                    code,
+                    type: "box",
+                    name: box.name,
+                    timestamp: new Date(),
+                    success: false,
+                    message: `Başka sevkiyatta: ${box.shipment_code}`,
+                });
+                return;
+            }
+
             // Check if it's a direct shipment box
-            if ((box as any).is_direct_shipment) {
-                // Direct shipment - add directly to shipment
-                if ((box as any).shipment_code && (box as any).shipment_code !== currentShipment.code) {
-                    showFlash("red");
-                    if (currentSoundEnabled) playBeep(false);
-                    addScannedItem({
-                        code,
-                        type: "box",
-                        name: box.name,
-                        timestamp: new Date(),
-                        success: false,
-                        message: `Başka sevkiyatta: ${(box as any).shipment_code}`,
-                    });
-                    return;
-                }
-
-                if ((box as any).shipment_code === currentShipment.code) {
-                    showFlash("red");
-                    if (currentSoundEnabled) playBeep(false);
-                    addScannedItem({
-                        code,
-                        type: "box",
-                        name: box.name,
-                        timestamp: new Date(),
-                        success: false,
-                        message: "Zaten bu sevkiyatta",
-                    });
-                    return;
-                }
-
+            if (box.is_direct_shipment) {
+                // Direct shipment box - add directly
                 await boxRepository.update(code, { shipment_code: currentShipment.code });
                 showFlash("green");
                 if (currentSoundEnabled) playBeep(true);
@@ -458,48 +520,13 @@ export default function TerminalModePage() {
                     success: true,
                     message: "Direk sevkiyata eklendi ✓",
                 });
-            } else {
-                // Regular box - check if it has a pallet
-                if ((box as any).pallet_code) {
-                    // Has pallet - add the pallet to shipment instead
-                    const palletCode = (box as any).pallet_code;
-                    showFlash("green");
-                    if (currentSoundEnabled) playBeep(true);
+                showSuccessNotification("box", box.name, currentShipment.name_or_plate);
+            } else if (box.pallet_code) {
+                // Regular box with pallet - add the pallet to shipment
+                const palletCode = box.pallet_code;
+                const pallet = await palletRepository.getByCode(palletCode);
 
-                    // Check if pallet already in this shipment
-                    const pallet = await palletRepository.getByCode(palletCode);
-                    if (pallet && pallet.shipment_code === currentShipment.code) {
-                        addScannedItem({
-                            code,
-                            type: "box",
-                            name: box.name,
-                            timestamp: new Date(),
-                            success: true,
-                            message: `Paleti (${palletCode}) zaten bu sevkiyatta`,
-                        });
-                    } else if (pallet && !pallet.shipment_code) {
-                        await palletRepository.setShipment(palletCode, currentShipment.code);
-                        setScanCount((prev) => ({ ...prev, pallets: prev.pallets + 1 }));
-                        addScannedItem({
-                            code,
-                            type: "box",
-                            name: box.name,
-                            timestamp: new Date(),
-                            success: true,
-                            message: `Paleti (${palletCode}) sevkiyata eklendi ✓`,
-                        });
-                    } else {
-                        addScannedItem({
-                            code,
-                            type: "box",
-                            name: box.name,
-                            timestamp: new Date(),
-                            success: false,
-                            message: pallet ? `Paleti başka sevkiyatta` : "Palet bulunamadı",
-                        });
-                    }
-                } else {
-                    // No pallet - can't add directly unless it's marked as direct shipment
+                if (!pallet) {
                     showFlash("red");
                     if (currentSoundEnabled) playBeep(false);
                     addScannedItem({
@@ -508,9 +535,69 @@ export default function TerminalModePage() {
                         name: box.name,
                         timestamp: new Date(),
                         success: false,
-                        message: "Palete/Direk sevkiyata atanmamış",
+                        message: `Palet (${palletCode}) bulunamadı`,
                     });
+                    return;
                 }
+
+                if (pallet.shipment_code === currentShipment.code) {
+                    showFlash("green");
+                    if (currentSoundEnabled) playBeep(true);
+                    addScannedItem({
+                        code,
+                        type: "box",
+                        name: box.name,
+                        timestamp: new Date(),
+                        success: true,
+                        message: `Paleti (${palletCode}) zaten bu sevkiyatta`,
+                    });
+                } else if (pallet.shipment_code && pallet.shipment_code !== currentShipment.code) {
+                    showFlash("red");
+                    if (currentSoundEnabled) playBeep(false);
+                    addScannedItem({
+                        code,
+                        type: "box",
+                        name: box.name,
+                        timestamp: new Date(),
+                        success: false,
+                        message: `Paleti (${palletCode}) başka sevkiyatta`,
+                    });
+                } else {
+                    // Pallet has no shipment - add it
+                    await palletRepository.setShipment(palletCode, currentShipment.code);
+                    showFlash("green");
+                    if (currentSoundEnabled) playBeep(true);
+                    setScanCount((prev) => ({ ...prev, pallets: prev.pallets + 1 }));
+                    addScannedItem({
+                        code,
+                        type: "box",
+                        name: box.name,
+                        timestamp: new Date(),
+                        success: true,
+                        message: `Paleti (${palletCode}) sevkiyata eklendi ✓`,
+                    });
+                    showSuccessNotification("pallet", `${pallet.name} (${box.name} kolisinden)`, currentShipment.name_or_plate);
+                }
+            } else {
+                // Not direct shipment, no pallet - ask user for confirmation
+                showFlash("red");
+                if (currentSoundEnabled) playBeep(false);
+                addScannedItem({
+                    code,
+                    type: "box",
+                    name: box.name,
+                    timestamp: new Date(),
+                    success: false,
+                    message: "⚠️ Direk sevkiyata eklenmemiş - Onay bekleniyor",
+                });
+                // Show confirmation dialog
+                setConfirmDialog({
+                    open: true,
+                    code: code,
+                    boxName: box.name,
+                    shipment: currentShipment,
+                    soundOn: currentSoundEnabled,
+                });
             }
         } catch (error) {
             showFlash("red");
@@ -524,6 +611,45 @@ export default function TerminalModePage() {
                 message: "Ekleme hatası",
             });
         }
+    };
+
+    // Handle confirmation: add non-direct box to shipment
+    const handleConfirmAddBox = async () => {
+        const { code, boxName, shipment, soundOn } = confirmDialog;
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        if (!shipment) return;
+
+        try {
+            // Mark as direct shipment and add to shipment
+            await boxRepository.update(code, { is_direct_shipment: true, shipment_code: shipment.code });
+            showFlash("green");
+            if (soundOn) playBeep(true);
+            setScanCount((prev) => ({ ...prev, boxes: prev.boxes + 1 }));
+            // Update the scanned item to success
+            setScannedItems(prev => prev.map(item =>
+                item.code === code && !item.success
+                    ? { ...item, success: true, message: "Onaylandı - Sevkiyata eklendi ✓" }
+                    : item
+            ));
+            showSuccessNotification("box", boxName, shipment.name_or_plate);
+        } catch (error) {
+            showFlash("red");
+            if (soundOn) playBeep(false);
+            toast({
+                title: "Hata",
+                description: "Koli eklenemedi",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleCancelAddBox = () => {
+        const { code } = confirmDialog;
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+        // Allow re-scanning this code
+        setTimeout(() => {
+            processedCodesRef.current.delete(code);
+        }, 1000);
     };
 
     const addScannedItem = (item: ScannedItem) => {
@@ -995,6 +1121,73 @@ export default function TerminalModePage() {
                     </div>
                 )}
             </motion.div>
+
+            {/* Confirmation Dialog - Non-direct box */}
+            <Dialog open={confirmDialog.open} onOpenChange={(open) => { if (!open) handleCancelAddBox(); }}>
+                <DialogContent className="sm:max-w-md border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-amber-700">
+                            <AlertCircle className="h-5 w-5" />
+                            Koli Direk Sevkiyata Eklenmemiş
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-3">
+                        <p className="text-sm text-slate-700">
+                            <strong>{confirmDialog.boxName}</strong> ({confirmDialog.code}) kolisi direk sevkiyat olarak işaretlenmemiştir.
+                        </p>
+                        <p className="text-sm text-slate-600">
+                            Bu koliyi <strong>{confirmDialog.shipment?.name_or_plate}</strong> sevkiyatına direk olarak eklemek istiyor musunuz?
+                        </p>
+                        <div className="bg-amber-100/60 border border-amber-200 rounded-lg p-3">
+                            <p className="text-xs text-amber-700">
+                                ⚠️ Onaylarsanız koli &quot;Direk Sevkiyat&quot; olarak işaretlenip sevkiyata eklenecektir.
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={handleCancelAddBox}>
+                            İptal
+                        </Button>
+                        <Button
+                            onClick={handleConfirmAddBox}
+                            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                        >
+                            <Check className="h-4 w-4 mr-2" />
+                            Evet, Ekle
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Success Notification Dialog */}
+            <AnimatePresence>
+                {successDialog.open && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 50 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-sm"
+                    >
+                        <Card className="border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 shadow-2xl shadow-emerald-500/20">
+                            <CardContent className="p-4 flex items-center gap-3">
+                                <div className="p-2 rounded-full bg-emerald-500 text-white shrink-0">
+                                    <Check className="h-5 w-5" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-emerald-800 text-sm">
+                                        {successDialog.type === "pallet" ? "Palet" : "Koli"} Eklendi ✓
+                                    </p>
+                                    <p className="text-xs text-emerald-600 truncate">
+                                        <strong>{successDialog.itemName}</strong> → {successDialog.shipmentName}
+                                    </p>
+                                </div>
+                                <Sparkles className="h-5 w-5 text-emerald-400 animate-pulse shrink-0" />
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
