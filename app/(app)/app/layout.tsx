@@ -28,17 +28,18 @@ const getPageName = (path: string): string => {
     "/app/pallets/new": "Yeni Palet",
     "/app/shipments": "Sevkiyatlar",
     "/app/shipments/new": "Yeni Sevkiyat",
+    "/app/terminal": "Terminal Modu",
     "/app/admin": "Admin Paneli",
     "/app/super-admin": "Süper Admin",
     "/app/admin-logs": "Sistem Logları",
   };
-  
+
   // Dinamik sayfa yolları için kontrol
   if (path.match(/\/app\/boxes\/[^/]+\/edit$/)) return "Koli Düzenleme";
   if (path.match(/\/app\/boxes\/[^/]+$/)) return "Koli Detay";
   if (path.match(/\/app\/pallets\/[^/]+$/)) return "Palet Detay";
   if (path.match(/\/app\/shipments\/[^/]+$/)) return "Sevkiyat Detay";
-  
+
   return pageNames[path] || "Sayfa";
 };
 
@@ -113,7 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.push("/login");
       return;
     }
-    
+
     // Site lockdown kontrolü - super_admin hariç herkes engellenir
     if (session.user.role !== "super_admin") {
       const isLocked = await siteLockdown.isActive();
@@ -122,7 +123,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return;
       }
     }
-    
+
     setUser(session.user);
     setLoading(false);
 
@@ -147,75 +148,75 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <PdfProgressProvider>
-    <div className="min-h-screen flex flex-col">
-      <AnimatedBackground />
-      {/* Duyuru banner - en üstte, TopBar'dan önce */}
-      <AnnouncementBanner />
-      {/* Popup duyuru - giriş sonrası bir kere gösterilir */}
-      <AnnouncementPopup />
-      <TopBar userName={user.name} onSignOut={handleSignOut} />
-      <Sidebar userRole={user.role} />
-      
-      <main className="md:ml-64 pb-20 md:pb-4 min-h-[calc(100vh-4rem)]">
-        <PageTransition>
-          <div className="container px-4 py-6">
-            {children}
-          </div>
-        </PageTransition>
+      <div className="min-h-screen flex flex-col">
+        <AnimatedBackground />
+        {/* Duyuru banner - en üstte, TopBar'dan önce */}
+        <AnnouncementBanner />
+        {/* Popup duyuru - giriş sonrası bir kere gösterilir */}
+        <AnnouncementPopup />
+        <TopBar userName={user.name} onSignOut={handleSignOut} />
+        <Sidebar userRole={user.role} />
 
-        {/* Futuristic Footer */}
-        <motion.footer
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="relative mt-8 border-t border-slate-200/60 bg-white/50 backdrop-blur-sm overflow-hidden"
-        >
-          {/* Top gradient line */}
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent" />
-          
-          <div className="text-center py-4 relative">
-            <motion.div 
-              className="flex items-center justify-center gap-3"
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.6 }}
-            >
+        <main className="md:ml-64 pb-20 md:pb-4 min-h-[calc(100vh-4rem)]">
+          <PageTransition>
+            <div className="container px-4 py-6">
+              {children}
+            </div>
+          </PageTransition>
+
+          {/* Futuristic Footer */}
+          <motion.footer
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="relative mt-8 border-t border-slate-200/60 bg-white/50 backdrop-blur-sm overflow-hidden"
+          >
+            {/* Top gradient line */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent" />
+
+            <div className="text-center py-4 relative">
               <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10"
+                className="flex items-center justify-center gap-3"
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6 }}
               >
-                <Cpu className="h-4 w-4 text-blue-500" />
-              </motion.div>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">Powered by</span>
-                <span className="font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Canberk Şıklı
-                </span>
                 <motion.div
-                  animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                  className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10"
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <Cpu className="h-4 w-4 text-blue-500" />
                 </motion.div>
-              </div>
-            </motion.div>
-            
-            <motion.p 
-              className="text-[10px] text-slate-400 mt-1"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-            >
-              QR Lojistik Sistemi v2.0
-            </motion.p>
-          </div>
-        </motion.footer>
-      </main>
 
-      <BottomNav userRole={user.role} />
-    </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Powered by</span>
+                  <span className="font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Canberk Şıklı
+                  </span>
+                  <motion.div
+                    animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  </motion.div>
+                </div>
+              </motion.div>
+
+              <motion.p
+                className="text-[10px] text-slate-400 mt-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+              >
+                QR Lojistik Sistemi v2.0
+              </motion.p>
+            </div>
+          </motion.footer>
+        </main>
+
+        <BottomNav userRole={user.role} />
+      </div>
     </PdfProgressProvider>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Package, Layers, Truck, ShieldCheck, Crown, LayoutDashboard, Activity } from "lucide-react";
+import { Home, Package, Layers, Truck, ShieldCheck, Crown, LayoutDashboard, Activity, ScanLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { UserRole } from "@/lib/auth";
@@ -61,6 +61,16 @@ const navItems = [
     color: "from-purple-500 to-pink-500",
     activeColor: "text-purple-600",
     activeBg: "bg-purple-50",
+  },
+  {
+    name: "Terminal",
+    shortName: "Tara",
+    href: "/app/terminal",
+    icon: ScanLine,
+    roles: ["user", "manager", "super_admin"],
+    color: "from-emerald-500 to-teal-500",
+    activeColor: "text-emerald-600",
+    activeBg: "bg-emerald-50",
   },
   {
     name: "Raporlar",
@@ -140,7 +150,7 @@ export function BottomNav({ userRole }: BottomNavProps) {
                 <motion.div
                   className={cn(
                     "p-1.5 rounded-lg transition-all",
-                    isActive 
+                    isActive
                       ? `bg-gradient-to-br ${item.color} text-white shadow-lg`
                       : "text-slate-400"
                   )}

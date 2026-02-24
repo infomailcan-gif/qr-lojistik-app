@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Package, Layers, Truck, ShieldCheck, Crown, Hexagon, LayoutDashboard, Activity } from "lucide-react";
+import { Home, Package, Layers, Truck, ShieldCheck, Crown, Hexagon, LayoutDashboard, Activity, ScanLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { UserRole } from "@/lib/auth";
@@ -58,6 +58,15 @@ const navItems = [
     textColor: "text-purple-600",
   },
   {
+    name: "Terminal Modu",
+    href: "/app/terminal",
+    icon: ScanLine,
+    roles: ["user", "manager", "super_admin"],
+    color: "from-emerald-500 to-teal-500",
+    bgColor: "bg-emerald-50",
+    textColor: "text-emerald-600",
+  },
+  {
     name: "Raporlar",
     href: "/app/admin",
     icon: ShieldCheck,
@@ -99,7 +108,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         <svg className="w-full h-full">
           <defs>
             <pattern id="sidebarGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(99, 102, 241, 0.1)" strokeWidth="0.5"/>
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(99, 102, 241, 0.1)" strokeWidth="0.5" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#sidebarGrid)" />
@@ -109,7 +118,7 @@ export function Sidebar({ userRole }: SidebarProps) {
       <nav className="flex flex-col gap-2 p-4 w-full relative z-10">
         {/* Nav Header */}
         <div className="mb-4 px-3">
-          <motion.div 
+          <motion.div
             className="flex items-center gap-2 text-xs font-medium text-slate-400 uppercase tracking-wider"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -154,8 +163,8 @@ export function Sidebar({ userRole }: SidebarProps) {
                 <motion.div
                   className={cn(
                     "p-2 rounded-lg transition-all",
-                    isActive 
-                      ? `bg-gradient-to-br ${item.color} text-white shadow-lg` 
+                    isActive
+                      ? `bg-gradient-to-br ${item.color} text-white shadow-lg`
                       : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
                   )}
                   whileHover={{ scale: 1.05, rotate: 5 }}
@@ -195,7 +204,7 @@ export function Sidebar({ userRole }: SidebarProps) {
 
         {/* Bottom Decoration */}
         <div className="mt-auto pt-4 border-t border-slate-200/60">
-          <motion.div 
+          <motion.div
             className="flex items-center justify-center gap-1.5 py-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
