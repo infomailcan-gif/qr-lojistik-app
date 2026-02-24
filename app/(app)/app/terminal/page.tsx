@@ -92,6 +92,16 @@ export default function TerminalModePage() {
     const videoContainerRef = useRef<HTMLDivElement>(null);
     const processedCodesRef = useRef<Set<string>>(new Set());
 
+    // Refs to avoid stale closure in scanner callback
+    const selectedShipmentRef = useRef<ShipmentWithCounts | null>(null);
+    const soundEnabledRef = useRef(true);
+    const isProcessingRef = useRef(false);
+
+    // Keep refs in sync with state
+    useEffect(() => { selectedShipmentRef.current = selectedShipment; }, [selectedShipment]);
+    useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
+    useEffect(() => { isProcessingRef.current = isProcessing; }, [isProcessing]);
+
     useEffect(() => {
         loadData();
         return () => {
@@ -213,11 +223,15 @@ export default function TerminalModePage() {
 
     const handleQrResult = useCallback(
         async (decodedText: string) => {
-            // Prevent duplicate processing
-            if (processedCodesRef.current.has(decodedText) || isProcessing) return;
+            // Prevent duplicate processing - use ref for guard
+            if (processedCodesRef.current.has(decodedText) || isProcessingRef.current) return;
 
+            isProcessingRef.current = true;
             setIsProcessing(true);
             processedCodesRef.current.add(decodedText);
+
+            const currentShipment = selectedShipmentRef.current;
+            const currentSoundEnabled = soundEnabledRef.current;
 
             try {
                 // Parse the QR URL: could be full URL or just code
@@ -261,7 +275,7 @@ export default function TerminalModePage() {
 
                 if (!itemCode || !itemType) {
                     showFlash("red");
-                    if (soundEnabled) playBeep(false);
+                    if (currentSoundEnabled) playBeep(false);
                     addScannedItem({
                         code: decodedText.substring(0, 30),
                         type: "box",
@@ -274,24 +288,26 @@ export default function TerminalModePage() {
                     setTimeout(() => {
                         processedCodesRef.current.delete(decodedText);
                     }, 3000);
+                    isProcessingRef.current = false;
                     setIsProcessing(false);
                     return;
                 }
 
-                if (!selectedShipment) {
+                if (!currentShipment) {
+                    isProcessingRef.current = false;
                     setIsProcessing(false);
                     return;
                 }
 
                 if (itemType === "pallet") {
-                    await addPalletToShipment(itemCode);
+                    await addPalletToShipment(itemCode, currentShipment, currentSoundEnabled);
                 } else {
-                    await addBoxToShipment(itemCode);
+                    await addBoxToShipment(itemCode, currentShipment, currentSoundEnabled);
                 }
             } catch (error) {
                 console.error("QR processing error:", error);
                 showFlash("red");
-                if (soundEnabled) playBeep(false);
+                if (currentSoundEnabled) playBeep(false);
                 addScannedItem({
                     code: decodedText.substring(0, 30),
                     type: "box",
@@ -305,17 +321,18 @@ export default function TerminalModePage() {
                 }, 3000);
             }
 
+            isProcessingRef.current = false;
             setIsProcessing(false);
         },
-        [selectedShipment, isProcessing, soundEnabled]
+        [] // No deps needed - uses refs
     );
 
-    const addPalletToShipment = async (code: string) => {
+    const addPalletToShipment = async (code: string, currentShipment: ShipmentWithCounts, currentSoundEnabled: boolean) => {
         try {
             const pallet = await palletRepository.getByCode(code);
             if (!pallet) {
                 showFlash("red");
-                if (soundEnabled) playBeep(false);
+                if (currentSoundEnabled) playBeep(false);
                 addScannedItem({
                     code,
                     type: "pallet",
@@ -327,9 +344,9 @@ export default function TerminalModePage() {
                 return;
             }
 
-            if (pallet.shipment_code && pallet.shipment_code !== selectedShipment?.code) {
+            if (pallet.shipment_code && pallet.shipment_code !== currentShipment.code) {
                 showFlash("red");
-                if (soundEnabled) playBeep(false);
+                if (currentSoundEnabled) playBeep(false);
                 addScannedItem({
                     code,
                     type: "pallet",
@@ -341,9 +358,9 @@ export default function TerminalModePage() {
                 return;
             }
 
-            if (pallet.shipment_code === selectedShipment?.code) {
+            if (pallet.shipment_code === currentShipment.code) {
                 showFlash("red");
-                if (soundEnabled) playBeep(false);
+                if (currentSoundEnabled) playBeep(false);
                 addScannedItem({
                     code,
                     type: "pallet",
@@ -355,9 +372,9 @@ export default function TerminalModePage() {
                 return;
             }
 
-            await palletRepository.setShipment(code, selectedShipment!.code);
+            await palletRepository.setShipment(code, currentShipment.code);
             showFlash("green");
-            if (soundEnabled) playBeep(true);
+            if (currentSoundEnabled) playBeep(true);
             setScanCount((prev) => ({ ...prev, pallets: prev.pallets + 1 }));
             addScannedItem({
                 code,
@@ -369,7 +386,7 @@ export default function TerminalModePage() {
             });
         } catch (error) {
             showFlash("red");
-            if (soundEnabled) playBeep(false);
+            if (currentSoundEnabled) playBeep(false);
             addScannedItem({
                 code,
                 type: "pallet",
@@ -381,12 +398,12 @@ export default function TerminalModePage() {
         }
     };
 
-    const addBoxToShipment = async (code: string) => {
+    const addBoxToShipment = async (code: string, currentShipment: ShipmentWithCounts, currentSoundEnabled: boolean) => {
         try {
             const box = await boxRepository.getByCode(code);
             if (!box) {
                 showFlash("red");
-                if (soundEnabled) playBeep(false);
+                if (currentSoundEnabled) playBeep(false);
                 addScannedItem({
                     code,
                     type: "box",
@@ -401,9 +418,9 @@ export default function TerminalModePage() {
             // Check if it's a direct shipment box
             if ((box as any).is_direct_shipment) {
                 // Direct shipment - add directly to shipment
-                if ((box as any).shipment_code && (box as any).shipment_code !== selectedShipment?.code) {
+                if ((box as any).shipment_code && (box as any).shipment_code !== currentShipment.code) {
                     showFlash("red");
-                    if (soundEnabled) playBeep(false);
+                    if (currentSoundEnabled) playBeep(false);
                     addScannedItem({
                         code,
                         type: "box",
@@ -415,9 +432,9 @@ export default function TerminalModePage() {
                     return;
                 }
 
-                if ((box as any).shipment_code === selectedShipment?.code) {
+                if ((box as any).shipment_code === currentShipment.code) {
                     showFlash("red");
-                    if (soundEnabled) playBeep(false);
+                    if (currentSoundEnabled) playBeep(false);
                     addScannedItem({
                         code,
                         type: "box",
@@ -429,9 +446,9 @@ export default function TerminalModePage() {
                     return;
                 }
 
-                await boxRepository.update(code, { shipment_code: selectedShipment!.code });
+                await boxRepository.update(code, { shipment_code: currentShipment.code });
                 showFlash("green");
-                if (soundEnabled) playBeep(true);
+                if (currentSoundEnabled) playBeep(true);
                 setScanCount((prev) => ({ ...prev, boxes: prev.boxes + 1 }));
                 addScannedItem({
                     code,
@@ -447,11 +464,11 @@ export default function TerminalModePage() {
                     // Has pallet - add the pallet to shipment instead
                     const palletCode = (box as any).pallet_code;
                     showFlash("green");
-                    if (soundEnabled) playBeep(true);
+                    if (currentSoundEnabled) playBeep(true);
 
                     // Check if pallet already in this shipment
                     const pallet = await palletRepository.getByCode(palletCode);
-                    if (pallet && pallet.shipment_code === selectedShipment?.code) {
+                    if (pallet && pallet.shipment_code === currentShipment.code) {
                         addScannedItem({
                             code,
                             type: "box",
@@ -461,7 +478,7 @@ export default function TerminalModePage() {
                             message: `Paleti (${palletCode}) zaten bu sevkiyatta`,
                         });
                     } else if (pallet && !pallet.shipment_code) {
-                        await palletRepository.setShipment(palletCode, selectedShipment!.code);
+                        await palletRepository.setShipment(palletCode, currentShipment.code);
                         setScanCount((prev) => ({ ...prev, pallets: prev.pallets + 1 }));
                         addScannedItem({
                             code,
@@ -484,7 +501,7 @@ export default function TerminalModePage() {
                 } else {
                     // No pallet - can't add directly unless it's marked as direct shipment
                     showFlash("red");
-                    if (soundEnabled) playBeep(false);
+                    if (currentSoundEnabled) playBeep(false);
                     addScannedItem({
                         code,
                         type: "box",
@@ -497,7 +514,7 @@ export default function TerminalModePage() {
             }
         } catch (error) {
             showFlash("red");
-            if (soundEnabled) playBeep(false);
+            if (currentSoundEnabled) playBeep(false);
             addScannedItem({
                 code,
                 type: "box",
@@ -762,8 +779,8 @@ export default function TerminalModePage() {
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.4 }}
                         className={`fixed inset-0 z-50 pointer-events-none ${flashColor === "green"
-                                ? "bg-emerald-500/30"
-                                : "bg-red-500/30"
+                            ? "bg-emerald-500/30"
+                            : "bg-red-500/30"
                             }`}
                     />
                 )}
@@ -929,15 +946,15 @@ export default function TerminalModePage() {
                                 >
                                     <Card
                                         className={`border ${item.success
-                                                ? "border-emerald-200 bg-emerald-50/80"
-                                                : "border-red-200 bg-red-50/80"
+                                            ? "border-emerald-200 bg-emerald-50/80"
+                                            : "border-red-200 bg-red-50/80"
                                             }`}
                                     >
                                         <CardContent className="p-3 flex items-center gap-3">
                                             <div
                                                 className={`p-1.5 rounded-lg ${item.success
-                                                        ? "bg-emerald-100 text-emerald-600"
-                                                        : "bg-red-100 text-red-600"
+                                                    ? "bg-emerald-100 text-emerald-600"
+                                                    : "bg-red-100 text-red-600"
                                                     }`}
                                             >
                                                 {item.type === "pallet" ? (
